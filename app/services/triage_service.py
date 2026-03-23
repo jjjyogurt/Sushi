@@ -74,6 +74,18 @@ class TriageService:
         )
         return candidate
 
+    def delete_video(self, *, video_id: int):
+        success = self.video_repository.delete(video_id=video_id)
+        if not success:
+            raise ValueError("Video candidate not found.")
+        self.audit_repository.record(
+            actor="marketing-user",
+            action="delete_video",
+            resource_type="video_candidate",
+            resource_id=str(video_id),
+        )
+        return True
+
     def add_manual_video(self, *, monitor_profile_id: int, video_url: str, language: str = None):
         profile = self.monitor_repository.get(monitor_profile_id)
         if profile is None:

@@ -3,144 +3,227 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Influencer Monitor</title>
+    <title>The Documentarian - Video Queue</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <div class="layout">
+    <div class="app-shell">
       <aside class="sidebar">
-        <h1>Sushi Monitor</h1>
-        <nav>
-          <button class="nav-btn active" data-section="dashboard">
-            <span class="icon">📊</span> Dashboard
+        <div class="brand-block">
+          <h1>Curator Pro</h1>
+          <p>Editorial Workspace</p>
+        </div>
+        <nav class="sidebar-nav">
+          <button class="nav-btn active" data-section="dashboard" type="button">
+            <span class="material-symbols-outlined icon">dashboard</span>
+            Dashboard
           </button>
-          <button class="nav-btn" data-section="queue">
-            <span class="icon">🎬</span> Video Queue
+          <button class="nav-btn" data-section="queue" type="button">
+            <span class="material-symbols-outlined icon">queue_play_next</span>
+            Video Queue
           </button>
-          <button class="nav-btn" data-section="alerts">
-            <span class="icon">🔔</span> Alerts
+          <button class="nav-btn" data-section="alerts" type="button">
+            <span class="material-symbols-outlined icon">notifications_active</span>
+            Alerts
           </button>
         </nav>
+        <div class="sidebar-footer">
+          <button class="nav-btn" type="button">
+            <span class="material-symbols-outlined icon">help</span>
+            Help Center
+          </button>
+        </div>
       </aside>
 
-      <main class="content">
-        <section id="dashboard" class="panel active">
-          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 32px;">
-            <h2 style="margin-bottom: 0;">Projects</h2>
-            <button id="toggle-create-btn" style="background: var(--sidebar-bg); border: 1px solid var(--border); color: var(--text); padding: 4px 12px; font-size: 0.875rem; display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 1.2rem; line-height: 1;">+</span> New Project
-            </button>
+      <div class="main-shell">
+        <header class="topbar">
+          <div class="topbar-title">
+            <span class="app-name">The Documentarian</span>
+            <span class="topbar-context">Video Queue</span>
           </div>
-
-          <div id="create-profile-container" style="display: none; background: var(--sidebar-bg); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 40px;">
-            <form id="profile-form" class="card" style="margin-bottom: 0;">
-              <label>
-                Project Name
-                <input type="text" name="name" placeholder="HoverAir Global Monitoring" required />
-              </label>
-              <label>
-                Brand Keywords (comma-separated)
-                <input type="text" name="brand_keywords" placeholder="hoverair, hover air x1" required />
-              </label>
-            <label>
-              Markets
-              <input type="hidden" name="markets" id="markets-hidden" required />
-              <div class="token-input-group">
-                <div id="markets-tokens" class="token-list"></div>
-                <input
-                  type="text"
-                  id="markets-token-input"
-                  placeholder="Type or select market, then press Enter"
-                  list="market-options"
-                />
-              </div>
-              <datalist id="market-options">
-                <option value="United States (US)"></option>
-                <option value="Germany (DE)"></option>
-                <option value="Spain (ES)"></option>
-                <option value="Japan (JP)"></option>
-                <option value="Global"></option>
-              </datalist>
-              </label>
-              <label>
-              Languages
-              <input type="hidden" name="languages" id="languages-hidden" required />
-              <div class="token-input-group">
-                <div id="languages-tokens" class="token-list"></div>
-                <input
-                  type="text"
-                  id="languages-token-input"
-                  placeholder="Type or select language, then press Enter"
-                  list="language-options"
-                />
-              </div>
-              <datalist id="language-options">
-                <option value="English (en)"></option>
-                <option value="German (de)"></option>
-                <option value="Spanish (es)"></option>
-                <option value="French (fr)"></option>
-                <option value="Japanese (ja)"></option>
-              </datalist>
-              </label>
-              <label>
-                Alert Sensitivity
-                <select name="alert_sensitivity">
-                  <option value="low">Low</option>
-                  <option value="medium" selected>Medium</option>
-                  <option value="high">High</option>
-                </select>
-              </label>
-              <div style="display: flex; gap: 12px; margin-top: 8px;">
-                <button type="submit">Create Project</button>
-                <button type="button" id="cancel-create-btn" class="secondary" style="background: transparent; border: 1px solid var(--border); color: var(--text);">Cancel</button>
-              </div>
-            </form>
-          </div>
-
-          <div id="profile-grid" class="project-grid">
-            <!-- Profiles will be rendered as cards here -->
-          </div>
-        </section>
-
-        <section id="queue" class="panel">
-          <h2>Video Queue</h2>
-          <div class="queue-controls card">
-            <label>
-              Project
-              <select id="profile-select"></select>
+          <div class="topbar-actions">
+            <label class="search-wrap">
+              <span class="material-symbols-outlined">search</span>
+              <input type="text" placeholder="Global search..." />
             </label>
-            <button id="discover-btn">Discover Videos</button>
-            <label>
-              Title Filter
-              <input id="title-filter" type="text" placeholder="Filter by title keyword" />
-            </label>
-            <button id="refresh-videos-btn">Refresh List</button>
-            <label>
-              Add YouTube URL
-              <input id="manual-video-url" type="text" placeholder="https://www.youtube.com/watch?v=..." />
-            </label>
-            <button id="add-manual-video-btn">Add Video</button>
-          </div>
-          <div class="two-column">
-            <div class="card">
-              <h3>Candidates</h3>
-              <ul id="video-list"></ul>
-            </div>
-            <div class="card">
-              <h3>Video Detail</h3>
-              <div id="video-detail">Select a video to view analysis and chat.</div>
+            <button class="icon-btn"><span class="material-symbols-outlined">notifications</span></button>
+            <button class="icon-btn"><span class="material-symbols-outlined">help</span></button>
+            <div class="user-avatar">
+              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTpApU0B2nfiIoaPCWy-3sHi2-I977nDmge-siHswizCLIWwTPvZ-jpxX8NKcx7vf5Z_uPdGHTWP2S5L2V2RkKOaYhJal5RKgaUUvVf-hN_ADM_oPiF7WGa_RWkd8HJCDQKLafMr7bv-nUrZMPl6aj6WQKp2tOyDJlyQYRayTzMiSu0c7aiGdtzyw1khE9okPmFn9wLsA1Mrg8svZL9GR-uwo_1MgeZYYSvdTMnQjHYSRfp7gSPi3csOa4XBjh9f2QgdI4OA7HiY8o" alt="User" />
             </div>
           </div>
-        </section>
+        </header>
 
-        <section id="alerts" class="panel">
-          <h2>Alerts</h2>
-          <div class="card">
-            <button id="refresh-alerts-btn">Refresh Alerts</button>
-            <ul id="alerts-list"></ul>
-          </div>
-        </section>
-      </main>
+        <div id="app-message" class="app-message is-hidden" role="status" aria-live="polite"></div>
+
+        <main class="content">
+          <section id="dashboard" class="panel active">
+            <div class="panel-header">
+              <div>
+                <h2>Projects</h2>
+                <p>Create monitoring scopes and editorial rules.</p>
+              </div>
+              <button id="toggle-create-btn" class="btn btn-secondary" type="button">
+                + New Project
+              </button>
+            </div>
+
+            <div id="create-profile-container" class="form-panel is-hidden" style="background: #ffffff; border: 1px solid #dde4e5; border-radius: 12px; padding: 32px; margin-bottom: 40px; box-shadow: 0 4px 20px rgba(0,0,0,0.04);">
+              <form id="profile-form" class="form-grid">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                  <label>
+                    Project Name
+                    <input type="text" name="name" placeholder="HoverAir Global Monitoring" required />
+                  </label>
+                  <label>
+                    Brand Keywords (comma-separated)
+                    <input type="text" name="brand_keywords" placeholder="hoverair, hover air x1" required />
+                  </label>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                  <label>
+                    Markets
+                    <input type="hidden" name="markets" id="markets-hidden" required />
+                    <div class="token-input-group">
+                      <div id="markets-tokens" class="token-list"></div>
+                      <input
+                        type="text"
+                        id="markets-token-input"
+                        placeholder="Type market, then Enter"
+                        list="market-options"
+                      />
+                    </div>
+                    <datalist id="market-options">
+                      <option value="United States (US)"></option>
+                      <option value="Germany (DE)"></option>
+                      <option value="Spain (ES)"></option>
+                      <option value="Japan (JP)"></option>
+                      <option value="Global"></option>
+                    </datalist>
+                  </label>
+                  <label>
+                    Languages
+                    <input type="hidden" name="languages" id="languages-hidden" required />
+                    <div class="token-input-group">
+                      <div id="languages-tokens" class="token-list"></div>
+                      <input
+                        type="text"
+                        id="languages-token-input"
+                        placeholder="Type language, then Enter"
+                        list="language-options"
+                      />
+                    </div>
+                    <datalist id="language-options">
+                      <option value="English (en)"></option>
+                      <option value="German (de)"></option>
+                      <option value="Spanish (es)"></option>
+                      <option value="French (fr)"></option>
+                      <option value="Japanese (ja)"></option>
+                    </datalist>
+                  </label>
+                </div>
+                <label style="width: 200px;">
+                  Alert Sensitivity
+                  <select name="alert_sensitivity">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <div class="button-row" style="margin-top: 12px; padding-top: 24px; border-top: 1px solid #f1f1f1;">
+                  <button class="btn btn-primary" type="submit">Create Project</button>
+                  <button class="btn btn-secondary" type="button" id="cancel-create-btn">Cancel</button>
+                </div>
+              </form>
+            </div>
+
+            <div id="profile-grid" class="project-grid"></div>
+          </section>
+
+          <section id="queue" class="panel">
+            <div class="panel-header queue-panel-header">
+              <div>
+                <h2>Video Queue</h2>
+                <p>Review candidates, approve analysis, and collaborate on risks.</p>
+              </div>
+              <div class="button-row">
+                <button id="refresh-videos-btn" class="btn btn-secondary" type="button">Refresh List</button>
+                <button id="discover-btn" class="btn btn-primary" type="button">Discover Videos</button>
+              </div>
+            </div>
+
+            <div class="queue-controls">
+              <label>
+                Project
+                <select id="profile-select"></select>
+              </label>
+              <label>
+                Title Filter
+                <input id="title-filter" type="text" placeholder="Filter by keywords..." />
+              </label>
+              <label>
+                Add YouTube URL
+                <input id="manual-video-url" type="text" placeholder="https://www.youtube.com/watch?v=..." />
+              </label>
+              <div class="queue-add-wrap">
+                <button id="add-manual-video-btn" class="btn btn-secondary" type="button">Add Video</button>
+              </div>
+            </div>
+
+            <div class="queue-layout">
+              <section class="pane queue-list-pane">
+                <div class="pane-header">
+                  <h3>Candidates</h3>
+                  <span id="video-count" class="meta">0</span>
+                </div>
+                <div id="video-list" class="video-list"></div>
+              </section>
+              <section class="pane queue-detail-pane">
+                <div id="video-detail" class="video-detail-empty">
+                  <div class="empty-state-content">
+                    <div class="empty-icon-circle">
+                      <span class="material-symbols-outlined">video_library</span>
+                    </div>
+                    <h3>Select a video to view analysis and chat.</h3>
+                    <p>Review transcript highlights, AI-generated editorial summaries, and participate in collaborative discussions on specific segments.</p>
+                    <div class="feature-pills">
+                      <div class="pill"><span class="material-symbols-outlined">auto_awesome</span> AI Summary</div>
+                      <div class="pill"><span class="material-symbols-outlined">forum</span> Team Chat</div>
+                      <div class="pill"><span class="material-symbols-outlined">description</span> Transcription</div>
+                    </div>
+                  </div>
+                  <div class="system-ready-footer">
+                    <div class="line"></div>
+                    <span>SYSTEM READY</span>
+                    <div class="line"></div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section id="alerts" class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Alerts</h2>
+                <p>Track escalations and follow-up tasks from queue actions.</p>
+              </div>
+              <button id="refresh-alerts-btn" class="btn btn-secondary" type="button">Refresh Alerts</button>
+            </div>
+            <section class="pane alerts-pane">
+              <ul id="alerts-list" class="alerts-list"></ul>
+            </section>
+          </section>
+        </main>
+
+        <nav class="mobile-nav">
+          <button class="nav-btn active" data-section="dashboard" type="button">Dashboard</button>
+          <button class="nav-btn" data-section="queue" type="button">Queue</button>
+          <button class="nav-btn" data-section="alerts" type="button">Alerts</button>
+        </nav>
+      </div>
     </div>
     <script src="/static/app.js"></script>
   </body>

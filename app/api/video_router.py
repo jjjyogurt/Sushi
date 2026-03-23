@@ -69,6 +69,16 @@ def approve_video(video_id: int, payload: VideoApproveRequest, db: Session = Dep
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
+@router.delete("/{video_id}")
+def delete_video(video_id: int, db: Session = Depends(get_db_session)):
+    service = TriageService(db)
+    try:
+        service.delete_video(video_id=video_id)
+        return {"status": "success", "message": "Video deleted"}
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
 @router.post("/{video_id}/analyze", response_model=AnalysisResponse)
 def analyze_video(video_id: int, payload: AnalysisRequest, db: Session = Depends(get_db_session)):
     service = AnalysisService(db)

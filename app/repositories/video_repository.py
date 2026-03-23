@@ -77,6 +77,14 @@ class VideoRepository:
         self.session.refresh(candidate)
         return candidate
 
+    def delete(self, video_id: int) -> bool:
+        candidate = self.get_by_id(video_id)
+        if candidate is None:
+            return False
+        self.session.delete(candidate)
+        self.session.commit()
+        return True
+
     def list(
         self,
         *,

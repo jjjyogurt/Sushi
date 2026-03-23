@@ -1,16 +1,35 @@
-const state = {
-  profiles: [],
-  videos: [],
-  selectedVideo: null,
-  tokenInputs: {
-    markets: [],
-    languages: [],
-  },
-  transcriptExpanded: false,
-};
+function initialState() {
+  return {
+    profiles: [],
+    selectedProfileId: null,
+    videos: [],
+    selectedVideoId: null,
+    tokenInputs: {
+      markets: [],
+      languages: [],
+    },
+    transcriptExpanded: false,
+  };
+}
+
+let state = initialState();
+let analysisCache = {};
+let chatCache = {};
+let detailAbortController = null;
+let messageTimer = null;
+
+function setState(patchOrUpdater) {
+  state =
+    typeof patchOrUpdater === "function"
+      ? patchOrUpdater(state)
+      : {
+          ...state,
+          ...patchOrUpdater,
+        };
+}
 
 function splitCsv(value) {
-  return value
+  return String(value || "")
     .split(",")
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
@@ -35,304 +54,590 @@ function normalizeSelectableValue(rawValue, type) {
   return type === "languages" ? value.toLowerCase() : value;
 }
 
-async function request(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(error.detail || "Request failed");
+function getElement(id) {
+  return document.getElementById(id);
+}
+
+function debounce(callback, delayMs) {
+  let timeoutId = null;
+  return (...args) => {
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
+    timeoutId = window.setTimeout(() => callback(...args), delayMs);
+  };
+}
+
+function showMessage(message, type = "info") {
+  const messageEl = getElement("app-message");
+  if (!messageEl) {
+    window.alert(message);
+    return;
   }
+
+  if (messageTimer) {
+    window.clearTimeout(messageTimer);
+  }
+
+  messageEl.classList.remove("is-hidden", "error", "success");
+  if (type === "error" || type === "success") {
+    messageEl.classList.add(type);
+  }
+  messageEl.textContent = message;
+
+  messageTimer = window.setTimeout(() => {
+    messageEl.classList.add("is-hidden");
+  }, 3600);
+}
+
+function clearMessage() {
+  const messageEl = getElement("app-message");
+  if (!messageEl) {
+    return;
+  }
+  messageEl.classList.add("is-hidden");
+  messageEl.classList.remove("error", "success");
+}
+
+async function runTask(task, successMessage = "") {
+  try {
+    clearMessage();
+    await task();
+    if (successMessage) {
+      showMessage(successMessage, "success");
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Request failed";
+    showMessage(message, "error");
+  }
+}
+
+async function request(path, options = {}) {
+  const { headers = {}, ...rest } = options;
+  const response = await fetch(path, {
+    headers: { "Content-Type": "application/json", ...headers },
+    ...rest,
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(errorPayload.detail || "Request failed");
+  }
+
   return response.json();
 }
 
+function getSelectedVideo() {
+  return state.videos.find((video) => video.id === state.selectedVideoId) || null;
+}
+
+function invalidateVideoCache(videoId) {
+  const { [videoId]: _analysis, ...remainingAnalysis } = analysisCache;
+  const { [videoId]: _chat, ...remainingChat } = chatCache;
+  analysisCache = remainingAnalysis;
+  chatCache = remainingChat;
+}
+
+function setCreatePanelVisible(isVisible) {
+  const container = getElement("create-profile-container");
+  const toggleButton = getElement("toggle-create-btn");
+  if (!container || !toggleButton) {
+    return;
+  }
+  container.classList.toggle("is-hidden", !isVisible);
+  toggleButton.classList.toggle("is-hidden", isVisible);
+}
+
+function setActiveSection(sectionId) {
+  if (!sectionId) {
+    return;
+  }
+  document.querySelectorAll(".panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.id === sectionId);
+  });
+  document.querySelectorAll(".nav-btn[data-section]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.section === sectionId);
+  });
+}
+
 function bindNav() {
-  const buttons = document.querySelectorAll(".nav-btn");
+  const buttons = Array.from(document.querySelectorAll(".nav-btn[data-section]"));
   buttons.forEach((button) => {
     button.addEventListener("click", () => {
-      buttons.forEach((item) => item.classList.remove("active"));
-      button.classList.add("active");
-      document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("active"));
-      document.getElementById(button.dataset.section).classList.add("active");
+      setActiveSection(button.dataset.section);
     });
   });
+}
+
+function profileCardMarkup(profile) {
+  return `
+    <article class="project-card">
+      <h4>${escapeHtml(profile.name)}</h4>
+      <div class="meta" style="font-weight: 600; color: #5a6061; font-size: 0.8rem;">Keywords: ${escapeHtml(profile.brand_keywords.join(", "))}</div>
+      <div class="chip-row" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+        ${profile.markets.map((market) => `<span class="badge" style="background: #f2f4f4; color: #5a6061; padding: 4px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">${escapeHtml(market)}</span>`).join("")}
+      </div>
+      <div class="chip-row" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+        ${profile.languages.map((language) => `<span class="badge" style="background: #f2f4f4; color: #5a6061; padding: 4px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">${escapeHtml(language)}</span>`).join("")}
+      </div>
+      <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid #f1f1f1; display: flex; justify-content: flex-end;">
+        <span class="badge" style="background: #dde4e5; color: #2d3435; padding: 6px 14px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: background 0.2s;">Open Queue</span>
+      </div>
+    </article>
+  `;
 }
 
 function renderProfileList() {
-  const list = document.getElementById("profile-list");
-  const select = document.getElementById("profile-select");
-  list.innerHTML = "";
-  select.innerHTML = "";
-  state.profiles.forEach((profile) => {
-    const item = document.createElement("li");
-    item.className = "list-item";
-    item.innerHTML = `
-      <div style="font-weight: 600; font-size: 0.875rem;">${escapeHtml(profile.name)}</div>
-      <div class="meta" style="margin-top: 4px;">
-        <span class="badge">Keywords</span> ${escapeHtml(profile.brand_keywords.join(", "))}
-      </div>
-      <div class="meta" style="margin-top: 2px;">
-        <span class="badge">Markets</span> ${escapeHtml(profile.markets.join(", "))} |
-        <span class="badge">Languages</span> ${escapeHtml(profile.languages.join(", "))}
-      </div>`;
-    list.appendChild(item);
+  const profileGrid = getElement("profile-grid");
+  const profileSelect = getElement("profile-select");
+  if (!profileGrid || !profileSelect) {
+    return;
+  }
 
+  profileGrid.innerHTML = "";
+  profileSelect.innerHTML = "";
+
+  if (state.profiles.length === 0) {
+    profileGrid.innerHTML =
+      '<div class="video-detail-empty">No projects yet. Create one to start monitoring videos.</div>';
+    profileSelect.disabled = true;
+    const emptyOption = document.createElement("option");
+    emptyOption.value = "";
+    emptyOption.textContent = "No projects available";
+    profileSelect.appendChild(emptyOption);
+    return;
+  }
+
+  profileSelect.disabled = false;
+  state.profiles.forEach((profile) => {
+    profileGrid.insertAdjacentHTML("beforeend", profileCardMarkup(profile));
     const option = document.createElement("option");
-    option.value = profile.id;
-    option.textContent = `${profile.name} (#${profile.id})`;
-    select.appendChild(option);
+    option.value = String(profile.id);
+    option.textContent = profile.name;
+    profileSelect.appendChild(option);
   });
+
+  const selectedId = state.selectedProfileId ?? state.profiles[0].id;
+  profileSelect.value = String(selectedId);
 }
 
 async function loadProfiles() {
-  state.profiles = await request("/monitor-profiles");
+  const profiles = await request("/monitor-profiles");
+  const hasCurrent = profiles.some((profile) => profile.id === state.selectedProfileId);
+  const selectedProfileId =
+    hasCurrent || profiles.length === 0 ? state.selectedProfileId : profiles[0].id;
+
+  setState((previous) => ({
+    ...previous,
+    profiles,
+    selectedProfileId,
+  }));
   renderProfileList();
 }
 
-function renderVideos() {
-  const list = document.getElementById("video-list");
-  list.innerHTML = "";
-  state.videos.forEach((video) => {
-    const item = document.createElement("li");
-    item.className = "list-item";
-    item.innerHTML = `
-      <div style="font-weight: 600; font-size: 0.875rem;">${escapeHtml(video.title)}</div>
-      <div class="meta" style="margin-top: 4px;">
-        ${escapeHtml(video.channel_name)} • ${escapeHtml(video.language)} •
-        <span class="badge ${video.relevance_score > 0.7 ? "positive" : ""}">Score ${video.relevance_score.toFixed(2)}</span>
+function queueStateBadge(queueState) {
+  const normalized = String(queueState || "discovered");
+  const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  const isApproved = normalized === "approved";
+  const badgeClass = isApproved ? "bg-on-background text-on-primary" : "bg-surface-container-highest text-on-surface-variant";
+  return `<span class="px-2 py-0.5 ${badgeClass}" style="font-size: 0.625rem; font-weight: 700; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em;">${label}</span>`;
+}
+
+function renderVideoListItem(video) {
+  const isActive = video.id === state.selectedVideoId;
+  const scoreClass = video.relevance_score > 0.7 ? "positive" : "";
+  return `
+    <button class="video-item ${isActive ? "active" : ""}" data-video-id="${video.id}" type="button">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+        ${queueStateBadge(video.queue_state)}
+        <span class="text-[0.6875rem] text-on-surface-variant font-medium">12:45 PM</span>
       </div>
-      <div class="meta" style="margin-top: 2px; opacity: 0.7;">
-        Status: ${escapeHtml(video.queue_state)}
-      </div>`;
-    item.addEventListener("click", () => {
-      state.selectedVideo = video;
-      state.transcriptExpanded = false;
-      renderVideoDetail();
-    });
-    list.appendChild(item);
-  });
+      <h4>${escapeHtml(video.title)}</h4>
+      <p>${escapeHtml(video.channel_name)} • ${escapeHtml(video.language)}</p>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <span class="badge" style="background: #f2f4f4; color: #5a6061; padding: 4px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">Design</span>
+        <span class="badge" style="background: #f2f4f4; color: #5a6061; padding: 4px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">Culture</span>
+      </div>
+    </button>
+  `;
+}
+
+function renderVideos() {
+  const list = getElement("video-list");
+  const count = getElement("video-count");
+  if (!list || !count) {
+    return;
+  }
+
+  count.textContent = String(state.videos.length);
+  if (state.videos.length === 0) {
+    list.innerHTML =
+      '<div class="video-detail-empty">No candidates yet. Discover videos for the selected project.</div>';
+    return;
+  }
+  list.innerHTML = state.videos.map((video) => renderVideoListItem(video)).join("");
 }
 
 function sentimentBadge(sentiment) {
   if (!sentiment) {
-    return "";
+    return '<span class="badge">unknown</span>';
   }
   const css = sentiment === "negative" ? "negative" : sentiment === "positive" ? "positive" : "";
   return `<span class="badge ${css}">${escapeHtml(sentiment)}</span>`;
 }
 
-function renderTranscriptBlock(analysis) {
+function transcriptMarkup(analysis) {
   const transcript = analysis ? analysis.transcript_text || "" : "";
   const expanded = state.transcriptExpanded;
   const buttonLabel = expanded ? "Collapse" : "Expand";
-  const transcriptPreview = expanded ? transcript : transcript.split("\n").slice(0, 24).join("\n");
+  const excerpt = expanded ? transcript : transcript.split("\n").slice(0, 24).join("\n");
+  const bodyText = excerpt || "Run analysis after approval to generate a transcript.";
   return `
-    <div class="card" style="margin-bottom: 0;">
-      <label>Transcript</label>
-      <div class="transcript-wrapper" style="margin-top: 8px;">
+    <div class="detail-block">
+      <h5>Transcript</h5>
+      <div class="transcript-wrapper">
         <div class="transcript-toolbar">
           <span class="meta">${transcript ? `${transcript.length.toLocaleString()} characters` : "No transcript available yet"}</span>
-          <button id="toggle-transcript-btn">${buttonLabel}</button>
+          <button id="toggle-transcript-btn" class="btn btn-secondary" type="button">${buttonLabel}</button>
         </div>
-        <pre class="transcript-body">${escapeHtml(transcriptPreview || "Run analysis after approval to generate a transcript.")}</pre>
+        <pre class="transcript-body">${escapeHtml(bodyText)}</pre>
       </div>
     </div>
   `;
 }
 
-function renderEvidence(analysis) {
-  if (!analysis || !analysis.evidence || analysis.evidence.length === 0) {
-    return "[]";
+function evidenceText(analysis) {
+  if (!analysis || !Array.isArray(analysis.evidence) || analysis.evidence.length === 0) {
+    return "No evidence snippets yet.";
   }
   return analysis.evidence.map((item) => `${item.timestamp} - ${item.quote} (${item.reason})`).join("\n");
 }
 
+function videoDetailMarkup(video, analysis, analysisError) {
+  const canAnalyze = video.queue_state === "approved";
+  const riskLevel = analysis ? String(analysis.risk_level || "").toUpperCase() : "-";
+  const riskStyle = analysis && analysis.risk_level === "high" ? ' style="color: var(--danger);"' : "";
+
+  return `
+    <div class="video-detail-body">
+      <div>
+        <h3 class="video-detail-title">${escapeHtml(video.title)}</h3>
+        <a class="video-link" href="${escapeHtml(video.video_url)}" target="_blank" rel="noreferrer">
+          ${escapeHtml(video.video_url)} ↗
+        </a>
+        <div class="analysis-status">
+          Queue state: <strong>${escapeHtml(video.queue_state)}</strong>
+          ${analysis ? ` | Analysis: <strong>${escapeHtml(analysis.status)}</strong>` : ""}
+        </div>
+      </div>
+
+      <div class="inline-actions">
+        <button id="approve-btn" class="btn btn-secondary" type="button">Approve</button>
+        <button id="reject-btn" class="btn btn-secondary" type="button">Reject</button>
+        <button id="analyze-btn" class="btn btn-primary" type="button" ${canAnalyze ? "" : "disabled"}>
+          ${canAnalyze ? "Run Analysis" : "Approve First"}
+        </button>
+        <button id="escalate-btn" class="btn btn-danger" type="button">Escalate</button>
+        <button id="delete-video-btn" class="btn btn-danger" type="button" style="margin-left: auto;">Delete</button>
+      </div>
+
+      ${analysisError ? `<div class="meta" style="color: var(--danger);">${escapeHtml(analysisError)}</div>` : ""}
+
+      <div class="detail-grid">
+        <div class="detail-block">
+          <h5>Summary</h5>
+          <div>${escapeHtml(analysis ? analysis.summary_text : "No analysis yet.")}</div>
+        </div>
+        <div class="split-grid">
+          <div class="detail-block">
+            <h5>Sentiment</h5>
+            <div>${analysis ? sentimentBadge(analysis.sentiment) : "-"}</div>
+          </div>
+          <div class="detail-block">
+            <h5>Risk Level</h5>
+            <div${riskStyle}><strong>${escapeHtml(riskLevel)}</strong></div>
+          </div>
+        </div>
+        ${transcriptMarkup(analysis)}
+        <div class="detail-block">
+          <h5>Evidence</h5>
+          <pre class="transcript-body">${escapeHtml(evidenceText(analysis))}</pre>
+        </div>
+      </div>
+
+      <div>
+        <h5 style="margin: 0 0 8px;">Chat with Video AI</h5>
+        <div id="chat-window" class="chat-window"></div>
+        <div class="inline-actions" style="margin-top: 8px;">
+          <input id="chat-question" type="text" placeholder="Ask about risk, tone, transcript details, or missing points..." style="flex: 1;" />
+          <button id="send-chat-btn" class="btn btn-primary" type="button">Send</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function fetchAnalysis(videoId, forceRefresh = false) {
+  if (!forceRefresh && analysisCache[videoId]) {
+    return analysisCache[videoId];
+  }
+
+  if (detailAbortController) {
+    detailAbortController.abort();
+  }
+  detailAbortController = new AbortController();
+
+  const analysis = await request(`/videos/${videoId}/analysis`, {
+    signal: detailAbortController.signal,
+  });
+  analysisCache = {
+    ...analysisCache,
+    [videoId]: analysis,
+  };
+  return analysis;
+}
+
+function renderVideoDetailEmpty(message) {
+  const container = getElement("video-detail");
+  if (!container) {
+    return;
+  }
+  container.className = "video-detail-empty";
+  container.textContent = message;
+}
+
 async function renderVideoDetail() {
-  const container = document.getElementById("video-detail");
-  if (!state.selectedVideo) {
-    container.textContent = "Select a video to view analysis and chat.";
+  const selectedVideo = getSelectedVideo();
+  if (!selectedVideo) {
+    renderVideoDetailEmpty("Select a video to view analysis and chat.");
     return;
   }
 
-  const selected = state.selectedVideo;
-  let analysis = null;
-  let analysisError = "";
-  try {
-    analysis = await request(`/videos/${selected.id}/analysis`);
-  } catch (error) {
-    analysisError = error.message;
+  const container = getElement("video-detail");
+  if (!container) {
+    return;
   }
 
-  const canAnalyze = selected.queue_state === "approved";
-  container.innerHTML = `
-    <h3 style="border:none; margin-bottom: 8px;">${escapeHtml(selected.title)}</h3>
-    <div class="meta" style="margin-bottom: 8px;">
-      <a href="${escapeHtml(selected.video_url)}" target="_blank" style="color: var(--accent); text-decoration: none;">${escapeHtml(selected.video_url)} ↗</a>
-    </div>
-    <div class="analysis-status">
-      Queue state: <strong>${escapeHtml(selected.queue_state)}</strong>
-      ${analysis ? `| Analysis: <strong>${escapeHtml(analysis.status)}</strong>` : ""}
-    </div>
+  container.className = "";
+  container.innerHTML = '<div class="video-detail-body"><div class="meta">Loading detail...</div></div>';
 
-    <div class="inline-actions" style="margin-top: 14px; margin-bottom: 22px;">
-      <button id="approve-btn">Approve</button>
-      <button id="reject-btn">Reject</button>
-      <button id="analyze-btn" ${canAnalyze ? "" : "disabled"}>${canAnalyze ? "Run Analysis" : "Approve First"}</button>
-      <button id="escalate-btn" style="color: var(--danger);">Escalate</button>
-    </div>
+  const renderTargetId = selectedVideo.id;
+  let analysis = null;
+  let analysisError = "";
 
-    ${analysisError ? `<div class="meta" style="color: var(--danger); margin-bottom: 16px;">${escapeHtml(analysisError)}</div>` : ""}
+  try {
+    analysis = await fetchAnalysis(renderTargetId);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return;
+    }
+    analysisError = error instanceof Error ? error.message : "Failed to load analysis.";
+  }
 
-    <div style="display: grid; gap: 20px; margin-bottom: 28px;">
-      <div class="card" style="margin-bottom: 0;">
-        <label>Summary</label>
-        <div style="font-size: 0.95rem; margin-top: 8px; line-height: 1.6;">${escapeHtml(
-          analysis ? analysis.summary_text : "No analysis yet."
-        )}</div>
-      </div>
+  if (renderTargetId !== state.selectedVideoId) {
+    return;
+  }
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        <div class="card" style="margin-bottom: 0;">
-          <label>Sentiment</label>
-          <div style="margin-top: 8px;">${analysis ? sentimentBadge(analysis.sentiment) : "-"}</div>
+  container.innerHTML = videoDetailMarkup(selectedVideo, analysis, analysisError);
+  bindDetailActions(selectedVideo.id, selectedVideo.queue_state === "approved");
+  await renderChat(selectedVideo.id);
+}
+
+async function fetchChat(videoId, forceRefresh = false) {
+  if (!forceRefresh && chatCache[videoId]) {
+    return chatCache[videoId];
+  }
+  const messages = await request(`/videos/${videoId}/chat`);
+  chatCache = {
+    ...chatCache,
+    [videoId]: messages,
+  };
+  return messages;
+}
+
+function renderChatEntries(messages) {
+  if (!messages || messages.length === 0) {
+    return '<div class="meta">No chat history yet. Ask a question to begin.</div>';
+  }
+
+  return messages
+    .map((message) => {
+      const citationText =
+        Array.isArray(message.citations) && message.citations.length > 0
+          ? ` (citations: ${message.citations.map((item) => item.timestamp).join(", ")})`
+          : "";
+      const role = escapeHtml(message.role);
+      const roleClass = role === "assistant" ? "assistant" : "user";
+      return `
+        <div class="chat-entry ${roleClass}">
+          <div class="chat-entry-label">${role}</div>
+          <div class="chat-entry-bubble">${escapeHtml(message.content)}${escapeHtml(citationText)}</div>
         </div>
-        <div class="card" style="margin-bottom: 0;">
-          <label>Risk Level</label>
-          <div style="margin-top: 8px; font-weight: 600; color: ${
-            analysis && analysis.risk_level === "high" ? "var(--danger)" : "var(--text)"
-          }">${analysis ? escapeHtml(analysis.risk_level.toUpperCase()) : "-"}</div>
-        </div>
-      </div>
-
-      ${renderTranscriptBlock(analysis)}
-
-      <div class="card" style="margin-bottom: 0;">
-        <label>Evidence</label>
-        <pre class="transcript-body" style="max-height: 180px;">${escapeHtml(renderEvidence(analysis))}</pre>
-      </div>
-    </div>
-
-    <h4 style="font-size: 1.1rem; margin-bottom: 16px;">Chat with Video AI</h4>
-    <div class="chat-window" id="chat-window"></div>
-    <div class="inline-actions" style="display: flex; gap: 8px;">
-      <input id="chat-question" type="text" placeholder="Ask about risk, tone, transcript details, or missing points..." style="flex: 1;" />
-      <button id="send-chat-btn" style="background: var(--text); color: white; border: none;">Send</button>
-    </div>
-  `;
-  bindDetailActions(selected.id, canAnalyze);
-  await renderChat(selected.id);
+      `;
+    })
+    .join("");
 }
 
 async function renderChat(videoId) {
-  const chatWindow = document.getElementById("chat-window");
+  const chatWindow = getElement("chat-window");
   if (!chatWindow) {
     return;
   }
-  const messages = await request(`/videos/${videoId}/chat`);
-  chatWindow.innerHTML = "";
-  messages.forEach((message) => {
-    const entry = document.createElement("div");
-    entry.className = "chat-entry";
-    const citationText =
-      message.citations && message.citations.length > 0
-        ? ` (citations: ${message.citations.map((item) => item.timestamp).join(", ")})`
-        : "";
-    entry.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 4px;">
-        <strong style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">${escapeHtml(message.role)}</strong>
-        <div style="background: ${message.role === "assistant" ? "var(--sidebar-bg)" : "white"}; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
-          ${escapeHtml(message.content)}${escapeHtml(citationText)}
-        </div>
-      </div>`;
-    chatWindow.appendChild(entry);
-  });
+  try {
+    const messages = await fetchChat(videoId);
+    chatWindow.innerHTML = renderChatEntries(messages);
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load chat.";
+    chatWindow.innerHTML = `<div class="meta" style="color: var(--danger);">${escapeHtml(message)}</div>`;
+  }
 }
 
 function bindDetailActions(videoId, canAnalyze) {
-  const transcriptToggle = document.getElementById("toggle-transcript-btn");
+  const transcriptToggle = getElement("toggle-transcript-btn");
   if (transcriptToggle) {
-    transcriptToggle.onclick = async () => {
-      state.transcriptExpanded = !state.transcriptExpanded;
-      await renderVideoDetail();
+    transcriptToggle.onclick = () => {
+      setState((previous) => ({
+        ...previous,
+        transcriptExpanded: !previous.transcriptExpanded,
+      }));
+      void renderVideoDetail();
     };
   }
 
-  document.getElementById("approve-btn").onclick = async () => {
-    await request(`/videos/${videoId}/approve`, {
-      method: "POST",
-      body: JSON.stringify({ approved: true }),
-    });
-    await refreshVideos();
-    state.selectedVideo = state.videos.find((item) => item.id === videoId) || state.selectedVideo;
-    await renderVideoDetail();
-  };
-  document.getElementById("reject-btn").onclick = async () => {
-    await request(`/videos/${videoId}/approve`, {
-      method: "POST",
-      body: JSON.stringify({ approved: false }),
-    });
-    await refreshVideos();
-    state.selectedVideo = state.videos.find((item) => item.id === videoId) || state.selectedVideo;
-    await renderVideoDetail();
-  };
-  document.getElementById("analyze-btn").onclick = async (event) => {
-    if (!canAnalyze) {
-      return;
-    }
-    const button = event.currentTarget;
-    button.disabled = true;
-    button.textContent = "Analyzing...";
-    try {
-      await request(`/videos/${videoId}/analyze`, {
-        method: "POST",
-        body: JSON.stringify({ force_reanalyze: false }),
+  const approveButton = getElement("approve-btn");
+  if (approveButton) {
+    approveButton.onclick = () =>
+      runTask(async () => {
+        await request(`/videos/${videoId}/approve`, {
+          method: "POST",
+          body: JSON.stringify({ approved: true }),
+        });
+        invalidateVideoCache(videoId);
+        await refreshVideos();
+      }, "Video approved.");
+  }
+
+  const rejectButton = getElement("reject-btn");
+  if (rejectButton) {
+    rejectButton.onclick = () =>
+      runTask(async () => {
+        await request(`/videos/${videoId}/approve`, {
+          method: "POST",
+          body: JSON.stringify({ approved: false }),
+        });
+        invalidateVideoCache(videoId);
+        await refreshVideos();
+      }, "Video rejected.");
+  }
+
+  const analyzeButton = getElement("analyze-btn");
+  if (analyzeButton) {
+    analyzeButton.onclick = () =>
+      runTask(async () => {
+        if (!canAnalyze) {
+          return;
+        }
+        analyzeButton.disabled = true;
+        analyzeButton.textContent = "Analyzing...";
+        await request(`/videos/${videoId}/analyze`, {
+          method: "POST",
+          body: JSON.stringify({ force_reanalyze: false }),
+        });
+        invalidateVideoCache(videoId);
+        await renderVideoDetail();
+      }, "Analysis complete.");
+  }
+
+  const escalateButton = getElement("escalate-btn");
+  if (escalateButton) {
+    escalateButton.onclick = () =>
+      runTask(async () => {
+        await request(`/videos/${videoId}/escalate`, {
+          method: "POST",
+          body: JSON.stringify({ owner: "marketing-owner", notes: "Escalated from dashboard" }),
+        });
+        await loadAlerts();
+      }, "Escalated and alert generated.");
+  }
+
+  const deleteVideoButton = getElement("delete-video-btn");
+  if (deleteVideoButton) {
+    deleteVideoButton.onclick = () =>
+      runTask(async () => {
+        if (!window.confirm("Are you sure you want to delete this video? This action cannot be undone.")) {
+          return;
+        }
+        await request(`/videos/${videoId}`, {
+          method: "DELETE",
+        });
+        invalidateVideoCache(videoId);
+        setState((previous) => ({
+          ...previous,
+          selectedVideoId: null,
+        }));
+        await refreshVideos();
+      }, "Video deleted.");
+  }
+
+  const sendChatButton = getElement("send-chat-btn");
+  if (sendChatButton) {
+    sendChatButton.onclick = () =>
+      runTask(async () => {
+        const questionInput = getElement("chat-question");
+        if (!questionInput) {
+          return;
+        }
+        const question = questionInput.value.trim();
+        if (!question) {
+          throw new Error("Type a question before sending.");
+        }
+        await request(`/videos/${videoId}/chat`, {
+          method: "POST",
+          body: JSON.stringify({ question, user_id: "marketing-owner" }),
+        });
+        questionInput.value = "";
+        const { [videoId]: _removed, ...remainingChats } = chatCache;
+        chatCache = remainingChats;
+        await renderChat(videoId);
       });
-    } finally {
-      await renderVideoDetail();
-    }
-  };
-  document.getElementById("escalate-btn").onclick = async () => {
-    await request(`/videos/${videoId}/escalate`, {
-      method: "POST",
-      body: JSON.stringify({ owner: "marketing-owner", notes: "Escalated from dashboard" }),
-    });
-    await loadAlerts();
-    window.alert("Escalated and alert generated.");
-  };
-  document.getElementById("send-chat-btn").onclick = async () => {
-    const questionInput = document.getElementById("chat-question");
-    const question = questionInput.value;
-    if (!question.trim()) {
-      return;
-    }
-    await request(`/videos/${videoId}/chat`, {
-      method: "POST",
-      body: JSON.stringify({ question, user_id: "marketing-owner" }),
-    });
-    questionInput.value = "";
-    await renderChat(videoId);
-  };
+  }
+}
+
+function selectVideo(videoId) {
+  setState((previous) => ({
+    ...previous,
+    selectedVideoId: videoId,
+    transcriptExpanded: false,
+  }));
+  renderVideos();
+  void renderVideoDetail();
 }
 
 async function discoverVideos() {
-  const profileId = Number(document.getElementById("profile-select").value);
-  if (!profileId) {
-    throw new Error("Select a profile first.");
+  if (!state.selectedProfileId) {
+    throw new Error("Select a project first.");
   }
   await request("/videos/discover", {
     method: "POST",
-    body: JSON.stringify({ monitor_profile_id: profileId, max_results: 20 }),
+    body: JSON.stringify({
+      monitor_profile_id: state.selectedProfileId,
+      max_results: 20,
+    }),
   });
+  analysisCache = {};
+  chatCache = {};
   await refreshVideos();
 }
 
 async function addManualVideo() {
-  const profileId = Number(document.getElementById("profile-select").value);
-  if (!profileId) {
-    throw new Error("Select a profile first.");
+  if (!state.selectedProfileId) {
+    throw new Error("Select a project first.");
   }
-  const urlInput = document.getElementById("manual-video-url");
+  const urlInput = getElement("manual-video-url");
+  if (!urlInput) {
+    return;
+  }
   const videoUrl = urlInput.value.trim();
   if (!videoUrl) {
     throw new Error("Paste a YouTube URL first.");
@@ -340,7 +645,7 @@ async function addManualVideo() {
   await request("/videos/manual", {
     method: "POST",
     body: JSON.stringify({
-      monitor_profile_id: profileId,
+      monitor_profile_id: state.selectedProfileId,
       video_url: videoUrl,
       language: state.tokenInputs.languages[0] || "en",
     }),
@@ -350,71 +655,116 @@ async function addManualVideo() {
 }
 
 async function refreshVideos() {
-  const profileId = document.getElementById("profile-select").value;
-  const title = document.getElementById("title-filter").value.trim();
+  if (!state.selectedProfileId) {
+    setState((previous) => ({
+      ...previous,
+      videos: [],
+      selectedVideoId: null,
+    }));
+    renderVideos();
+    renderVideoDetailEmpty("Select a project to load queue candidates.");
+    return;
+  }
+
+  const titleFilter = (getElement("title-filter")?.value || "").trim();
   const query = new URLSearchParams();
-  if (profileId) {
-    query.set("monitor_profile_id", profileId);
+  query.set("monitor_profile_id", String(state.selectedProfileId));
+  if (titleFilter) {
+    query.set("title", titleFilter);
   }
-  if (title) {
-    query.set("title", title);
-  }
+
   const data = await request(`/videos?${query.toString()}`);
-  state.videos = data.items;
+  const nextVideos = Array.isArray(data.items) ? data.items : [];
+  const keepSelection = nextVideos.some((video) => video.id === state.selectedVideoId);
+  const selectedVideoId =
+    keepSelection || nextVideos.length === 0 ? state.selectedVideoId : nextVideos[0].id;
+
+  setState((previous) => ({
+    ...previous,
+    videos: nextVideos,
+    selectedVideoId,
+  }));
   renderVideos();
+  await renderVideoDetail();
 }
 
 async function loadAlerts() {
-  const list = document.getElementById("alerts-list");
+  const list = getElement("alerts-list");
+  if (!list) {
+    return;
+  }
+
   const data = await request("/alerts");
-  list.innerHTML = "";
-  data.items.forEach((alert) => {
-    const item = document.createElement("li");
-    item.className = "list-item";
-    item.style.borderLeft = "4px solid var(--danger)";
-    item.style.paddingLeft = "16px";
-    item.innerHTML = `
-      <div style="font-weight: 500; font-size: 0.9rem;">${escapeHtml(alert.message)}</div>
-      <div class="meta" style="margin-top: 4px;">Channel: ${escapeHtml(alert.channel)}</div>`;
-    list.appendChild(item);
-  });
+  const alerts = Array.isArray(data.items) ? data.items : [];
+  if (alerts.length === 0) {
+    list.innerHTML = '<li class="meta">No active alerts.</li>';
+    return;
+  }
+
+  list.innerHTML = alerts
+    .map(
+      (alert) => `
+        <li class="alert-item">
+          <div style="font-weight: 600;">${escapeHtml(alert.message)}</div>
+          <div class="meta">Channel: ${escapeHtml(alert.channel)}</div>
+        </li>
+      `
+    )
+    .join("");
 }
 
 function renderTokenList(type) {
-  const tokenContainer = document.getElementById(`${type}-tokens`);
-  const hiddenInput = document.getElementById(`${type}-hidden`);
+  const tokenContainer = getElement(`${type}-tokens`);
+  const hiddenInput = getElement(`${type}-hidden`);
+  if (!tokenContainer || !hiddenInput) {
+    return;
+  }
+
   const values = state.tokenInputs[type];
-  tokenContainer.innerHTML = "";
-  values.forEach((value, index) => {
-    const chip = document.createElement("span");
-    chip.className = "token";
-    chip.innerHTML = `${escapeHtml(value)} <button data-type="${type}" data-index="${index}" type="button">x</button>`;
-    tokenContainer.appendChild(chip);
-  });
+  tokenContainer.innerHTML = values
+    .map(
+      (value, index) =>
+        `<span class="token">${escapeHtml(value)} <button data-type="${type}" data-index="${index}" type="button">x</button></span>`
+    )
+    .join("");
   hiddenInput.value = values.join(",");
 }
 
 function addToken(type, rawValue) {
   const normalized = normalizeSelectableValue(rawValue, type);
-  if (!normalized) {
+  if (!normalized || state.tokenInputs[type].includes(normalized)) {
     return;
   }
-  if (state.tokenInputs[type].includes(normalized)) {
-    return;
-  }
-  state.tokenInputs[type] = [...state.tokenInputs[type], normalized];
+
+  setState((previous) => ({
+    ...previous,
+    tokenInputs: {
+      ...previous.tokenInputs,
+      [type]: [...previous.tokenInputs[type], normalized],
+    },
+  }));
   renderTokenList(type);
 }
 
 function removeToken(type, index) {
-  state.tokenInputs[type] = state.tokenInputs[type].filter((_, itemIndex) => itemIndex !== index);
+  setState((previous) => ({
+    ...previous,
+    tokenInputs: {
+      ...previous.tokenInputs,
+      [type]: previous.tokenInputs[type].filter((_, currentIndex) => currentIndex !== index),
+    },
+  }));
   renderTokenList(type);
 }
 
 function bindTokenInputs() {
   ["markets", "languages"].forEach((type) => {
-    const input = document.getElementById(`${type}-token-input`);
-    const tokenContainer = document.getElementById(`${type}-tokens`);
+    const input = getElement(`${type}-token-input`);
+    const tokenContainer = getElement(`${type}-tokens`);
+    if (!input || !tokenContainer) {
+      return;
+    }
+
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === ",") {
         event.preventDefault();
@@ -422,76 +772,198 @@ function bindTokenInputs() {
         input.value = "";
       }
     });
+
     input.addEventListener("blur", () => {
       addToken(type, input.value);
       input.value = "";
     });
+
     tokenContainer.addEventListener("click", (event) => {
       const target = event.target;
-      if (target.tagName !== "BUTTON") {
+      if (!(target instanceof HTMLButtonElement)) {
         return;
       }
       const selectedType = target.getAttribute("data-type");
       const selectedIndex = Number(target.getAttribute("data-index"));
+      if (!selectedType || Number.isNaN(selectedIndex)) {
+        return;
+      }
       removeToken(selectedType, selectedIndex);
     });
+
     renderTokenList(type);
   });
 }
 
-function bindForms() {
-  document.getElementById("profile-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    if (state.tokenInputs.markets.length === 0) {
-      throw new Error("Please add at least one market.");
-    }
-    if (state.tokenInputs.languages.length === 0) {
-      throw new Error("Please add at least one language.");
-    }
-    await request("/monitor-profiles", {
-      method: "POST",
-      body: JSON.stringify({
-        name: formData.get("name"),
-        brand_keywords: splitCsv(formData.get("brand_keywords")),
-        markets: [...state.tokenInputs.markets],
-        languages: [...state.tokenInputs.languages],
-        alert_sensitivity: formData.get("alert_sensitivity"),
-      }),
+function bindDashboardControls() {
+  const toggleButton = getElement("toggle-create-btn");
+  if (toggleButton) {
+    toggleButton.addEventListener("click", () => {
+      setCreatePanelVisible(true);
     });
-    event.target.reset();
-    state.tokenInputs.markets = [];
-    state.tokenInputs.languages = [];
-    renderTokenList("markets");
-    renderTokenList("languages");
-    await loadProfiles();
-  });
+  }
 
-  document.getElementById("discover-btn").addEventListener("click", async () => {
-    await discoverVideos();
-  });
+  const cancelButton = getElement("cancel-create-btn");
+  if (cancelButton) {
+    cancelButton.addEventListener("click", () => {
+      setCreatePanelVisible(false);
+    });
+  }
+}
 
-  document.getElementById("refresh-videos-btn").addEventListener("click", async () => {
-    await refreshVideos();
-  });
+function bindQueueInteractions() {
+  const videoList = getElement("video-list");
+  if (videoList) {
+    videoList.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      const button = target.closest(".video-item");
+      if (!(button instanceof HTMLElement)) {
+        return;
+      }
+      const videoId = Number(button.dataset.videoId);
+      if (Number.isNaN(videoId)) {
+        return;
+      }
+      selectVideo(videoId);
+    });
+  }
 
-  document.getElementById("add-manual-video-btn").addEventListener("click", async () => {
-    await addManualVideo();
-  });
+  const profileSelect = getElement("profile-select");
+  if (profileSelect) {
+    profileSelect.addEventListener("change", () => {
+      const parsedProfileId = Number(profileSelect.value);
+      setState((previous) => ({
+        ...previous,
+        selectedProfileId: Number.isNaN(parsedProfileId) ? null : parsedProfileId,
+        selectedVideoId: null,
+      }));
+      void runTask(async () => {
+        await refreshVideos();
+      });
+    });
+  }
 
-  document.getElementById("refresh-alerts-btn").addEventListener("click", async () => {
-    await loadAlerts();
+  const refreshButton = getElement("refresh-videos-btn");
+  if (refreshButton) {
+    refreshButton.addEventListener("click", () => {
+      void runTask(async () => {
+        await refreshVideos();
+      });
+    });
+  }
+
+  const discoverButton = getElement("discover-btn");
+  if (discoverButton) {
+    discoverButton.addEventListener("click", () => {
+      void runTask(async () => {
+        await discoverVideos();
+      }, "Discovery completed.");
+    });
+  }
+
+  const addManualButton = getElement("add-manual-video-btn");
+  if (addManualButton) {
+    addManualButton.addEventListener("click", () => {
+      void runTask(async () => {
+        await addManualVideo();
+      }, "Manual video added.");
+    });
+  }
+
+  const titleFilterInput = getElement("title-filter");
+  if (titleFilterInput) {
+    const debouncedRefresh = debounce(() => {
+      void runTask(async () => {
+        await refreshVideos();
+      });
+    }, 240);
+    titleFilterInput.addEventListener("input", () => {
+      debouncedRefresh();
+    });
+  }
+}
+
+function bindAlertsControls() {
+  const refreshAlertsButton = getElement("refresh-alerts-btn");
+  if (!refreshAlertsButton) {
+    return;
+  }
+  refreshAlertsButton.addEventListener("click", () => {
+    void runTask(async () => {
+      await loadAlerts();
+    });
+  });
+}
+
+function bindProfileForm() {
+  const profileForm = getElement("profile-form");
+  if (!profileForm) {
+    return;
+  }
+
+  profileForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void runTask(async () => {
+      if (state.tokenInputs.markets.length === 0) {
+        throw new Error("Please add at least one market.");
+      }
+      if (state.tokenInputs.languages.length === 0) {
+        throw new Error("Please add at least one language.");
+      }
+
+      const formData = new FormData(profileForm);
+      const projectName = String(formData.get("name") || "").trim();
+      const brandKeywords = splitCsv(formData.get("brand_keywords"));
+      if (!projectName || brandKeywords.length === 0) {
+        throw new Error("Project name and brand keywords are required.");
+      }
+
+      await request("/monitor-profiles", {
+        method: "POST",
+        body: JSON.stringify({
+          name: projectName,
+          brand_keywords: brandKeywords,
+          markets: [...state.tokenInputs.markets],
+          languages: [...state.tokenInputs.languages],
+          alert_sensitivity: formData.get("alert_sensitivity"),
+        }),
+      });
+
+      profileForm.reset();
+      setState((previous) => ({
+        ...previous,
+        tokenInputs: {
+          markets: [],
+          languages: [],
+        },
+      }));
+      renderTokenList("markets");
+      renderTokenList("languages");
+      setCreatePanelVisible(false);
+      await loadProfiles();
+      await refreshVideos();
+    }, "Project created.");
   });
 }
 
 async function bootstrap() {
   bindNav();
+  bindDashboardControls();
   bindTokenInputs();
-  bindForms();
+  bindQueueInteractions();
+  bindAlertsControls();
+  bindProfileForm();
+
+  setCreatePanelVisible(false);
   await loadProfiles();
+  await refreshVideos();
   await loadAlerts();
 }
 
 bootstrap().catch((error) => {
-  window.alert(error.message);
+  const message = error instanceof Error ? error.message : "Unexpected startup failure.";
+  showMessage(message, "error");
 });
