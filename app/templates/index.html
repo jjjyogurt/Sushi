@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Influencer Monitor</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <h1>Sushi Monitor</h1>
+        <nav>
+          <button class="nav-btn active" data-section="dashboard">
+            <span class="icon">📊</span> Dashboard
+          </button>
+          <button class="nav-btn" data-section="queue">
+            <span class="icon">🎬</span> Video Queue
+          </button>
+          <button class="nav-btn" data-section="alerts">
+            <span class="icon">🔔</span> Alerts
+          </button>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section id="dashboard" class="panel active">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 32px;">
+            <h2 style="margin-bottom: 0;">Projects</h2>
+            <button id="toggle-create-btn" style="background: var(--sidebar-bg); border: 1px solid var(--border); color: var(--text); padding: 4px 12px; font-size: 0.875rem; display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 1.2rem; line-height: 1;">+</span> New Project
+            </button>
+          </div>
+
+          <div id="create-profile-container" style="display: none; background: var(--sidebar-bg); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 40px;">
+            <form id="profile-form" class="card" style="margin-bottom: 0;">
+              <label>
+                Project Name
+                <input type="text" name="name" placeholder="HoverAir Global Monitoring" required />
+              </label>
+              <label>
+                Brand Keywords (comma-separated)
+                <input type="text" name="brand_keywords" placeholder="hoverair, hover air x1" required />
+              </label>
+            <label>
+              Markets
+              <input type="hidden" name="markets" id="markets-hidden" required />
+              <div class="token-input-group">
+                <div id="markets-tokens" class="token-list"></div>
+                <input
+                  type="text"
+                  id="markets-token-input"
+                  placeholder="Type or select market, then press Enter"
+                  list="market-options"
+                />
+              </div>
+              <datalist id="market-options">
+                <option value="United States (US)"></option>
+                <option value="Germany (DE)"></option>
+                <option value="Spain (ES)"></option>
+                <option value="Japan (JP)"></option>
+                <option value="Global"></option>
+              </datalist>
+              </label>
+              <label>
+              Languages
+              <input type="hidden" name="languages" id="languages-hidden" required />
+              <div class="token-input-group">
+                <div id="languages-tokens" class="token-list"></div>
+                <input
+                  type="text"
+                  id="languages-token-input"
+                  placeholder="Type or select language, then press Enter"
+                  list="language-options"
+                />
+              </div>
+              <datalist id="language-options">
+                <option value="English (en)"></option>
+                <option value="German (de)"></option>
+                <option value="Spanish (es)"></option>
+                <option value="French (fr)"></option>
+                <option value="Japanese (ja)"></option>
+              </datalist>
+              </label>
+              <label>
+                Alert Sensitivity
+                <select name="alert_sensitivity">
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
+              <div style="display: flex; gap: 12px; margin-top: 8px;">
+                <button type="submit">Create Project</button>
+                <button type="button" id="cancel-create-btn" class="secondary" style="background: transparent; border: 1px solid var(--border); color: var(--text);">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <div id="profile-grid" class="project-grid">
+            <!-- Profiles will be rendered as cards here -->
+          </div>
+        </section>
+
+        <section id="queue" class="panel">
+          <h2>Video Queue</h2>
+          <div class="queue-controls card">
+            <label>
+              Project
+              <select id="profile-select"></select>
+            </label>
+            <button id="discover-btn">Discover Videos</button>
+            <label>
+              Title Filter
+              <input id="title-filter" type="text" placeholder="Filter by title keyword" />
+            </label>
+            <button id="refresh-videos-btn">Refresh List</button>
+            <label>
+              Add YouTube URL
+              <input id="manual-video-url" type="text" placeholder="https://www.youtube.com/watch?v=..." />
+            </label>
+            <button id="add-manual-video-btn">Add Video</button>
+          </div>
+          <div class="two-column">
+            <div class="card">
+              <h3>Candidates</h3>
+              <ul id="video-list"></ul>
+            </div>
+            <div class="card">
+              <h3>Video Detail</h3>
+              <div id="video-detail">Select a video to view analysis and chat.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="alerts" class="panel">
+          <h2>Alerts</h2>
+          <div class="card">
+            <button id="refresh-alerts-btn">Refresh Alerts</button>
+            <ul id="alerts-list"></ul>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+

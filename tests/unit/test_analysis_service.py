@@ -1,0 +1,91 @@
+from app.config import get_settings
+from app.models.analysis_result import AnalysisResult
+from app.models.enums import AnalysisStatus, QueueState, RiskLevel, Sentiment
+from app.services.analysis_service import AnalysisService
+from app.services.types import TranscriptOutput
+from app.utils.json_codec import encode_json
+
+
+class StubTranscriptService:
+    def fetch_transcript(self, *, youtube_video_id: str, preferred_languages):
+        return TranscriptOutput(
+            full_text=(
+                "00:12 Setup was easy and fast.\n"
+                "02:48 I got confused with advanced controls.\n"
+                "05:10 Reliability could be better after one week."
+            ),
+            segments=[
+                {"timestamp": "00:12", "text": "Setup was easy and fast.", "duration": 3.2},
+                {"timestamp": "02:48", "text": "I got confused with advanced controls.", "duration": 4.0},
+                {"timestamp": "05:10", "text": "Reliability could be better after one week.", "duration": 4.5},
+            ],
+            source_language=preferred_languages[0] if preferred_languages else "en",
+        )
+
+
+def test_skip_reanalysis_when_completed_and_same_version(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    settings.analysis_version = "unit-v1"
+
+    discovered_video.queue_state = QueueState.APPROVED
+    db_session.commit()
+
+    existing = AnalysisResult(
+        video_candidate_id=discovered_video.id,
+        analysis_version="unit-v1",
+        model_name="gemini-3",
+        status=AnalysisStatus.COMPLETED,
+        transcript_text="cached transcript",
+        summary_text="cached summary",
+        translated_summary="cached summary",
+        sentiment=Sentiment.NEUTRAL,
+        risk_level=RiskLevel.MEDIUM,
+        confidence_score="0.88",
+        evidence_json=encode_json([{"timestamp": "00:10", "quote": "cached", "reason": "cache"}]),
+        insights_json=encode_json(["cached"]),
+    )
+    db_session.add(existing)
+    db_session.commit()
+    db_session.refresh(existing)
+
+    service = AnalysisService(db_session)
+    result = service.analyze_video(video_id=discovered_video.id, force_reanalyze=False)
+
+    assert result.id == existing.id
+    assert result.summary_text == "cached summary"
+
+    settings.analysis_version = original_version
+
+
+def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    settings.analysis_version = "unit-v2"
+    settings.gemini_api_key = ""
+
+    discovered_video.queue_state = QueueState.APPROVED
+    db_session.commit()
+
+    service = AnalysisService(db_session)
+    service.transcript_service = StubTranscriptService()
+    first = service.analyze_video(video_id=discovered_video.id, force_reanalyze=False)
+    second = service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
+
+    assert first.id == second.id
+    assert second.status == AnalysisStatus.COMPLETED
+    assert "05:10 Reliability could be better after one week." in second.transcript_text
+    assert second.evidence_json != "[]"
+
+    settings.analysis_version = original_version
+
+
+def test_analysis_requires_approved_state(db_session, discovered_video):
+    service = AnalysisService(db_session)
+    try:
+        service.analyze_video(video_id=discovered_video.id, force_reanalyze=False)
+    except ValueError as error:
+        assert "approved" in str(error).lower()
+    else:
+        raise AssertionError("Expected ValueError for non-approved candidate.")
+

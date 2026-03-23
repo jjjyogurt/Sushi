@@ -1,0 +1,33 @@
+from typing import List
+
+from pydantic import BaseModel, Field
+
+from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
+from app.schemas.common import TimestampedResponse
+
+
+class AnalysisRequest(BaseModel):
+    force_reanalyze: bool = False
+
+
+class EvidenceItem(BaseModel):
+    timestamp: str
+    quote: str
+    reason: str
+
+
+class AnalysisResponse(TimestampedResponse):
+    video_candidate_id: int
+    analysis_version: str
+    model_name: str
+    status: AnalysisStatus
+    transcript_text: str
+    summary_text: str
+    translated_summary: str
+    sentiment: Sentiment
+    risk_level: RiskLevel
+    confidence_score: float = Field(default=0.0)
+    evidence: List[EvidenceItem]
+    insights: List[str]
+    error_message: str
+

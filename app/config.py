@@ -1,0 +1,23 @@
+from functools import lru_cache
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    app_name: str = "Influencer Video Intelligence"
+    database_url: str = Field(default="sqlite:///./sushi.db", alias="DATABASE_URL")
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    gemini_model_analysis: str = Field(default="gemini-3", alias="GEMINI_MODEL_ANALYSIS")
+    gemini_model_chat: str = Field(default="gemini-3", alias="GEMINI_MODEL_CHAT")
+    analysis_version: str = Field(default="v1", alias="ANALYSIS_VERSION")
+    default_language: str = "en"
+    enable_mock_discovery: bool = Field(default=False, alias="ENABLE_MOCK_DISCOVERY")
+    transcript_preferred_languages: str = Field(default="en,de,es,fr,it,ja,ko,zh-Hans", alias="TRANSCRIPT_LANGUAGES")
+    analysis_max_transcript_chars: int = Field(default=45000, alias="ANALYSIS_MAX_TRANSCRIPT_CHARS")
+    model_config = SettingsConfigDict(env_file=".env", populate_by_name=True, extra="ignore")
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
