@@ -46,7 +46,7 @@
           <div class="topbar-actions">
             <label class="search-wrap">
               <span class="material-symbols-outlined">search</span>
-              <input type="text" placeholder="Global search..." />
+              <input id="global-search-input" type="text" placeholder="Global search..." />
             </label>
             <button class="icon-btn"><span class="material-symbols-outlined">notifications</span></button>
             <button class="icon-btn"><span class="material-symbols-outlined">help</span></button>
@@ -145,10 +145,11 @@
           <section id="queue" class="panel">
             <div class="panel-header queue-panel-header">
               <div>
-                <h2>Video Queue</h2>
-                <p>Review candidates, approve analysis, and collaborate on risks.</p>
+                <h2>Project Workspace</h2>
+                <p>Review project videos, run AI analysis, and manage your global queue.</p>
               </div>
               <div class="button-row">
+                <button id="back-to-dashboard-btn" class="btn btn-secondary" type="button">← Back</button>
                 <button id="refresh-videos-btn" class="btn btn-secondary" type="button">Refresh List</button>
                 <button id="discover-btn" class="btn btn-primary" type="button">Discover Videos</button>
               </div>
@@ -156,7 +157,7 @@
 
             <div class="queue-controls">
               <label>
-                Project
+                Queue Scope
                 <select id="profile-select"></select>
               </label>
               <label>
@@ -169,6 +170,31 @@
               </label>
               <div class="queue-add-wrap">
                 <button id="add-manual-video-btn" class="btn btn-secondary" type="button">Add Video</button>
+              </div>
+            </div>
+
+            <div class="candidate-search-panel pane">
+              <div class="pane-header">
+                <h3>Keyword Candidate Search</h3>
+              </div>
+              <div class="candidate-search-controls">
+                <label>
+                  Search Keywords
+                  <input
+                    id="keyword-search-input"
+                    type="text"
+                    placeholder="camera review, user feedback, creator comparison..."
+                  />
+                </label>
+                <div class="button-row">
+                  <button id="search-keyword-btn" class="btn btn-secondary" type="button">Search Candidates</button>
+                  <button id="add-selected-candidates-btn" class="btn btn-primary" type="button" disabled>
+                    Add Selected
+                  </button>
+                </div>
+              </div>
+              <div id="search-candidate-list" class="search-candidate-list">
+                <div class="meta">Search for keywords to load candidate videos.</div>
               </div>
             </div>
 
@@ -225,7 +251,7 @@
         </nav>
       </div>
     </div>
-    <script src="/static/app.js"></script>
+    <script type="module" src="/static/main.js"></script>
   </body>
 </html>
 

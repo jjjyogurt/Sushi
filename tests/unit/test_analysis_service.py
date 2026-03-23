@@ -2,7 +2,7 @@ from app.config import get_settings
 from app.models.analysis_result import AnalysisResult
 from app.models.enums import AnalysisStatus, QueueState, RiskLevel, Sentiment
 from app.services.analysis_service import AnalysisService
-from app.services.types import TranscriptOutput
+from app.services.types import AnalysisOutput, TranscriptOutput
 from app.utils.json_codec import encode_json
 
 
@@ -20,6 +20,34 @@ class StubTranscriptService:
                 {"timestamp": "05:10", "text": "Reliability could be better after one week.", "duration": 4.5},
             ],
             source_language=preferred_languages[0] if preferred_languages else "en",
+        )
+
+
+class StubGeminiClient:
+    def ensure_ready(self):
+        return None
+
+    def analyze_video(
+        self,
+        *,
+        title: str,
+        language: str,
+        relevance_reason: str,
+        brand_keywords,
+        transcript_text: str,
+    ):
+        return AnalysisOutput(
+            transcript_text=transcript_text,
+            summary_text=f"{title} includes onboarding and reliability concerns.",
+            translated_summary=f"{title} includes onboarding and reliability concerns.",
+            sentiment=Sentiment.NEUTRAL,
+            risk_level=RiskLevel.MEDIUM,
+            confidence_score=0.84,
+            evidence=[
+                {"timestamp": "02:48", "quote": "I got confused with advanced controls.", "reason": "Usability risk"},
+                {"timestamp": "05:10", "quote": "Reliability could be better after one week.", "reason": "Reliability risk"},
+            ],
+            insights=["Onboarding confusion is recurring.", "Reliability concerns can affect trust."],
         )
 
 
@@ -61,14 +89,16 @@ def test_skip_reanalysis_when_completed_and_same_version(db_session, discovered_
 def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session, discovered_video):
     settings = get_settings()
     original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
     settings.analysis_version = "unit-v2"
-    settings.gemini_api_key = ""
+    settings.gemini_api_key = "unit-test-key"
 
     discovered_video.queue_state = QueueState.APPROVED
     db_session.commit()
 
     service = AnalysisService(db_session)
     service.transcript_service = StubTranscriptService()
+    service.gemini_client = StubGeminiClient()
     first = service.analyze_video(video_id=discovered_video.id, force_reanalyze=False)
     second = service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
 
@@ -78,6 +108,34 @@ def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session,
     assert second.evidence_json != "[]"
 
     settings.analysis_version = original_version
+    settings.gemini_api_key = original_key
+
+
+def test_analysis_fails_closed_when_gemini_is_unavailable(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    settings.analysis_version = "unit-fail-closed"
+    settings.gemini_api_key = ""
+
+    discovered_video.queue_state = QueueState.APPROVED
+    db_session.commit()
+
+    service = AnalysisService(db_session)
+    service.transcript_service = StubTranscriptService()
+
+    try:
+        service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
+    except RuntimeError as error:
+        assert "GEMINI_API_KEY" in str(error)
+    else:
+        raise AssertionError("Expected fail-closed Gemini runtime error.")
+
+    failed = service.analysis_repository.get_latest_for_video(video_candidate_id=discovered_video.id)
+    assert failed is None
+
+    settings.analysis_version = original_version
+    settings.gemini_api_key = original_key
 
 
 def test_analysis_requires_approved_state(db_session, discovered_video):

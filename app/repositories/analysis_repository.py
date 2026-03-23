@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Dict, List, Optional
 
-from sqlalchemy import desc
+from sqlalchemy import and_, desc, func
 from sqlalchemy.orm import Session
 
 from app.models.analysis_result import AnalysisResult
@@ -33,6 +33,33 @@ class AnalysisRepository:
             .order_by(desc(AnalysisResult.created_at))
             .first()
         )
+
+    def get_latest_sentiment_by_video_ids(self, video_ids: List[int]) -> Dict[int, str]:
+        if not video_ids:
+            return {}
+
+        latest_subquery = (
+            self.session.query(
+                AnalysisResult.video_candidate_id.label("video_candidate_id"),
+                func.max(AnalysisResult.created_at).label("latest_created_at"),
+            )
+            .filter(AnalysisResult.video_candidate_id.in_(video_ids))
+            .group_by(AnalysisResult.video_candidate_id)
+            .subquery()
+        )
+
+        latest_rows = (
+            self.session.query(AnalysisResult.video_candidate_id, AnalysisResult.sentiment)
+            .join(
+                latest_subquery,
+                and_(
+                    AnalysisResult.video_candidate_id == latest_subquery.c.video_candidate_id,
+                    AnalysisResult.created_at == latest_subquery.c.latest_created_at,
+                ),
+            )
+            .all()
+        )
+        return {video_id: sentiment.value for video_id, sentiment in latest_rows if sentiment is not None}
 
     def create_queued(self, *, video_candidate_id: int, analysis_version: str, model_name: str) -> AnalysisResult:
         existing = (

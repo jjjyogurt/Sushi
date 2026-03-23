@@ -18,17 +18,28 @@ class YouTubeDiscoveryService:
         keywords = MonitorRepository.unpack_keywords(profile)
         languages = MonitorRepository.unpack_languages(profile)
         markets = MonitorRepository.unpack_markets(profile)
+        return self.discover_by_keywords(
+            keywords=keywords,
+            languages=languages,
+            markets=markets,
+            max_results=max_results,
+        )
+
+    def discover_by_keywords(
+        self, *, keywords: List[str], languages: List[str], markets: List[str], max_results: int
+    ) -> List[DiscoveredVideo]:
+        filtered_keywords = [item.strip() for item in keywords if item and item.strip()]
 
         if not self.settings.enable_mock_discovery:
             live_results = self._discover_live(
-                keywords=keywords,
+                keywords=filtered_keywords,
                 languages=languages,
                 markets=markets,
                 max_results=max_results,
             )
             return live_results[:max_results]
 
-        seed_videos = self._seed_videos(keywords=keywords, languages=languages, markets=markets)
+        seed_videos = self._seed_videos(keywords=filtered_keywords, languages=languages, markets=markets)
         return seed_videos[:max_results]
 
     def _discover_live(

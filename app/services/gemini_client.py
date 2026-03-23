@@ -1,9 +1,18 @@
 import json
-from typing import List
+import logging
+from typing import Any, List
 
 from app.config import Settings
 from app.models.enums import RiskLevel, Sentiment
+from app.services.exceptions import (
+    GeminiConfigurationError,
+    GeminiDependencyError,
+    GeminiProviderError,
+    GeminiResponseError,
+)
 from app.services.types import AnalysisOutput, ChatOutput
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiClient:
@@ -19,44 +28,130 @@ class GeminiClient:
         brand_keywords: List[str],
         transcript_text: str,
     ) -> AnalysisOutput:
-        if not self.settings.gemini_api_key or not self._sdk_available():
-            return self._mock_analysis(title=title, language=language, transcript_text=transcript_text)
-
+        self._ensure_runtime_ready()
         transcript_for_prompt = transcript_text[: self.settings.analysis_max_transcript_chars]
-        prompt = self._build_analysis_prompt(
+        chunks = self._chunk_transcript(transcript_text=transcript_for_prompt)
+        logger.info(
+            "gemini analysis prepared model=%s transcript_chars=%s capped_chars=%s chunk_count=%s",
+            self.settings.gemini_model_analysis,
+            len(transcript_text),
+            len(transcript_for_prompt),
+            len(chunks),
+        )
+        chunk_analyses = [
+            self._analyze_chunk(
+                title=title,
+                language=language,
+                relevance_reason=relevance_reason,
+                brand_keywords=brand_keywords,
+                chunk_text=chunk_text,
+                chunk_index=index + 1,
+                total_chunks=len(chunks),
+            )
+            for index, chunk_text in enumerate(chunks)
+        ]
+
+        reduce_prompt = self._build_analysis_reduce_prompt(
             title=title,
             language=language,
             relevance_reason=relevance_reason,
             brand_keywords=brand_keywords,
-            transcript_text=transcript_for_prompt,
+            chunk_analyses=chunk_analyses,
         )
-        raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=prompt)
-        parsed = self._parse_json_payload(raw=raw)
-        return self._analysis_from_parsed(
-            parsed=parsed, fallback_title=title, fallback_transcript=transcript_text
-        )
+        raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=reduce_prompt)
+        parsed = self._parse_json_payload(raw=raw, context="analysis reducer")
+        logger.info("gemini analysis reducer completed model=%s", self.settings.gemini_model_analysis)
+        return self._analysis_from_parsed(parsed=parsed, fallback_transcript=transcript_text)
+
+    def ensure_ready(self) -> None:
+        self._ensure_runtime_ready()
 
     def chat_about_video(self, *, context: str, question: str, language: str) -> ChatOutput:
-        if not self.settings.gemini_api_key or not self._sdk_available():
-            return self._mock_chat(context=context, question=question)
-
+        self._ensure_runtime_ready()
+        logger.info(
+            "gemini chat request model=%s context_chars=%s question_chars=%s",
+            self.settings.gemini_model_chat,
+            len(context),
+            len(question),
+        )
         prompt = self._build_chat_prompt(context=context, question=question, language=language)
         raw = self._generate_text(model_name=self.settings.gemini_model_chat, prompt=prompt)
-        parsed = self._parse_json_payload(raw=raw)
+        parsed = self._parse_json_payload(raw=raw, context="chat response")
         return self._chat_from_parsed(parsed=parsed)
+
+    def health_status(self, *, probe: bool = False) -> dict:
+        api_key_configured = bool(self.settings.gemini_api_key.strip())
+        sdk_available = self._sdk_available()
+        status = {
+            "ready": api_key_configured and sdk_available,
+            "api_key_configured": api_key_configured,
+            "sdk_available": sdk_available,
+            "analysis_model": self.settings.gemini_model_analysis,
+            "chat_model": self.settings.gemini_model_chat,
+        }
+        if not probe or not status["ready"]:
+            return status
+
+        try:
+            probe_raw = self._generate_text(
+                model_name=self.settings.gemini_model_chat,
+                prompt='Return strict JSON: {"probe_ok": true, "note": "ready"}.',
+            )
+            parsed = self._parse_json_payload(raw=probe_raw, context="health probe")
+            probe_ok = bool(parsed.get("probe_ok"))
+            return {**status, "probe_ok": probe_ok}
+        except Exception as error:  # noqa: BLE001
+            return {**status, "probe_ok": False, "probe_error": str(error)}
+
+    def _analyze_chunk(
+        self,
+        *,
+        title: str,
+        language: str,
+        relevance_reason: str,
+        brand_keywords: List[str],
+        chunk_text: str,
+        chunk_index: int,
+        total_chunks: int,
+    ) -> dict:
+        prompt = self._build_analysis_chunk_prompt(
+            title=title,
+            language=language,
+            relevance_reason=relevance_reason,
+            brand_keywords=brand_keywords,
+            chunk_text=chunk_text,
+            chunk_index=chunk_index,
+            total_chunks=total_chunks,
+        )
+        raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=prompt)
+        logger.debug("gemini analysis chunk completed chunk=%s/%s", chunk_index, total_chunks)
+        return self._parse_json_payload(raw=raw, context=f"analysis chunk {chunk_index}")
 
     def _generate_text(self, *, model_name: str, prompt: str) -> str:
         try:
             import google.generativeai as genai
         except ImportError as error:
-            raise RuntimeError("google-generativeai package is required to call Gemini.") from error
+            raise GeminiDependencyError("google-generativeai package is required to call Gemini.") from error
 
-        genai.configure(api_key=self.settings.gemini_api_key)
-        model = genai.GenerativeModel(model_name=model_name)
-        response = model.generate_content(prompt)
-        if not response or not getattr(response, "text", ""):
-            raise RuntimeError("Gemini returned an empty response.")
-        return response.text.strip()
+        try:
+            genai.configure(api_key=self.settings.gemini_api_key)
+            model = genai.GenerativeModel(model_name=model_name)
+            logger.debug("gemini provider call start model=%s prompt_chars=%s", model_name, len(prompt))
+            response = model.generate_content(prompt)
+        except Exception as error:  # noqa: BLE001
+            raise GeminiProviderError(f"Gemini request failed: {error}") from error
+
+        response_text = getattr(response, "text", "") if response else ""
+        if not response_text:
+            raise GeminiResponseError("Gemini returned an empty response.")
+        logger.debug("gemini provider call done model=%s response_chars=%s", model_name, len(response_text))
+        return response_text.strip()
+
+    def _ensure_runtime_ready(self) -> None:
+        if not self.settings.gemini_api_key.strip():
+            raise GeminiConfigurationError("GEMINI_API_KEY is not configured.")
+        if not self._sdk_available():
+            raise GeminiDependencyError("google-generativeai package is required to call Gemini.")
 
     @staticmethod
     def _sdk_available() -> bool:
@@ -66,29 +161,100 @@ class GeminiClient:
             return False
         return True
 
-    @staticmethod
-    def _parse_json_payload(*, raw: str) -> dict:
-        normalized = raw.strip()
-        if normalized.startswith("```"):
-            normalized = normalized.strip("`")
-            normalized = normalized.replace("json", "", 1).strip()
-        try:
-            return json.loads(normalized)
-        except json.JSONDecodeError:
-            return {}
+    def _chunk_transcript(self, *, transcript_text: str) -> List[str]:
+        normalized_lines = [line.strip() for line in transcript_text.splitlines() if line.strip()]
+        if not normalized_lines:
+            raise GeminiResponseError("Transcript text is empty; cannot run analysis.")
+
+        max_chars = max(1000, self.settings.analysis_chunk_chars)
+        overlap_chars = max(0, self.settings.analysis_chunk_overlap_chars)
+        max_chunks = max(1, self.settings.analysis_max_chunks)
+
+        chunks: List[str] = []
+        current_lines: List[str] = []
+        current_chars = 0
+
+        for line in normalized_lines:
+            prospective = current_chars + len(line) + (1 if current_lines else 0)
+            if current_lines and prospective > max_chars:
+                chunks = [*chunks, "\n".join(current_lines)]
+                if len(chunks) >= max_chunks:
+                    return chunks
+
+                overlap_lines = self._take_overlap_lines(lines=current_lines, overlap_chars=overlap_chars)
+                current_lines = [*overlap_lines, line]
+                current_chars = len("\n".join(current_lines))
+                continue
+
+            current_lines = [*current_lines, line]
+            current_chars = prospective
+
+        if current_lines and len(chunks) < max_chunks:
+            chunks = [*chunks, "\n".join(current_lines)]
+        return chunks
 
     @staticmethod
-    def _analysis_from_parsed(*, parsed: dict, fallback_title: str, fallback_transcript: str) -> AnalysisOutput:
+    def _take_overlap_lines(*, lines: List[str], overlap_chars: int) -> List[str]:
+        if overlap_chars <= 0:
+            return []
+
+        selected: List[str] = []
+        total_chars = 0
+        for line in reversed(lines):
+            additional = len(line) + (1 if selected else 0)
+            if selected and (total_chars + additional) > overlap_chars:
+                break
+            selected = [line, *selected]
+            total_chars = total_chars + additional
+        return selected
+
+    @staticmethod
+    def _parse_json_payload(*, raw: str, context: str) -> dict:
+        normalized = raw.strip()
+        if normalized.startswith("```"):
+            normalized = GeminiClient._extract_fenced_payload(normalized)
+
+        start = normalized.find("{")
+        end = normalized.rfind("}")
+        if start < 0 or end < 0 or end < start:
+            raise GeminiResponseError(f"Gemini {context} output is not valid JSON.")
+
+        candidate = normalized[start : end + 1]
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError as error:
+            raise GeminiResponseError(f"Gemini {context} output JSON parse failed: {error}") from error
+
+        if not isinstance(parsed, dict):
+            raise GeminiResponseError(f"Gemini {context} output must be a JSON object.")
+        return parsed
+
+    @staticmethod
+    def _extract_fenced_payload(raw: str) -> str:
+        parts = [part.strip() for part in raw.split("```") if part.strip()]
+        if not parts:
+            return raw
+
+        first = parts[0]
+        if first.lower().startswith("json"):
+            return first[4:].strip()
+        return first
+
+    @staticmethod
+    def _analysis_from_parsed(*, parsed: dict, fallback_transcript: str) -> AnalysisOutput:
+        summary_text = str(parsed.get("summary_text", "")).strip()
+        if not summary_text:
+            raise GeminiResponseError("Gemini analysis output is missing summary_text.")
+
+        translated_summary = str(parsed.get("translated_summary", "")).strip() or summary_text
         sentiment = GeminiClient._safe_sentiment(parsed.get("sentiment"))
         risk_level = GeminiClient._safe_risk_level(parsed.get("risk_level"))
-        transcript_text = parsed.get("transcript_text") or fallback_transcript or f"Transcript unavailable for {fallback_title}."
-        summary_text = parsed.get("summary_text") or "Summary unavailable."
-        translated_summary = parsed.get("translated_summary") or summary_text
-        confidence_score = float(parsed.get("confidence_score", 0.5))
-        evidence = parsed.get("evidence") or [{"timestamp": "00:00", "quote": summary_text, "reason": "Fallback"}]
-        insights = parsed.get("insights") or ["No structured insights generated."]
+        confidence_score = GeminiClient._safe_confidence(parsed.get("confidence_score"), fallback=0.0)
+        evidence = GeminiClient._normalize_evidence(parsed.get("evidence"))
+        insights = GeminiClient._normalize_insights(parsed.get("insights"))
+
         return AnalysisOutput(
-            transcript_text=transcript_text,
+            transcript_text=fallback_transcript,
             summary_text=summary_text,
             translated_summary=translated_summary,
             sentiment=sentiment,
@@ -99,24 +265,62 @@ class GeminiClient:
         )
 
     @staticmethod
-    def _safe_sentiment(value) -> Sentiment:
+    def _safe_sentiment(value: Any) -> Sentiment:
         try:
             return Sentiment(str(value).lower())
         except ValueError:
             return Sentiment.NEUTRAL
 
     @staticmethod
-    def _safe_risk_level(value) -> RiskLevel:
+    def _safe_risk_level(value: Any) -> RiskLevel:
         try:
             return RiskLevel(str(value).lower())
         except ValueError:
             return RiskLevel.MEDIUM
 
     @staticmethod
+    def _safe_confidence(value: Any, *, fallback: float) -> float:
+        try:
+            confidence = float(value)
+        except (TypeError, ValueError):
+            return fallback
+        if confidence < 0:
+            return 0.0
+        if confidence > 1:
+            return 1.0
+        return confidence
+
+    @staticmethod
+    def _normalize_evidence(value: Any) -> List[dict]:
+        if not isinstance(value, list):
+            return []
+
+        normalized: List[dict] = []
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            timestamp = str(item.get("timestamp", "")).strip() or "00:00"
+            quote = str(item.get("quote", "")).strip()
+            reason = str(item.get("reason", "")).strip()
+            if not quote:
+                continue
+            normalized = [*normalized, {"timestamp": timestamp, "quote": quote, "reason": reason}]
+        return normalized
+
+    @staticmethod
+    def _normalize_insights(value: Any) -> List[str]:
+        if not isinstance(value, list):
+            return []
+        return [item for item in [str(raw).strip() for raw in value] if item]
+
+    @staticmethod
     def _chat_from_parsed(*, parsed: dict) -> ChatOutput:
-        content = parsed.get("content") or "There is not enough evidence in this transcript to answer confidently."
-        citations = parsed.get("citations") or []
-        confidence_score = float(parsed.get("confidence_score", 0.4))
+        content = str(parsed.get("content", "")).strip()
+        if not content:
+            raise GeminiResponseError("Gemini chat output is missing content.")
+
+        citations = GeminiClient._normalize_citations(parsed.get("citations"))
+        confidence_score = GeminiClient._safe_confidence(parsed.get("confidence_score"), fallback=0.0)
         insufficient_evidence = bool(parsed.get("insufficient_evidence", confidence_score < 0.5))
         return ChatOutput(
             content=content,
@@ -126,23 +330,71 @@ class GeminiClient:
         )
 
     @staticmethod
-    def _build_analysis_prompt(
-        *, title: str, language: str, relevance_reason: str, brand_keywords: List[str], transcript_text: str
+    def _normalize_citations(value: Any) -> List[dict]:
+        if not isinstance(value, list):
+            return []
+
+        citations: List[dict] = []
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            timestamp = str(item.get("timestamp", "")).strip() or "00:00"
+            quote = str(item.get("quote", "")).strip()
+            if not quote:
+                continue
+            citations = [*citations, {"timestamp": timestamp, "quote": quote}]
+        return citations
+
+    @staticmethod
+    def _build_analysis_chunk_prompt(
+        *,
+        title: str,
+        language: str,
+        relevance_reason: str,
+        brand_keywords: List[str],
+        chunk_text: str,
+        chunk_index: int,
+        total_chunks: int,
     ) -> str:
         keywords_text = ", ".join(brand_keywords)
         return (
-            "You are analyzing influencer video content for marketing risk monitoring.\n"
-            "Return strict JSON with keys: summary_text, translated_summary, sentiment, "
-            "risk_level, confidence_score, evidence, insights.\n"
+            "You are analyzing influencer video transcript chunks for marketing risk monitoring.\n"
+            "Return strict JSON with keys: summary_text, translated_summary, sentiment, risk_level, "
+            "confidence_score, evidence, insights.\n"
+            "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high], "
+            "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings.\n"
             f"Video title: {title}\n"
             f"Language: {language}\n"
             f"Brand keywords: {keywords_text}\n"
             f"Relevance reason: {relevance_reason}\n"
-            f"Transcript:\n{transcript_text}\n"
+            f"Chunk: {chunk_index} of {total_chunks}\n"
+            "Focus only on this chunk and cite direct transcript snippets.\n"
+            f"Transcript chunk:\n{chunk_text}\n"
+        )
+
+    @staticmethod
+    def _build_analysis_reduce_prompt(
+        *,
+        title: str,
+        language: str,
+        relevance_reason: str,
+        brand_keywords: List[str],
+        chunk_analyses: List[dict],
+    ) -> str:
+        chunk_json = json.dumps(chunk_analyses, ensure_ascii=True)
+        keywords_text = ", ".join(brand_keywords)
+        return (
+            "You are merging chunk-level transcript analyses into a final decision for marketing risk monitoring.\n"
+            "Return strict JSON with keys: summary_text, translated_summary, sentiment, risk_level, "
+            "confidence_score, evidence, insights.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high], "
-            "evidence as list of {timestamp, quote, reason}, insights as list of strings.\n"
-            "Focus on the transcript content. Use direct quotes and timestamps from transcript when possible.\n"
-            "If uncertain, set insufficient claims and confidence below 0.5."
+            "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings.\n"
+            "Do not invent evidence. Use only evidence that appears in chunk analyses.\n"
+            f"Video title: {title}\n"
+            f"Language: {language}\n"
+            f"Brand keywords: {keywords_text}\n"
+            f"Relevance reason: {relevance_reason}\n"
+            f"Chunk analyses JSON:\n{chunk_json}\n"
         )
 
     @staticmethod
@@ -151,68 +403,9 @@ class GeminiClient:
             "You are a grounded assistant for marketing review.\n"
             "Only answer using provided context. If insufficient evidence, say so.\n"
             "Return strict JSON with keys: content, citations, confidence_score, insufficient_evidence.\n"
+            "Rules: confidence_score in [0,1], citations as list of {timestamp, quote}.\n"
             f"Preferred answer language: {language}\n"
             f"Context:\n{context}\n"
             f"Question: {question}\n"
-        )
-
-    @staticmethod
-    def _mock_analysis(*, title: str, language: str, transcript_text: str) -> AnalysisOutput:
-        transcript_lines = [line for line in transcript_text.splitlines() if line.strip()]
-        excerpt = " ".join(transcript_lines[:3])[:400]
-        summary = (
-            f"The creator reviews {title} with mixed feedback. Key points from transcript: {excerpt}"
-        )
-        return AnalysisOutput(
-            transcript_text=transcript_text,
-            summary_text=summary,
-            translated_summary=summary if language == "en" else f"[translated to {language}] {summary}",
-            sentiment=Sentiment.NEUTRAL,
-            risk_level=RiskLevel.MEDIUM,
-            confidence_score=0.73,
-            evidence=[
-                {
-                    "timestamp": transcript_lines[0].split(" ")[0] if transcript_lines else "00:00",
-                    "quote": transcript_lines[0][6:] if transcript_lines else summary,
-                    "reason": "Representative transcript signal.",
-                },
-                {
-                    "timestamp": transcript_lines[1].split(" ")[0] if len(transcript_lines) > 1 else "00:30",
-                    "quote": transcript_lines[1][6:] if len(transcript_lines) > 1 else "No second transcript line.",
-                    "reason": "Additional transcript context.",
-                },
-            ],
-            insights=[
-                "Users like quick setup.",
-                "Onboarding clarity should improve for power features.",
-                "Reliability narrative may trend negative without response.",
-            ],
-        )
-
-    @staticmethod
-    def _mock_chat(*, context: str, question: str) -> ChatOutput:
-        lowered = question.lower()
-        if "evidence" in lowered or "quote" in lowered or "risk" in lowered:
-            return ChatOutput(
-                content="Key risk evidence appears around 05:10 where reliability concerns are mentioned.",
-                citations=[{"timestamp": "05:10", "quote": "Reliability could be better after one week."}],
-                confidence_score=0.79,
-                insufficient_evidence=False,
-            )
-
-        if "fact" in lowered and "error" in lowered:
-            return ChatOutput(
-                content="There is not enough evidence in the transcript to confirm factual errors.",
-                citations=[],
-                confidence_score=0.32,
-                insufficient_evidence=True,
-            )
-
-        short_context = context[:180].replace("\n", " ")
-        return ChatOutput(
-            content=f"Based on available context, the creator sentiment is mixed. Context excerpt: {short_context}",
-            citations=[{"timestamp": "02:48", "quote": "I got confused with the advanced controls."}],
-            confidence_score=0.62,
-            insufficient_evidence=False,
         )
 

@@ -30,6 +30,11 @@ class MonitorRepository:
     def list_all(self) -> List[MonitorProfile]:
         return self.session.query(MonitorProfile).order_by(MonitorProfile.created_at.desc()).all()
 
+    def list_by_ids(self, profile_ids: List[int]) -> List[MonitorProfile]:
+        if not profile_ids:
+            return []
+        return self.session.query(MonitorProfile).filter(MonitorProfile.id.in_(profile_ids)).all()
+
     def delete(self, profile_id: int) -> bool:
         profile = self.get(profile_id)
         if profile:

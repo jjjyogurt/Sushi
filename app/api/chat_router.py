@@ -7,6 +7,7 @@ from app.api.mappers import map_chat_message_response
 from app.db import get_db_session
 from app.schemas.chat import ChatMessageResponse, ChatRequest
 from app.services.chat_service import ChatService
+from app.services.exceptions import GeminiError
 
 router = APIRouter(prefix="/videos/{video_id}/chat", tags=["chat"])
 
@@ -17,6 +18,10 @@ def ask_chatbot(video_id: int, payload: ChatRequest, db: Session = Depends(get_d
     try:
         message = service.ask(video_id=video_id, question=payload.question, user_id=payload.user_id)
         return map_chat_message_response(message)
+    except GeminiError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

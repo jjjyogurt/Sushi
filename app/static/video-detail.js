@@ -1,0 +1,422 @@
+import { escapeHtml, getElement } from "./ui-utils.js";
+
+function normalizeAnalysisErrorMessage(rawMessage) {
+  const message = String(rawMessage || "").trim();
+  if (!message) {
+    return "Analysis failed. Please try again.";
+  }
+  if (message.startsWith("GEMINI_NOT_READY:")) {
+    return "Gemini is not ready. Configure GEMINI_API_KEY and restart the server.";
+  }
+  if (message.startsWith("TRANSCRIPT_BLOCKED:")) {
+    return "YouTube blocked transcript requests from this IP. Retry later or switch network.";
+  }
+  if (message.startsWith("TRANSCRIPT_UNAVAILABLE:")) {
+    return "This video does not provide transcripts in requested languages.";
+  }
+  if (message.startsWith("TRANSCRIPT_PROVIDER_ERROR:")) {
+    return "Transcript provider failed unexpectedly. Please retry in a moment.";
+  }
+  if (message.startsWith("GEMINI_PROVIDER_ERROR:") || message.startsWith("GEMINI_RESPONSE_ERROR:")) {
+    return "Gemini request failed. Check /health/gemini and server logs for details.";
+  }
+  return message;
+}
+
+function extractVideoId(videoUrl) {
+  if (!videoUrl) {
+    return "";
+  }
+  try {
+    const parsedUrl = new URL(videoUrl);
+    if (parsedUrl.hostname.includes("youtu.be")) {
+      return parsedUrl.pathname.replace("/", "");
+    }
+    if (parsedUrl.hostname.includes("youtube.com")) {
+      return parsedUrl.searchParams.get("v") || "";
+    }
+    return "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function sentimentBadge(sentiment) {
+  if (!sentiment) {
+    return '<span class="badge">unknown</span>';
+  }
+  const css = sentiment === "negative" ? "negative" : sentiment === "positive" ? "positive" : "";
+  return `<span class="badge ${css}">${escapeHtml(sentiment)}</span>`;
+}
+
+function transcriptMarkup(analysis, transcriptExpanded) {
+  const transcript = analysis ? analysis.transcript_text || "" : "";
+  const buttonLabel = transcriptExpanded ? "Collapse" : "Expand";
+  const excerpt = transcriptExpanded ? transcript : transcript.split("\n").slice(0, 24).join("\n");
+  const bodyText = excerpt || "Run analysis after approval to generate a transcript.";
+  return `
+    <div class="detail-block">
+      <h5>Transcript</h5>
+      <div class="transcript-wrapper">
+        <div class="transcript-toolbar">
+          <span class="meta">${transcript ? `${transcript.length.toLocaleString()} characters` : "No transcript available yet"}</span>
+          <button id="toggle-transcript-btn" class="btn btn-secondary" type="button">${buttonLabel}</button>
+        </div>
+        <pre class="transcript-body">${escapeHtml(bodyText)}</pre>
+      </div>
+    </div>
+  `;
+}
+
+function evidenceText(analysis) {
+  if (!analysis || !Array.isArray(analysis.evidence) || analysis.evidence.length === 0) {
+    return "No evidence snippets yet.";
+  }
+  return analysis.evidence.map((item) => `${item.timestamp} - ${item.quote} (${item.reason})`).join("\n");
+}
+
+function renderChatEntries(messages) {
+  if (!messages || messages.length === 0) {
+    return '<div class="meta">No chat history yet. Ask a question to begin.</div>';
+  }
+
+  return messages
+    .map((message) => {
+      const citationText =
+        Array.isArray(message.citations) && message.citations.length > 0
+          ? ` (citations: ${message.citations.map((item) => item.timestamp).join(", ")})`
+          : "";
+      const role = escapeHtml(message.role);
+      const roleClass = role === "assistant" ? "assistant" : "user";
+      return `
+        <div class="chat-entry ${roleClass}">
+          <div class="chat-entry-label">${role}</div>
+          <div class="chat-entry-bubble">${escapeHtml(message.content)}${escapeHtml(citationText)}</div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded }) {
+  const canAnalyze = video.queue_state === "approved";
+  const riskLevel = analysis ? String(analysis.risk_level || "").toUpperCase() : "-";
+  const riskStyle = analysis && analysis.risk_level === "high" ? ' style="color: var(--danger);"' : "";
+  const videoId = extractVideoId(video.video_url);
+  const embedMarkup = videoId
+    ? `<iframe class="video-embed" src="https://www.youtube.com/embed/${escapeHtml(
+        videoId
+      )}" title="${escapeHtml(video.title)}" loading="lazy" allowfullscreen></iframe>`
+    : "";
+
+  return `
+    <div class="video-detail-body">
+      <div>
+        <h3 class="video-detail-title">${escapeHtml(video.title)}</h3>
+        <a class="video-link" href="${escapeHtml(video.video_url)}" target="_blank" rel="noreferrer">
+          ${escapeHtml(video.video_url)} ↗
+        </a>
+        <div class="analysis-status">
+          Queue state: <strong>${escapeHtml(video.queue_state)}</strong>
+          ${analysis ? ` | Analysis: <strong>${escapeHtml(analysis.status)}</strong>` : ""}
+        </div>
+      </div>
+
+      ${embedMarkup}
+
+      <div class="inline-actions">
+        <button id="approve-btn" class="btn btn-secondary" type="button">Approve</button>
+        <button id="reject-btn" class="btn btn-secondary" type="button">Reject</button>
+        <button id="analyze-btn" class="btn btn-primary" type="button" ${canAnalyze ? "" : "disabled"}>
+          ${canAnalyze ? "Run Analysis" : "Approve First"}
+        </button>
+        <button id="escalate-btn" class="btn btn-danger" type="button">Escalate</button>
+        <button id="delete-video-btn" class="btn btn-secondary" type="button">Delete</button>
+      </div>
+
+      ${analysisError ? `<div class="meta" style="color: var(--danger);">${escapeHtml(analysisError)}</div>` : ""}
+
+      <div class="detail-grid">
+        <div class="detail-block">
+          <h5>Summary</h5>
+          <div>${escapeHtml(analysis ? analysis.summary_text : "No analysis yet.")}</div>
+        </div>
+        <div class="split-grid">
+          <div class="detail-block">
+            <h5>Sentiment</h5>
+            <div>${analysis ? sentimentBadge(analysis.sentiment) : '<span class="badge">unknown</span>'}</div>
+          </div>
+          <div class="detail-block">
+            <h5>Risk Level</h5>
+            <div${riskStyle}><strong>${escapeHtml(riskLevel)}</strong></div>
+          </div>
+        </div>
+        ${transcriptMarkup(analysis, transcriptExpanded)}
+        <div class="detail-block">
+          <h5>Evidence</h5>
+          <pre class="transcript-body">${escapeHtml(evidenceText(analysis))}</pre>
+        </div>
+      </div>
+
+      <div>
+        <h5 style="margin: 0 0 8px;">Chat with Video AI</h5>
+        <div id="chat-window" class="chat-window"></div>
+        <div class="inline-actions" style="margin-top: 8px;">
+          <input id="chat-question" type="text" placeholder="Ask about risk, tone, transcript details, or missing points..." style="flex: 1;" />
+          <button id="send-chat-btn" class="btn btn-primary" type="button">Send</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function createVideoDetailController({
+  getState,
+  setState,
+  request,
+  runTask,
+  onVideosChanged,
+  onAlertsChanged,
+}) {
+  let analysisCache = {};
+  let chatCache = {};
+  let detailAbortController = null;
+
+  function getSelectedVideo() {
+    const state = getState();
+    return state.videos.find((video) => video.id === state.selectedVideoId) || null;
+  }
+
+  function invalidateVideoCache(videoId) {
+    const { [videoId]: _analysis, ...remainingAnalysis } = analysisCache;
+    const { [videoId]: _chat, ...remainingChat } = chatCache;
+    analysisCache = remainingAnalysis;
+    chatCache = remainingChat;
+  }
+
+  function renderVideoDetailEmpty(message) {
+    const container = getElement("video-detail");
+    if (!container) {
+      return;
+    }
+    container.className = "video-detail-empty";
+    container.innerHTML = `
+      <div class="empty-state-content">
+        <h3>No Video Selected</h3>
+        <p>${escapeHtml(message)}</p>
+      </div>
+    `;
+  }
+
+  async function fetchAnalysis(videoId, forceRefresh = false) {
+    if (!forceRefresh && analysisCache[videoId]) {
+      return analysisCache[videoId];
+    }
+
+    if (detailAbortController) {
+      detailAbortController.abort();
+    }
+    detailAbortController = new AbortController();
+
+    const analysis = await request(`/videos/${videoId}/analysis`, {
+      signal: detailAbortController.signal,
+    });
+    analysisCache = {
+      ...analysisCache,
+      [videoId]: analysis,
+    };
+    return analysis;
+  }
+
+  async function fetchChat(videoId, forceRefresh = false) {
+    if (!forceRefresh && chatCache[videoId]) {
+      return chatCache[videoId];
+    }
+    const messages = await request(`/videos/${videoId}/chat?user_id=marketing-owner`);
+    chatCache = {
+      ...chatCache,
+      [videoId]: messages,
+    };
+    return messages;
+  }
+
+  async function renderChat(videoId) {
+    const chatWindow = getElement("chat-window");
+    if (!chatWindow) {
+      return;
+    }
+    try {
+      const messages = await fetchChat(videoId);
+      chatWindow.innerHTML = renderChatEntries(messages);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load chat.";
+      chatWindow.innerHTML = `<div class="meta" style="color: var(--danger);">${escapeHtml(message)}</div>`;
+    }
+  }
+
+  function bindDetailActions(videoId, canAnalyze) {
+    const transcriptToggle = getElement("toggle-transcript-btn");
+    if (transcriptToggle) {
+      transcriptToggle.onclick = () => {
+        setState((previous) => ({
+          ...previous,
+          transcriptExpanded: !previous.transcriptExpanded,
+        }));
+        void renderVideoDetail();
+      };
+    }
+
+    const approveButton = getElement("approve-btn");
+    if (approveButton) {
+      approveButton.onclick = () =>
+        runTask(async () => {
+          await request(`/videos/${videoId}/approve`, {
+            method: "POST",
+            body: JSON.stringify({ approved: true }),
+          });
+          invalidateVideoCache(videoId);
+          await onVideosChanged();
+        }, "Video approved.");
+    }
+
+    const rejectButton = getElement("reject-btn");
+    if (rejectButton) {
+      rejectButton.onclick = () =>
+        runTask(async () => {
+          await request(`/videos/${videoId}/approve`, {
+            method: "POST",
+            body: JSON.stringify({ approved: false }),
+          });
+          invalidateVideoCache(videoId);
+          await onVideosChanged();
+        }, "Video rejected.");
+    }
+
+    const analyzeButton = getElement("analyze-btn");
+    if (analyzeButton) {
+      analyzeButton.onclick = () =>
+        runTask(async () => {
+          if (!canAnalyze) {
+            return;
+          }
+          const originalLabel = analyzeButton.textContent;
+          analyzeButton.disabled = true;
+          analyzeButton.textContent = "Analyzing...";
+          try {
+            await request(`/videos/${videoId}/analyze`, {
+              method: "POST",
+              body: JSON.stringify({ force_reanalyze: true }),
+            });
+            invalidateVideoCache(videoId);
+            await renderVideoDetail();
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Analysis failed.";
+            throw new Error(normalizeAnalysisErrorMessage(errorMessage));
+          } finally {
+            analyzeButton.disabled = false;
+            analyzeButton.textContent = originalLabel || "Run Analysis";
+          }
+        }, "Analysis refreshed.");
+    }
+
+    const escalateButton = getElement("escalate-btn");
+    if (escalateButton) {
+      escalateButton.onclick = () =>
+        runTask(async () => {
+          await request(`/videos/${videoId}/escalate`, {
+            method: "POST",
+            body: JSON.stringify({ owner: "marketing-owner", notes: "Escalated from dashboard" }),
+          });
+          await onAlertsChanged();
+        }, "Escalated and alert generated.");
+    }
+
+    const deleteButton = getElement("delete-video-btn");
+    if (deleteButton) {
+      deleteButton.onclick = () =>
+        runTask(async () => {
+          await request(`/videos/${videoId}`, { method: "DELETE" });
+          invalidateVideoCache(videoId);
+          await onVideosChanged();
+        }, "Video deleted.");
+    }
+
+    const sendChatButton = getElement("send-chat-btn");
+    if (sendChatButton) {
+      sendChatButton.onclick = () =>
+        runTask(async () => {
+          const questionInput = getElement("chat-question");
+          if (!questionInput) {
+            return;
+          }
+          const question = questionInput.value.trim();
+          if (!question) {
+            throw new Error("Type a question before sending.");
+          }
+          await request(`/videos/${videoId}/chat`, {
+            method: "POST",
+            body: JSON.stringify({ question, user_id: "marketing-owner" }),
+          });
+          questionInput.value = "";
+          const { [videoId]: _removed, ...remainingChats } = chatCache;
+          chatCache = remainingChats;
+          await renderChat(videoId);
+        });
+    }
+  }
+
+  async function renderVideoDetail() {
+    const selectedVideo = getSelectedVideo();
+    if (!selectedVideo) {
+      renderVideoDetailEmpty("Select a video to view summary, transcript, and AI chat.");
+      return;
+    }
+
+    const container = getElement("video-detail");
+    if (!container) {
+      return;
+    }
+
+    container.className = "";
+    container.innerHTML = '<div class="video-detail-body"><div class="meta">Loading detail...</div></div>';
+
+    const renderTargetId = selectedVideo.id;
+    let analysis = null;
+    let analysisError = "";
+    const state = getState();
+
+    try {
+      analysis = await fetchAnalysis(renderTargetId);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return;
+      }
+      const errorMessage = error instanceof Error ? error.message : "Failed to load analysis.";
+      analysisError = normalizeAnalysisErrorMessage(errorMessage);
+    }
+
+    if (renderTargetId !== getState().selectedVideoId) {
+      return;
+    }
+
+    container.innerHTML = videoDetailMarkup({
+      video: selectedVideo,
+      analysis,
+      analysisError,
+      transcriptExpanded: state.transcriptExpanded,
+    });
+    bindDetailActions(selectedVideo.id, selectedVideo.queue_state === "approved");
+    await renderChat(selectedVideo.id);
+  }
+
+  return {
+    renderVideoDetail,
+    renderVideoDetailEmpty,
+    invalidateVideoCache,
+    resetCaches() {
+      analysisCache = {};
+      chatCache = {};
+    },
+  };
+}

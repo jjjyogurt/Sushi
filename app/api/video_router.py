@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -7,11 +8,43 @@ from app.api.mappers import map_analysis_response, map_video_response
 from app.db import get_db_session
 from app.models.enums import QueueState
 from app.schemas.analysis import AnalysisRequest, AnalysisResponse
-from app.schemas.video import ManualVideoCreateRequest, VideoApproveRequest, VideoDiscoveryRequest, VideoListResponse
+from app.schemas.video import (
+    ManualVideoCreateRequest,
+    VideoApproveRequest,
+    VideoBulkAddRequest,
+    VideoBulkAddResponse,
+    VideoDiscoveryRequest,
+    VideoListResponse,
+    VideoSearchRequest,
+    VideoSearchResponse,
+)
 from app.services.analysis_service import AnalysisService
+from app.services.exceptions import (
+    GeminiConfigurationError,
+    GeminiDependencyError,
+    GeminiProviderError,
+    GeminiResponseError,
+    TranscriptBlockedError,
+    TranscriptProviderError,
+    TranscriptUnavailableError,
+)
 from app.services.triage_service import TriageService
 
 router = APIRouter(prefix="/videos", tags=["videos"])
+logger = logging.getLogger(__name__)
+
+
+def map_videos_with_context(service: TriageService, videos):
+    profile_names = service.get_monitor_profile_names_for_videos(videos)
+    sentiment_labels = service.get_sentiment_labels_for_videos(videos)
+    return [
+        map_video_response(
+            item,
+            monitor_profile_name=profile_names.get(item.monitor_profile_id),
+            sentiment_label=sentiment_labels.get(item.id),
+        )
+        for item in videos
+    ]
 
 
 @router.post("/discover", response_model=VideoListResponse)
@@ -22,7 +55,7 @@ def discover_videos(payload: VideoDiscoveryRequest, db: Session = Depends(get_db
             monitor_profile_id=payload.monitor_profile_id,
             max_results=payload.max_results,
         )
-        responses = [map_video_response(item) for item in videos]
+        responses = map_videos_with_context(service, videos)
         return VideoListResponse(items=responses, total=len(responses))
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -37,7 +70,8 @@ def add_manual_video(payload: ManualVideoCreateRequest, db: Session = Depends(ge
             video_url=payload.video_url,
             language=payload.language,
         )
-        return map_video_response(candidate)
+        responses = map_videos_with_context(service, [candidate])
+        return responses[0]
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -55,8 +89,36 @@ def list_videos(
         queue_state=queue_state,
         title_filter=title,
     )
-    responses = [map_video_response(item) for item in videos]
+    responses = map_videos_with_context(service, videos)
     return VideoListResponse(items=responses, total=len(responses), title_filter=title)
+
+
+@router.post("/search", response_model=VideoSearchResponse)
+def search_videos(payload: VideoSearchRequest, db: Session = Depends(get_db_session)):
+    service = TriageService(db)
+    try:
+        items = service.search_candidates(
+            monitor_profile_id=payload.monitor_profile_id,
+            query=payload.query,
+            max_results=payload.max_results,
+        )
+        return VideoSearchResponse(items=items, total=len(items), query=payload.query)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/bulk-add", response_model=VideoBulkAddResponse)
+def bulk_add_videos(payload: VideoBulkAddRequest, db: Session = Depends(get_db_session)):
+    service = TriageService(db)
+    try:
+        items = service.add_bulk_candidates(
+            monitor_profile_id=payload.monitor_profile_id,
+            candidates=payload.candidates,
+        )
+        responses = map_videos_with_context(service, items)
+        return VideoBulkAddResponse(items=responses, total=len(responses))
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.post("/{video_id}/approve")
@@ -64,7 +126,8 @@ def approve_video(video_id: int, payload: VideoApproveRequest, db: Session = Dep
     service = TriageService(db)
     try:
         candidate = service.approve(video_id=video_id, approved=payload.approved)
-        return map_video_response(candidate)
+        responses = map_videos_with_context(service, [candidate])
+        return responses[0]
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -81,11 +144,31 @@ def delete_video(video_id: int, db: Session = Depends(get_db_session)):
 
 @router.post("/{video_id}/analyze", response_model=AnalysisResponse)
 def analyze_video(video_id: int, payload: AnalysisRequest, db: Session = Depends(get_db_session)):
+    logger.info("api analyze request video_id=%s force_reanalyze=%s", video_id, payload.force_reanalyze)
     service = AnalysisService(db)
     try:
         result = service.analyze_video(video_id=video_id, force_reanalyze=payload.force_reanalyze)
         return map_analysis_response(result)
+    except (GeminiConfigurationError, GeminiDependencyError) as error:
+        logger.warning("api analyze GeminiNotReady video_id=%s error=%s", video_id, error)
+        raise HTTPException(status_code=503, detail=f"GEMINI_NOT_READY: {error}") from error
+    except GeminiProviderError as error:
+        logger.warning("api analyze GeminiProviderError video_id=%s error=%s", video_id, error)
+        raise HTTPException(status_code=503, detail=f"GEMINI_PROVIDER_ERROR: {error}") from error
+    except GeminiResponseError as error:
+        logger.warning("api analyze GeminiResponseError video_id=%s error=%s", video_id, error)
+        raise HTTPException(status_code=503, detail=f"GEMINI_RESPONSE_ERROR: {error}") from error
+    except TranscriptBlockedError as error:
+        logger.warning("api analyze TranscriptBlocked video_id=%s error=%s", video_id, error)
+        raise HTTPException(status_code=503, detail=f"TRANSCRIPT_BLOCKED: {error}") from error
+    except TranscriptUnavailableError as error:
+        logger.warning("api analyze TranscriptUnavailable video_id=%s error=%s", video_id, error)
+        raise HTTPException(status_code=422, detail=f"TRANSCRIPT_UNAVAILABLE: {error}") from error
+    except TranscriptProviderError as error:
+        logger.warning("api analyze TranscriptProviderError video_id=%s error=%s", video_id, error)
+        raise HTTPException(status_code=503, detail=f"TRANSCRIPT_PROVIDER_ERROR: {error}") from error
     except ValueError as error:
+        logger.warning("api analyze ValueError video_id=%s error=%s", video_id, error)
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 

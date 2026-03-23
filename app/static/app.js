@@ -1,3 +1,7 @@
+/*
+ * Legacy entrypoint placeholder.
+ * Active frontend entrypoint is /static/main.js (ES module).
+ */
 function initialState() {
   return {
     profiles: [],
@@ -17,6 +21,29 @@ let analysisCache = {};
 let chatCache = {};
 let detailAbortController = null;
 let messageTimer = null;
+
+function normalizeAnalysisErrorMessage(rawMessage) {
+  const message = String(rawMessage || "").trim();
+  if (!message) {
+    return "Analysis failed. Please try again.";
+  }
+  if (message.startsWith("GEMINI_NOT_READY:")) {
+    return "Gemini is not ready. Configure GEMINI_API_KEY and restart the server.";
+  }
+  if (message.startsWith("TRANSCRIPT_BLOCKED:")) {
+    return "YouTube blocked transcript requests from this IP. Retry later or switch network.";
+  }
+  if (message.startsWith("TRANSCRIPT_UNAVAILABLE:")) {
+    return "This video does not provide transcripts in requested languages.";
+  }
+  if (message.startsWith("TRANSCRIPT_PROVIDER_ERROR:")) {
+    return "Transcript provider failed unexpectedly. Please retry in a moment.";
+  }
+  if (message.startsWith("GEMINI_PROVIDER_ERROR:") || message.startsWith("GEMINI_RESPONSE_ERROR:")) {
+    return "Gemini request failed. Check /health/gemini and server logs for details.";
+  }
+  return message;
+}
 
 function setState(patchOrUpdater) {
   state =
@@ -172,7 +199,12 @@ function bindNav() {
 function profileCardMarkup(profile) {
   return `
     <article class="project-card">
-      <h4>${escapeHtml(profile.name)}</h4>
+      <div style="display: flex; justify-content: space-between; align-items: start;">
+        <h4>${escapeHtml(profile.name)}</h4>
+        <button class="icon-btn delete-project-btn" data-profile-id="${profile.id}" title="Delete Project" type="button">
+          <span class="material-symbols-outlined" style="color: var(--danger); font-size: 1.2rem;">delete</span>
+        </button>
+      </div>
       <div class="meta" style="font-weight: 600; color: #5a6061; font-size: 0.8rem;">Keywords: ${escapeHtml(profile.brand_keywords.join(", "))}</div>
       <div class="chip-row" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
         ${profile.markets.map((market) => `<span class="badge" style="background: #f2f4f4; color: #5a6061; padding: 4px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">${escapeHtml(market)}</span>`).join("")}
@@ -538,15 +570,24 @@ function bindDetailActions(videoId, canAnalyze) {
         if (!canAnalyze) {
           return;
         }
+        const originalLabel = analyzeButton.textContent;
         analyzeButton.disabled = true;
         analyzeButton.textContent = "Analyzing...";
-        await request(`/videos/${videoId}/analyze`, {
-          method: "POST",
-          body: JSON.stringify({ force_reanalyze: false }),
-        });
-        invalidateVideoCache(videoId);
-        await renderVideoDetail();
-      }, "Analysis complete.");
+        try {
+          await request(`/videos/${videoId}/analyze`, {
+            method: "POST",
+            body: JSON.stringify({ force_reanalyze: true }),
+          });
+          invalidateVideoCache(videoId);
+          await renderVideoDetail();
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Analysis failed.";
+          throw new Error(normalizeAnalysisErrorMessage(errorMessage));
+        } finally {
+          analyzeButton.disabled = false;
+          analyzeButton.textContent = originalLabel || "Run Analysis";
+        }
+      }, "Analysis refreshed.");
   }
 
   const escalateButton = getElement("escalate-btn");
@@ -796,6 +837,42 @@ function bindTokenInputs() {
 }
 
 function bindDashboardControls() {
+  const profileGrid = getElement("profile-grid");
+  if (profileGrid) {
+    profileGrid.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      const deleteBtn = target.closest(".delete-project-btn");
+      if (deleteBtn instanceof HTMLElement) {
+        event.stopPropagation();
+        const profileId = Number(deleteBtn.dataset.profileId);
+        if (Number.isNaN(profileId)) {
+          return;
+        }
+        void runTask(async () => {
+          if (!window.confirm("Are you sure you want to delete this project? All associated videos and data will be lost.")) {
+            return;
+          }
+          await request(`/monitor-profiles/${profileId}`, {
+            method: "DELETE",
+          });
+          if (state.selectedProfileId === profileId) {
+            setState((previous) => ({
+              ...previous,
+              selectedProfileId: null,
+              selectedVideoId: null,
+              videos: [],
+            }));
+          }
+          await loadProfiles();
+          await refreshVideos();
+        }, "Project deleted.");
+      }
+    });
+  }
+
   const toggleButton = getElement("toggle-create-btn");
   if (toggleButton) {
     toggleButton.addEventListener("click", () => {

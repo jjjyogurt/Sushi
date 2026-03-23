@@ -10,9 +10,11 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 - Relevance scoring from title/description keyword matches
 - Human-in-the-loop approve/reject queue state
 - Transcript-first Gemini analysis pipeline with durable storage
+- Chunked map-reduce Gemini analysis for long transcripts
 - Re-analysis dedupe by `youtube_video_id + analysis_version`
 - Shared analysis details (transcript, summary, sentiment, risk, evidence)
 - Per-video chatbot with citation support and insufficient-evidence behavior
+- Fail-closed Gemini runtime (no analysis/chat mock fallback when key or SDK is missing)
 - Incident escalation and inbox alert generation
 - Audit logs for discovery/approve/analyze/chat/escalate actions
 - Key unit tests for dedupe, re-analysis, chat grounding behavior, and escalation
@@ -22,8 +24,8 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 - **Frontend**: server-rendered HTML + vanilla JS (minimal Notion-like layout)
 - **API**: FastAPI routers
 - **Data**: SQLite via SQLAlchemy models
-- **AI**: Gemini client wrapper (`gemini-3` configurable via env vars)
-- **Safety**: transcript prompt-injection sanitization, evidence-first answers, fallback responses
+- **AI**: Gemini client wrapper (`gemini-3-flash` configurable via env vars)
+- **Safety**: transcript prompt-injection sanitization, evidence-first answers, fail-closed runtime errors
 
 ## Project structure
 
@@ -39,11 +41,15 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 ## Environment variables
 
 - `GEMINI_API_KEY` - required for live Gemini summarization/chat.
-- `GEMINI_MODEL_ANALYSIS` - Gemini model used for analysis (default: `gemini-3`).
-- `GEMINI_MODEL_CHAT` - Gemini model used for per-video chat (default: `gemini-3`).
+- `GEMINI_MODEL_ANALYSIS` - Gemini model used for analysis (default: `gemini-3-flash`).
+- `GEMINI_MODEL_CHAT` - Gemini model used for per-video chat (default: `gemini-3-flash`).
 - `ENABLE_MOCK_DISCOVERY` - `false` uses live search, `true` forces deterministic mock videos.
 - `TRANSCRIPT_LANGUAGES` - comma-separated transcript preference order.
-- `ANALYSIS_MAX_TRANSCRIPT_CHARS` - transcript size cap sent to Gemini prompt.
+- `ANALYSIS_MAX_TRANSCRIPT_CHARS` - max transcript chars considered before chunking.
+- `ANALYSIS_CHUNK_CHARS` - per-chunk character budget used in map-reduce analysis.
+- `ANALYSIS_CHUNK_OVERLAP_CHARS` - overlap budget retained between adjacent chunks.
+- `ANALYSIS_MAX_CHUNKS` - hard cap for number of analysis chunks.
+- `CHAT_MAX_CONTEXT_CHARS` - chat context cap before transcript truncation.
 - `DATABASE_URL` - sqlite/postgres DSN for storage.
 
 ## Setup
@@ -73,8 +79,15 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 - `GET /videos/{video_id}/chat`
 - `POST /videos/{video_id}/escalate`
 - `GET /alerts`
+- `GET /health/gemini?probe=true|false`
 
 ## Security note
 
 Do not commit raw API keys. Since a key was previously shared in chat, rotate/revoke it and update `.env` with the new key before production usage.
+
+## Gemini troubleshooting
+
+- `GEMINI_API_KEY is not configured` means analysis/chat now fail closed by design; set a valid key in `.env`.
+- `google-generativeai package is required` means the dependency is missing; run `pip install -r requirements.txt`.
+- If `/health/gemini` returns `ready: false`, analysis/chat endpoints will return `503` until key and SDK are available.
 

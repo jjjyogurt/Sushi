@@ -40,18 +40,11 @@ class ChatService:
             insufficient_evidence=False,
         )
 
-        knowledge = default_product_knowledge()
-        context = "\n".join(
-            [
-                "Transcript:",
-                sanitize_transcript_context(analysis.transcript_text),
-                "Summary:",
-                analysis.summary_text,
-                "Evidence:",
-                analysis.evidence_json,
-                "Product knowledge:",
-                "\n".join(knowledge),
-            ]
+        context = self._build_context(
+            transcript_text=analysis.transcript_text,
+            summary_text=analysis.summary_text,
+            evidence_json=analysis.evidence_json,
+            knowledge=default_product_knowledge(),
         )
         output = self.gemini_client.chat_about_video(context=context, question=question, language=candidate.language)
 
@@ -79,4 +72,40 @@ class ChatService:
     @staticmethod
     def parse_citations(citations_json: str):
         return decode_json(citations_json, [])
+
+    def _build_context(self, *, transcript_text: str, summary_text: str, evidence_json: str, knowledge):
+        max_chars = max(2000, self.settings.chat_max_context_chars)
+        sanitized_transcript = sanitize_transcript_context(transcript_text)
+        knowledge_text = "\n".join(knowledge)
+        shared_sections = [
+            "Summary:",
+            summary_text,
+            "Evidence:",
+            evidence_json,
+            "Product knowledge:",
+            knowledge_text,
+        ]
+        shared_text = "\n".join(shared_sections)
+
+        transcript_prefix = "Transcript:\n"
+        transcript_budget = max(0, max_chars - len(transcript_prefix) - len(shared_text) - 1)
+        transcript_excerpt = self._truncate_transcript(
+            transcript_text=sanitized_transcript,
+            max_chars=transcript_budget,
+        )
+        context = "\n".join([transcript_prefix.rstrip("\n"), transcript_excerpt, shared_text])
+        if len(context) <= max_chars:
+            return context
+        return context[:max_chars]
+
+    @staticmethod
+    def _truncate_transcript(*, transcript_text: str, max_chars: int) -> str:
+        if max_chars <= 0:
+            return "[transcript omitted due to context size]"
+        if len(transcript_text) <= max_chars:
+            return transcript_text
+
+        marker = "\n[transcript truncated]"
+        budget = max(0, max_chars - len(marker))
+        return f"{transcript_text[:budget].rstrip()}{marker}"
 

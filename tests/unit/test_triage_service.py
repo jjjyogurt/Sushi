@@ -1,6 +1,27 @@
+from datetime import datetime, timezone
+
 from app.config import get_settings
+from app.models.monitor_profile import MonitorProfile
 from app.models.enums import QueueState
+from app.schemas.video import VideoBulkAddCandidate
 from app.services.triage_service import TriageService
+from app.services.types import DiscoveredVideo
+from app.utils.json_codec import encode_json
+
+
+def create_profile(db_session, name: str):
+    profile = MonitorProfile(
+        name=name,
+        brand_keywords=encode_json(["hoverair"]),
+        markets=encode_json(["global"]),
+        languages=encode_json(["en"]),
+        alert_sensitivity="medium",
+        is_active=True,
+    )
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+    return profile
 
 
 def test_discovery_persists_candidates(db_session, monitor_profile):
@@ -22,5 +43,83 @@ def test_approve_updates_queue_state(db_session, monitor_profile):
     candidates = service.discover_for_profile(monitor_profile_id=monitor_profile.id, max_results=1)
     updated = service.approve(video_id=candidates[0].id, approved=True)
     assert updated.queue_state == QueueState.APPROVED
+    settings.enable_mock_discovery = original
+
+
+def test_search_candidates_marks_cross_project_conflict(db_session, monitor_profile):
+    settings = get_settings()
+    original = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
+
+    second_profile = create_profile(db_session, "Second Project")
+    service = TriageService(db_session)
+    fixed_candidate = DiscoveredVideo(
+        youtube_video_id="conflict-fixed",
+        video_url="https://www.youtube.com/watch?v=conflict-fixed",
+        title="Conflict Test Video",
+        channel_name="Creator",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        description="conflict seed",
+    )
+    service.discovery_service.discover_by_keywords = lambda **_: [fixed_candidate]
+
+    initial_results = service.search_candidates(
+        monitor_profile_id=monitor_profile.id,
+        query="hoverair",
+        max_results=1,
+    )
+    candidate = initial_results[0]
+    service.video_repository.upsert_candidate(
+        monitor_profile_id=second_profile.id,
+        youtube_video_id=candidate["youtube_video_id"],
+        video_url=candidate["video_url"],
+        title=candidate["title"],
+        channel_name=candidate["channel_name"],
+        language=candidate["language"],
+        published_at=candidate["published_at"],
+        relevance_score=candidate["relevance_score"],
+        relevance_reason=candidate["relevance_reason"],
+    )
+
+    results = service.search_candidates(monitor_profile_id=monitor_profile.id, query="hoverair", max_results=1)
+    assert len(results) == 1
+    assert results[0]["can_add"] is False
+    assert f"project #{second_profile.id}" in str(results[0]["block_reason"]).lower()
+
+    settings.enable_mock_discovery = original
+
+
+def test_bulk_add_candidates_persists_selected_search_candidates(db_session, monitor_profile):
+    settings = get_settings()
+    original = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
+
+    service = TriageService(db_session)
+    search_results = service.search_candidates(
+        monitor_profile_id=monitor_profile.id,
+        query="hoverair review",
+        max_results=2,
+    )
+    addable = next(item for item in search_results if item["can_add"])
+
+    candidate = VideoBulkAddCandidate(
+        youtube_video_id=addable["youtube_video_id"],
+        video_url=addable["video_url"],
+        title=addable["title"],
+        channel_name=addable["channel_name"],
+        language=addable["language"],
+        published_at=addable["published_at"] or datetime.now(timezone.utc),
+        description=addable["description"],
+    )
+    persisted = service.add_bulk_candidates(
+        monitor_profile_id=monitor_profile.id,
+        candidates=[candidate],
+    )
+
+    assert len(persisted) == 1
+    assert persisted[0].monitor_profile_id == monitor_profile.id
+    assert persisted[0].youtube_video_id == candidate.youtube_video_id
+
     settings.enable_mock_discovery = original
 

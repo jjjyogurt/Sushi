@@ -1,5 +1,10 @@
 from typing import List
 
+from app.services.exceptions import (
+    TranscriptBlockedError,
+    TranscriptProviderError,
+    TranscriptUnavailableError,
+)
 from app.services.types import TranscriptOutput
 
 
@@ -8,7 +13,9 @@ class TranscriptService:
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
         except ImportError as error:
-            raise RuntimeError("youtube-transcript-api package is required for transcript extraction.") from error
+            raise TranscriptProviderError(
+                "youtube-transcript-api package is required for transcript extraction."
+            ) from error
 
         language_candidates = [lang.strip() for lang in preferred_languages if lang.strip()]
         language_candidates = language_candidates or ["en"]
@@ -19,10 +26,10 @@ class TranscriptService:
             transcript = self._select_transcript(transcript_list=transcript_list, language_candidates=language_candidates)
             segments_raw = transcript.fetch().to_raw_data()
         except Exception as error:  # noqa: BLE001
-            raise RuntimeError(f"Failed to retrieve transcript for video {youtube_video_id}: {error}") from error
+            raise self._classify_fetch_error(youtube_video_id=youtube_video_id, error=error) from error
 
         if not segments_raw:
-            raise RuntimeError(f"Transcript is empty for video {youtube_video_id}.")
+            raise TranscriptUnavailableError(f"Transcript is empty for video {youtube_video_id}.")
 
         segments = [
             {
@@ -34,7 +41,7 @@ class TranscriptService:
             if (item.get("text") or "").strip()
         ]
         if not segments:
-            raise RuntimeError(f"Transcript has no usable text for video {youtube_video_id}.")
+            raise TranscriptUnavailableError(f"Transcript has no usable text for video {youtube_video_id}.")
 
         full_text = "\n".join(f"{item['timestamp']} {item['text']}" for item in segments)
         source_language = getattr(transcript, "language_code", language_candidates[0])
@@ -71,4 +78,32 @@ class TranscriptService:
         if hours > 0:
             return f"{hours:02d}:{minutes:02d}:{secs:02d}"
         return f"{minutes:02d}:{secs:02d}"
+
+    @staticmethod
+    def _classify_fetch_error(*, youtube_video_id: str, error: Exception) -> RuntimeError:
+        message = str(error)
+        lowered = message.lower()
+        blocked_signals = [
+            "blocking requests from your ip",
+            "ip has been blocked",
+            "too many requests",
+        ]
+        unavailable_signals = [
+            "no transcript available",
+            "no transcript available in requested languages",
+            "subtitles are disabled",
+            "transcripts are disabled",
+            "no transcripts were found",
+        ]
+
+        if any(signal in lowered for signal in blocked_signals):
+            return TranscriptBlockedError(
+                f"YouTube blocked transcript requests for video {youtube_video_id}. "
+                "Retry later or use a different network."
+            )
+        if any(signal in lowered for signal in unavailable_signals):
+            return TranscriptUnavailableError(
+                f"No transcript is available for video {youtube_video_id} in requested languages."
+            )
+        return TranscriptProviderError(f"Failed to retrieve transcript for video {youtube_video_id}: {message}")
 
