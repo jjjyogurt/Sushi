@@ -3,7 +3,7 @@ from app.models.analysis_result import AnalysisResult
 from app.models.enums import AnalysisStatus, QueueState, RiskLevel, Sentiment
 from app.services.analysis_service import AnalysisService
 from app.services.types import AnalysisOutput, TranscriptOutput
-from app.utils.json_codec import encode_json
+from app.utils.json_codec import decode_json, encode_json
 
 
 class StubTranscriptService:
@@ -48,6 +48,9 @@ class StubGeminiClient:
                 {"timestamp": "05:10", "quote": "Reliability could be better after one week.", "reason": "Reliability risk"},
             ],
             insights=["Onboarding confusion is recurring.", "Reliability concerns can affect trust."],
+            praise_points=["Setup was easy and fast."],
+            criticism_points=["Advanced controls felt confusing.", "Reliability concerns appeared after one week."],
+            action_recommendation="Explain improved control tips and reliability roadmap to the influencer.",
         )
 
 
@@ -106,6 +109,9 @@ def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session,
     assert second.status == AnalysisStatus.COMPLETED
     assert "05:10 Reliability could be better after one week." in second.transcript_text
     assert second.evidence_json != "[]"
+    parsed_insights_payload = decode_json(second.insights_json, {})
+    assert parsed_insights_payload["praise_points"] == ["Setup was easy and fast."]
+    assert parsed_insights_payload["action_recommendation"].startswith("Explain improved control tips")
 
     settings.analysis_version = original_version
     settings.gemini_api_key = original_key

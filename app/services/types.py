@@ -33,6 +33,9 @@ class AnalysisOutput:
     confidence_score: float
     evidence: List[dict]
     insights: List[str]
+    praise_points: List[str]
+    criticism_points: List[str]
+    action_recommendation: str
 
 
 @dataclass(frozen=True)

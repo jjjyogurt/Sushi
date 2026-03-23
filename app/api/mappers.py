@@ -45,6 +45,33 @@ def map_video_response(model, *, monitor_profile_name=None, sentiment_label=None
 
 
 def map_analysis_response(model: AnalysisResult) -> AnalysisResponse:
+    raw_insights_payload = decode_json(model.insights_json, [])
+    if isinstance(raw_insights_payload, dict):
+        raw_insights = raw_insights_payload.get("insights", [])
+        raw_praise_points = raw_insights_payload.get("praise_points", [])
+        raw_criticism_points = raw_insights_payload.get("criticism_points", [])
+        insights = [item for item in [str(value).strip() for value in raw_insights] if item] if isinstance(raw_insights, list) else []
+        praise_points = (
+            [item for item in [str(value).strip() for value in raw_praise_points] if item][:5]
+            if isinstance(raw_praise_points, list)
+            else []
+        )
+        criticism_points = (
+            [item for item in [str(value).strip() for value in raw_criticism_points] if item][:5]
+            if isinstance(raw_criticism_points, list)
+            else []
+        )
+        action_recommendation = str(raw_insights_payload.get("action_recommendation", "")).strip()
+    else:
+        insights = (
+            [item for item in [str(value).strip() for value in raw_insights_payload] if item]
+            if isinstance(raw_insights_payload, list)
+            else []
+        )
+        praise_points = []
+        criticism_points = []
+        action_recommendation = ""
+
     return AnalysisResponse(
         id=model.id,
         created_at=model.created_at,
@@ -60,7 +87,10 @@ def map_analysis_response(model: AnalysisResult) -> AnalysisResponse:
         risk_level=model.risk_level,
         confidence_score=float(model.confidence_score or "0"),
         evidence=decode_json(model.evidence_json, []),
-        insights=decode_json(model.insights_json, []),
+        insights=insights,
+        praise_points=praise_points,
+        criticism_points=criticism_points,
+        action_recommendation=action_recommendation,
         error_message=model.error_message,
     )
 

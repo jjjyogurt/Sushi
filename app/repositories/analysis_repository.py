@@ -73,7 +73,7 @@ class AnalysisRepository:
             existing.status = AnalysisStatus.QUEUED
             existing.error_message = ""
             existing.evidence_json = "[]"
-            existing.insights_json = "[]"
+            existing.insights_json = "{}"
             self.session.commit()
             self.session.refresh(existing)
             return existing

@@ -188,3 +188,98 @@ def test_analyze_endpoint_maps_transcript_blocked_errors(client, monkeypatch):
     response = client.post("/videos/31/analyze", json={"force_reanalyze": True})
     assert response.status_code == 503
     assert response.json()["detail"].startswith("TRANSCRIPT_BLOCKED:")
+
+
+def test_get_latest_analysis_supports_legacy_insights_list(client, api_db_session, api_monitor_profile):
+    repository = VideoRepository(api_db_session)
+    video = repository.upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="router-analysis-legacy",
+        video_url="https://youtu.be/router-analysis-legacy",
+        title="Legacy analysis row",
+        channel_name="CreatorLegacy",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.51,
+        relevance_reason="seed",
+    )
+    analysis = AnalysisResult(
+        video_candidate_id=video.id,
+        analysis_version="v1",
+        model_name="test-model",
+        status=AnalysisStatus.COMPLETED,
+        transcript_text="legacy transcript",
+        summary_text="legacy summary",
+        translated_summary="legacy summary",
+        sentiment=Sentiment.NEUTRAL,
+        risk_level=RiskLevel.MEDIUM,
+        confidence_score="0.7",
+        evidence_json="[]",
+        insights_json=encode_json(["legacy insight one", "legacy insight two"]),
+        error_message="",
+    )
+    api_db_session.add(analysis)
+    api_db_session.commit()
+
+    response = client.get(f"/videos/{video.id}/analysis")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["insights"] == ["legacy insight one", "legacy insight two"]
+    assert payload["praise_points"] == []
+    assert payload["criticism_points"] == []
+    assert payload["action_recommendation"] == ""
+
+
+def test_get_latest_analysis_supports_structured_insights_payload(client, api_db_session, api_monitor_profile):
+    repository = VideoRepository(api_db_session)
+    video = repository.upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="router-analysis-structured",
+        video_url="https://youtu.be/router-analysis-structured",
+        title="Structured analysis row",
+        channel_name="CreatorStructured",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.69,
+        relevance_reason="seed",
+    )
+    analysis = AnalysisResult(
+        video_candidate_id=video.id,
+        analysis_version="v2",
+        model_name="test-model",
+        status=AnalysisStatus.COMPLETED,
+        transcript_text="structured transcript",
+        summary_text="structured summary",
+        translated_summary="structured summary",
+        sentiment=Sentiment.NEGATIVE,
+        risk_level=RiskLevel.HIGH,
+        confidence_score="0.9",
+        evidence_json="[]",
+        insights_json=encode_json(
+            {
+                "insights": ["insight one"],
+                "praise_points": ["good stabilization", "compact design"],
+                "criticism_points": [
+                    "weak signal range",
+                    "manual controls feel complex",
+                    "obstacle sensing gap",
+                    "connection drops",
+                    "high price perception",
+                    "should be truncated",
+                ],
+                "action_recommendation": "Explain signal expectations and manual-control tips to the influencer.",
+            }
+        ),
+        error_message="",
+    )
+    api_db_session.add(analysis)
+    api_db_session.commit()
+
+    response = client.get(f"/videos/{video.id}/analysis")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["insights"] == ["insight one"]
+    assert payload["praise_points"] == ["good stabilization", "compact design"]
+    assert len(payload["criticism_points"]) == 5
+    assert payload["criticism_points"][-1] == "high price perception"
+    assert payload["action_recommendation"].startswith("Explain signal expectations")

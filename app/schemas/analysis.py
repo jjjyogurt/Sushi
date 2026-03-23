@@ -28,6 +28,9 @@ class AnalysisResponse(TimestampedResponse):
     risk_level: RiskLevel
     confidence_score: float = Field(default=0.0)
     evidence: List[EvidenceItem]
-    insights: List[str]
+    insights: List[str] = Field(default_factory=list)
+    praise_points: List[str] = Field(default_factory=list)
+    criticism_points: List[str] = Field(default_factory=list)
+    action_recommendation: str = ""
     error_message: str
 

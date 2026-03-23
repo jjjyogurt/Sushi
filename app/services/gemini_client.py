@@ -252,6 +252,9 @@ class GeminiClient:
         confidence_score = GeminiClient._safe_confidence(parsed.get("confidence_score"), fallback=0.0)
         evidence = GeminiClient._normalize_evidence(parsed.get("evidence"))
         insights = GeminiClient._normalize_insights(parsed.get("insights"))
+        praise_points = GeminiClient._normalize_point_list(parsed.get("praise_points"))
+        criticism_points = GeminiClient._normalize_point_list(parsed.get("criticism_points"))
+        action_recommendation = GeminiClient._normalize_action_recommendation(parsed.get("action_recommendation"))
 
         return AnalysisOutput(
             transcript_text=fallback_transcript,
@@ -262,6 +265,9 @@ class GeminiClient:
             confidence_score=confidence_score,
             evidence=evidence,
             insights=insights,
+            praise_points=praise_points,
+            criticism_points=criticism_points,
+            action_recommendation=action_recommendation,
         )
 
     @staticmethod
@@ -314,6 +320,17 @@ class GeminiClient:
         return [item for item in [str(raw).strip() for raw in value] if item]
 
     @staticmethod
+    def _normalize_point_list(value: Any) -> List[str]:
+        if not isinstance(value, list):
+            return []
+        cleaned = [item for item in [str(raw).strip() for raw in value] if item]
+        return cleaned[:5]
+
+    @staticmethod
+    def _normalize_action_recommendation(value: Any) -> str:
+        return str(value or "").strip()
+
+    @staticmethod
     def _chat_from_parsed(*, parsed: dict) -> ChatOutput:
         content = str(parsed.get("content", "")).strip()
         if not content:
@@ -360,15 +377,17 @@ class GeminiClient:
         return (
             "You are analyzing influencer video transcript chunks for marketing risk monitoring.\n"
             "Return strict JSON with keys: summary_text, translated_summary, sentiment, risk_level, "
-            "confidence_score, evidence, insights.\n"
+            "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high], "
-            "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings.\n"
+            "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
+            "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
+            "action_recommendation as one short actionable string.\n"
             f"Video title: {title}\n"
             f"Language: {language}\n"
             f"Brand keywords: {keywords_text}\n"
             f"Relevance reason: {relevance_reason}\n"
             f"Chunk: {chunk_index} of {total_chunks}\n"
-            "Focus only on this chunk and cite direct transcript snippets.\n"
+            "Focus only on this chunk and cite direct transcript snippets. Do not invent claims beyond transcript evidence.\n"
             f"Transcript chunk:\n{chunk_text}\n"
         )
 
@@ -386,10 +405,12 @@ class GeminiClient:
         return (
             "You are merging chunk-level transcript analyses into a final decision for marketing risk monitoring.\n"
             "Return strict JSON with keys: summary_text, translated_summary, sentiment, risk_level, "
-            "confidence_score, evidence, insights.\n"
+            "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high], "
-            "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings.\n"
-            "Do not invent evidence. Use only evidence that appears in chunk analyses.\n"
+            "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
+            "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
+            "action_recommendation as one short actionable string.\n"
+            "Do not invent evidence. Use only evidence that appears in chunk analyses for summary, points, and recommendation.\n"
             f"Video title: {title}\n"
             f"Language: {language}\n"
             f"Brand keywords: {keywords_text}\n"

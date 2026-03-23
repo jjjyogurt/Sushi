@@ -43,7 +43,10 @@ def _chunk_response(summary: str) -> str:
         '"risk_level":"medium",'
         '"confidence_score":0.75,'
         '"evidence":[{"timestamp":"00:10","quote":"evidence","reason":"signal"}],'
-        '"insights":["chunk insight"]'
+        '"insights":["chunk insight"],'
+        '"praise_points":["easy setup","stable footage"],'
+        '"criticism_points":["manual control is hard"],'
+        '"action_recommendation":"Explain setup process in clearer steps."'
         '}'
     )
 
@@ -70,7 +73,10 @@ def test_analyze_video_uses_chunk_map_reduce_pipeline():
             '"risk_level":"high",'
             '"confidence_score":0.91,'
             '"evidence":[{"timestamp":"01:20","quote":"Reliability concerns appear after one week.","reason":"core risk"}],'
-            '"insights":["Priority: address reliability messaging."]}'
+            '"insights":["Priority: address reliability messaging."],'
+            '"praise_points":["easy setup","good stabilization","strong camera quality","portable form factor","good value"],'
+            '"criticism_points":["control complexity","signal loss","obstacle sensing gap","manual UX friction","price concern","extra item should be ignored"],'
+            '"action_recommendation":"Explain reliability improvements and offer setup checklist to the influencer."}'
         )
     ]
     client = DeterministicGeminiClient(settings, responses=responses)
@@ -85,6 +91,10 @@ def test_analyze_video_uses_chunk_map_reduce_pipeline():
 
     assert output.summary_text == "final summary"
     assert output.risk_level.value == "high"
+    assert len(output.praise_points) == 5
+    assert len(output.criticism_points) == 5
+    assert output.criticism_points[-1] == "price concern"
+    assert output.action_recommendation.startswith("Explain reliability improvements")
     assert len(client.prompts) == chunk_count + 1
     assert "Chunk: 1 of" in client.prompts[0]
     assert "Chunk analyses JSON" in client.prompts[-1]

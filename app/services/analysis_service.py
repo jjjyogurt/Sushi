@@ -134,7 +134,14 @@ class AnalysisService:
             result.risk_level = output.risk_level
             result.confidence_score = f"{output.confidence_score:.2f}"
             result.evidence_json = encode_json(output.evidence)
-            result.insights_json = encode_json(output.insights)
+            result.insights_json = encode_json(
+                {
+                    "insights": output.insights,
+                    "praise_points": output.praise_points,
+                    "criticism_points": output.criticism_points,
+                    "action_recommendation": output.action_recommendation,
+                }
+            )
             result.status = AnalysisStatus.COMPLETED
             result.error_message = ""
         except Exception as error:  # noqa: BLE001

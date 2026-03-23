@@ -75,6 +75,47 @@ function evidenceText(analysis) {
   return analysis.evidence.map((item) => `${item.timestamp} - ${item.quote} (${item.reason})`).join("\n");
 }
 
+function pointListMarkup(points, emptyLabel) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return `<div class="meta">${escapeHtml(emptyLabel)}</div>`;
+  }
+  return `
+    <ul class="point-list">
+      ${points.map((point) => `<li>${escapeHtml(String(point))}</li>`).join("")}
+    </ul>
+  `;
+}
+
+function influencerSignalMarkup(analysis) {
+  const praisePoints = analysis ? analysis.praise_points || [] : [];
+  const criticismPoints = analysis ? analysis.criticism_points || [] : [];
+  return `
+    <div class="detail-block">
+      <h5>Influencer Signal</h5>
+      <div class="signal-grid">
+        <div>
+          <div class="signal-label">Good (Praise)</div>
+          ${pointListMarkup(praisePoints, "No praise points yet.")}
+        </div>
+        <div>
+          <div class="signal-label">Bad (Criticism)</div>
+          ${pointListMarkup(criticismPoints, "No criticism points yet.")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function actionRecommendationMarkup(analysis) {
+  const recommendation = analysis ? String(analysis.action_recommendation || "").trim() : "";
+  return `
+    <div class="detail-block">
+      <h5>AI Action Recommendation</h5>
+      <div class="recommendation-body">${escapeHtml(recommendation || "No recommendation yet.")}</div>
+    </div>
+  `;
+}
+
 function renderChatEntries(messages) {
   if (!messages || messages.length === 0) {
     return '<div class="meta">No chat history yet. Ask a question to begin.</div>';
@@ -151,6 +192,8 @@ function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded 
             <div${riskStyle}><strong>${escapeHtml(riskLevel)}</strong></div>
           </div>
         </div>
+        ${influencerSignalMarkup(analysis)}
+        ${actionRecommendationMarkup(analysis)}
         ${transcriptMarkup(analysis, transcriptExpanded)}
         <div class="detail-block">
           <h5>Evidence</h5>
