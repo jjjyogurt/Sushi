@@ -1,7 +1,9 @@
 export async function request(path, options = {}) {
   const { headers = {}, ...rest } = options;
+  const hasFormDataBody = typeof FormData !== "undefined" && rest.body instanceof FormData;
+  const computedHeaders = hasFormDataBody ? { ...headers } : { "Content-Type": "application/json", ...headers };
   const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...headers },
+    headers: computedHeaders,
     ...rest,
   });
 
@@ -11,4 +13,12 @@ export async function request(path, options = {}) {
   }
 
   return response.json();
+}
+
+export async function requestForm(path, formData, options = {}) {
+  return request(path, {
+    method: "POST",
+    body: formData,
+    ...options,
+  });
 }

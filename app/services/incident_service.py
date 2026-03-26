@@ -32,7 +32,7 @@ class IncidentService:
             owner=owner,
             notes=notes,
         )
-        if latest.risk_level in (RiskLevel.HIGH, RiskLevel.MEDIUM):
+        if latest.risk_level in (RiskLevel.CRITICAL, RiskLevel.HIGH, RiskLevel.MEDIUM):
             alert_text = self.notification_service.build_alert_message(
                 title=candidate.title,
                 severity=latest.risk_level,

@@ -1,10 +1,12 @@
-import { request } from "./api-client.js";
+import { request, requestForm } from "./api-client.js";
 import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js";
 import { createQueueController } from "./queue.js";
 import { getProjectIdFromRoute, navigateToProject, syncProjectRoute } from "./router-state.js";
 import { getState, setState } from "./state.js";
 import { debounce, escapeHtml, getElement, normalizeSelectableValue, splitCsv } from "./ui-utils.js";
 import { createVideoDetailController } from "./video-detail.js";
+import { createAgentSettingsController } from "./agent-settings.js";
+import { createKnowledgeSettingsController } from "./knowledge-settings.js";
 
 let messageTimer = null;
 
@@ -242,6 +244,16 @@ function bindProjectBackButton() {
 
 async function bootstrap() {
   let queueController = null;
+  const agentSettingsController = createAgentSettingsController({
+    request,
+    runTask,
+  });
+  const knowledgeSettingsController = createKnowledgeSettingsController({
+    request,
+    requestForm,
+    runTask,
+    getState,
+  });
 
   const videoDetailController = createVideoDetailController({
     getState,
@@ -265,6 +277,7 @@ async function bootstrap() {
     if (queueController) {
       queueController.renderProfileSelect();
     }
+    knowledgeSettingsController.syncProjectSelection();
   }
 
   queueController = createQueueController({
@@ -379,6 +392,8 @@ async function bootstrap() {
   bindProfileForm();
   bindGlobalSearch();
   bindProjectBackButton();
+  agentSettingsController.bindAgentSettingsControls();
+  knowledgeSettingsController.bindKnowledgeSettingsControls();
   queueController.bindQueueInteractions();
   bindDashboardInteractions({
     onOpenProject: (profileId) => {
@@ -414,6 +429,8 @@ async function bootstrap() {
   await loadProfiles();
   await queueController.refreshVideos();
   await loadAlerts();
+  await agentSettingsController.loadSettings();
+  await knowledgeSettingsController.loadSettings();
 }
 
 bootstrap().catch((error) => {

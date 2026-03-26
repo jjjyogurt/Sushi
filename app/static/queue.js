@@ -49,18 +49,29 @@ export function createQueueController({
   function renderVideoListItem(video, isGlobalScope, isActive) {
     const projectMeta = isGlobalScope && video.monitor_profile_name ? ` • ${escapeHtml(video.monitor_profile_name)}` : "";
     return `
-      <button class="video-item ${isActive ? "active" : ""}" data-video-id="${video.id}" type="button">
-        <div class="meta-row">
-          ${queueStateBadge(video.queue_state)}
-          ${sentimentBadge(video.sentiment_label)}
-          <span class="meta">${escapeHtml(video.channel_name)}${projectMeta}</span>
-        </div>
-        <h4>${escapeHtml(video.title)}</h4>
-        <div class="meta">
-          ${escapeHtml(video.language)} •
-          <span class="badge">Score ${Number(video.relevance_score || 0).toFixed(2)}</span>
-        </div>
-      </button>
+      <div class="video-list-row ${isActive ? "active" : ""}">
+        <button class="video-item ${isActive ? "active" : ""}" data-video-id="${video.id}" type="button">
+          <div class="meta-row">
+            ${queueStateBadge(video.queue_state)}
+            ${sentimentBadge(video.sentiment_label)}
+            <span class="meta">${escapeHtml(video.channel_name)}${projectMeta}</span>
+          </div>
+          <h4>${escapeHtml(video.title)}</h4>
+          <div class="meta">
+            ${escapeHtml(video.language)} •
+            <span class="badge">Score ${Number(video.relevance_score || 0).toFixed(2)}</span>
+          </div>
+        </button>
+        <button
+          class="icon-btn video-item-delete-btn"
+          type="button"
+          data-delete-video-id="${video.id}"
+          aria-label="Delete ${escapeHtml(video.title)}"
+          title="Delete video"
+        >
+          <span class="material-symbols-outlined">delete</span>
+        </button>
+      </div>
     `;
   }
 
@@ -96,7 +107,7 @@ export function createQueueController({
     const state = getState();
 
     if (state.searchCandidates.length === 0) {
-      candidateList.innerHTML = '<div class="meta">Search for keywords to load candidate videos.</div>';
+      candidateList.innerHTML = "";
       addSelectedButton.disabled = true;
       return;
     }
@@ -272,6 +283,23 @@ export function createQueueController({
     await refreshVideos();
   }
 
+  async function deleteVideo(videoId) {
+    if (!window.confirm("Delete this video from the list? This action cannot be undone.")) {
+      return;
+    }
+
+    await request(`/videos/${videoId}`, {
+      method: "DELETE",
+    });
+
+    videoDetailController.resetCaches();
+    setState((previous) => ({
+      ...previous,
+      selectedVideoId: previous.selectedVideoId === videoId ? null : previous.selectedVideoId,
+    }));
+    await refreshVideos();
+  }
+
   function selectVideo(videoId) {
     setState((previous) => ({
       ...previous,
@@ -288,6 +316,16 @@ export function createQueueController({
       videoList.addEventListener("click", (event) => {
         const target = event.target;
         if (!(target instanceof Element)) {
+          return;
+        }
+        const deleteButton = target.closest("[data-delete-video-id]");
+        if (deleteButton instanceof HTMLElement) {
+          const deleteVideoId = Number(deleteButton.dataset.deleteVideoId);
+          if (!Number.isNaN(deleteVideoId)) {
+            void runTask(async () => {
+              await deleteVideo(deleteVideoId);
+            }, "Video deleted.");
+          }
           return;
         }
         const button = target.closest(".video-item");

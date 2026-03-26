@@ -33,9 +33,10 @@ class StubGeminiClient:
         title: str,
         language: str,
         relevance_reason: str,
-        brand_keywords,
         transcript_text: str,
+        knowledge_context: str = "",
     ):
+        _ = knowledge_context
         return AnalysisOutput(
             transcript_text=transcript_text,
             summary_text=f"{title} includes onboarding and reliability concerns.",

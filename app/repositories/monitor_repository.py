@@ -2,6 +2,10 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.models.knowledge_base import KnowledgeBase
+from app.models.knowledge_chunk import KnowledgeChunk
+from app.models.knowledge_snapshot import KnowledgeSnapshot
+from app.models.knowledge_source import KnowledgeSource
 from app.models.monitor_profile import MonitorProfile
 from app.schemas.monitor import MonitorProfileCreate
 from app.utils.json_codec import decode_json, encode_json
@@ -38,6 +42,23 @@ class MonitorRepository:
     def delete(self, profile_id: int) -> bool:
         profile = self.get(profile_id)
         if profile:
+            knowledge_base_ids = [
+                item.id
+                for item in self.session.query(KnowledgeBase.id).filter(KnowledgeBase.monitor_profile_id == profile_id).all()
+            ]
+            if knowledge_base_ids:
+                self.session.query(KnowledgeChunk).filter(
+                    KnowledgeChunk.monitor_profile_id == profile_id
+                ).delete(synchronize_session=False)
+                self.session.query(KnowledgeSnapshot).filter(
+                    KnowledgeSnapshot.monitor_profile_id == profile_id
+                ).delete(synchronize_session=False)
+                self.session.query(KnowledgeSource).filter(
+                    KnowledgeSource.monitor_profile_id == profile_id
+                ).delete(synchronize_session=False)
+                self.session.query(KnowledgeBase).filter(
+                    KnowledgeBase.monitor_profile_id == profile_id
+                ).delete(synchronize_session=False)
             self.session.delete(profile)
             self.session.commit()
             return True

@@ -11,3 +11,4 @@ yt-dlp
 pytest
 httpx
 jinja2
+python-multipart

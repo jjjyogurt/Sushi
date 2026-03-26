@@ -85,7 +85,6 @@ def test_analyze_video_uses_chunk_map_reduce_pipeline():
         title="Unit Test Video",
         language="en",
         relevance_reason="keyword match",
-        brand_keywords=["hoverair"],
         transcript_text=transcript,
     )
 
@@ -115,7 +114,6 @@ def test_analyze_video_raises_on_malformed_reducer_json():
             title="Broken Reducer",
             language="en",
             relevance_reason="test",
-            brand_keywords=["brand"],
             transcript_text=transcript,
         )
 

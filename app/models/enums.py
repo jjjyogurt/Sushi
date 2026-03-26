@@ -25,6 +25,7 @@ class RiskLevel(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+    CRITICAL = "critical"
 
 
 class IncidentStatus(str, Enum):
@@ -32,4 +33,11 @@ class IncidentStatus(str, Enum):
     REVIEWING = "reviewing"
     ESCALATED = "escalated"
     RESOLVED = "resolved"
+
+
+class KnowledgeSourceStatus(str, Enum):
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
 

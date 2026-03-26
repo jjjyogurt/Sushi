@@ -147,7 +147,11 @@ def analyze_video(video_id: int, payload: AnalysisRequest, db: Session = Depends
     logger.info("api analyze request video_id=%s force_reanalyze=%s", video_id, payload.force_reanalyze)
     service = AnalysisService(db)
     try:
-        result = service.analyze_video(video_id=video_id, force_reanalyze=payload.force_reanalyze)
+        result = service.analyze_video(
+            video_id=video_id,
+            force_reanalyze=payload.force_reanalyze,
+            knowledge_base_id=payload.knowledge_base_id,
+        )
         return map_analysis_response(result)
     except (GeminiConfigurationError, GeminiDependencyError) as error:
         logger.warning("api analyze GeminiNotReady video_id=%s error=%s", video_id, error)

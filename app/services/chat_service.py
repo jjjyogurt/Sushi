@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -6,6 +8,7 @@ from app.repositories.audit_repository import AuditRepository
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.video_repository import VideoRepository
 from app.services.gemini_client import GeminiClient
+from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
 from app.services.product_knowledge import default_product_knowledge
 from app.services.prompt_guard_service import sanitize_transcript_context
 from app.utils.json_codec import decode_json, encode_json
@@ -19,9 +22,10 @@ class ChatService:
         self.chat_repository = ChatRepository(session)
         self.analysis_repository = AnalysisRepository(session)
         self.video_repository = VideoRepository(session)
+        self.knowledge_retrieval_service = KnowledgeRetrievalService(session)
         self.gemini_client = GeminiClient(self.settings)
 
-    def ask(self, *, video_id: int, question: str, user_id: str):
+    def ask(self, *, video_id: int, question: str, user_id: str, knowledge_base_id: Optional[int] = None):
         candidate = self.video_repository.get_by_id(video_id)
         if candidate is None:
             raise ValueError("Video not found.")
@@ -40,11 +44,26 @@ class ChatService:
             insufficient_evidence=False,
         )
 
+        knowledge_context = ""
+        try:
+            knowledge_context = self.knowledge_retrieval_service.build_knowledge_context(
+                monitor_profile_id=candidate.monitor_profile_id,
+                query_text=f"{question}\n{analysis.summary_text}",
+                knowledge_base_id=knowledge_base_id,
+                max_chunks=6,
+                max_chars=5000,
+            )
+        except ValueError:
+            # Keep chat resilient even if KB selection is absent/invalid.
+            knowledge_context = ""
+
+        fallback_knowledge = default_product_knowledge() if not knowledge_context else []
         context = self._build_context(
             transcript_text=analysis.transcript_text,
             summary_text=analysis.summary_text,
             evidence_json=analysis.evidence_json,
-            knowledge=default_product_knowledge(),
+            knowledge=fallback_knowledge,
+            knowledge_context=knowledge_context,
         )
         output = self.gemini_client.chat_about_video(context=context, question=question, language=candidate.language)
 
@@ -73,7 +92,15 @@ class ChatService:
     def parse_citations(citations_json: str):
         return decode_json(citations_json, [])
 
-    def _build_context(self, *, transcript_text: str, summary_text: str, evidence_json: str, knowledge):
+    def _build_context(
+        self,
+        *,
+        transcript_text: str,
+        summary_text: str,
+        evidence_json: str,
+        knowledge,
+        knowledge_context: str = "",
+    ):
         max_chars = max(2000, self.settings.chat_max_context_chars)
         sanitized_transcript = sanitize_transcript_context(transcript_text)
         knowledge_text = "\n".join(knowledge)
@@ -84,6 +111,8 @@ class ChatService:
             evidence_json,
             "Product knowledge:",
             knowledge_text,
+            "Knowledge base context:",
+            knowledge_context,
         ]
         shared_text = "\n".join(shared_sections)
 

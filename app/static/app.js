@@ -348,7 +348,8 @@ function evidenceText(analysis) {
 function videoDetailMarkup(video, analysis, analysisError) {
   const canAnalyze = video.queue_state === "approved";
   const riskLevel = analysis ? String(analysis.risk_level || "").toUpperCase() : "-";
-  const riskStyle = analysis && analysis.risk_level === "high" ? ' style="color: var(--danger);"' : "";
+  const normalizedRisk = analysis ? String(analysis.risk_level || "").toLowerCase() : "";
+  const riskClass = normalizedRisk ? `risk-level risk-level-${normalizedRisk}` : "risk-level";
 
   return `
     <div class="video-detail-body">
@@ -387,7 +388,7 @@ function videoDetailMarkup(video, analysis, analysisError) {
           </div>
           <div class="detail-block">
             <h5>Risk Level</h5>
-            <div${riskStyle}><strong>${escapeHtml(riskLevel)}</strong></div>
+            <div><strong class="${riskClass}">${escapeHtml(riskLevel)}</strong></div>
           </div>
         </div>
         ${transcriptMarkup(analysis)}

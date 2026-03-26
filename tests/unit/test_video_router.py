@@ -167,8 +167,8 @@ def test_search_and_bulk_add_endpoints(client, api_monitor_profile):
 
 
 def test_analyze_endpoint_maps_gemini_not_ready_errors(client, monkeypatch):
-    def _raise_not_ready(self, *, video_id: int, force_reanalyze: bool = False):
-        _ = (video_id, force_reanalyze)
+    def _raise_not_ready(self, *, video_id: int, force_reanalyze: bool = False, knowledge_base_id=None):
+        _ = (video_id, force_reanalyze, knowledge_base_id)
         raise GeminiConfigurationError("GEMINI_API_KEY is not configured.")
 
     monkeypatch.setattr(AnalysisService, "analyze_video", _raise_not_ready)
@@ -179,8 +179,8 @@ def test_analyze_endpoint_maps_gemini_not_ready_errors(client, monkeypatch):
 
 
 def test_analyze_endpoint_maps_transcript_blocked_errors(client, monkeypatch):
-    def _raise_blocked(self, *, video_id: int, force_reanalyze: bool = False):
-        _ = (video_id, force_reanalyze)
+    def _raise_blocked(self, *, video_id: int, force_reanalyze: bool = False, knowledge_base_id=None):
+        _ = (video_id, force_reanalyze, knowledge_base_id)
         raise TranscriptBlockedError("YouTube blocked transcript requests for current IP.")
 
     monkeypatch.setattr(AnalysisService, "analyze_video", _raise_blocked)

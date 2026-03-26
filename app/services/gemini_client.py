@@ -10,6 +10,7 @@ from app.services.exceptions import (
     GeminiProviderError,
     GeminiResponseError,
 )
+from app.services.agent_settings_service import AgentSettingsService
 from app.services.types import AnalysisOutput, ChatOutput
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 class GeminiClient:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.agent_settings_service = AgentSettingsService()
 
     def analyze_video(
         self,
@@ -25,8 +27,8 @@ class GeminiClient:
         title: str,
         language: str,
         relevance_reason: str,
-        brand_keywords: List[str],
         transcript_text: str,
+        knowledge_context: str = "",
     ) -> AnalysisOutput:
         self._ensure_runtime_ready()
         transcript_for_prompt = transcript_text[: self.settings.analysis_max_transcript_chars]
@@ -38,15 +40,16 @@ class GeminiClient:
             len(transcript_for_prompt),
             len(chunks),
         )
+        agent_instructions = self._analysis_agent_instructions()
         chunk_analyses = [
             self._analyze_chunk(
                 title=title,
                 language=language,
                 relevance_reason=relevance_reason,
-                brand_keywords=brand_keywords,
                 chunk_text=chunk_text,
                 chunk_index=index + 1,
                 total_chunks=len(chunks),
+                agent_instructions=agent_instructions,
             )
             for index, chunk_text in enumerate(chunks)
         ]
@@ -55,8 +58,9 @@ class GeminiClient:
             title=title,
             language=language,
             relevance_reason=relevance_reason,
-            brand_keywords=brand_keywords,
             chunk_analyses=chunk_analyses,
+            agent_instructions=agent_instructions,
+            knowledge_context=knowledge_context,
         )
         raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=reduce_prompt)
         parsed = self._parse_json_payload(raw=raw, context="analysis reducer")
@@ -109,23 +113,30 @@ class GeminiClient:
         title: str,
         language: str,
         relevance_reason: str,
-        brand_keywords: List[str],
         chunk_text: str,
         chunk_index: int,
         total_chunks: int,
+        agent_instructions: str,
     ) -> dict:
         prompt = self._build_analysis_chunk_prompt(
             title=title,
             language=language,
             relevance_reason=relevance_reason,
-            brand_keywords=brand_keywords,
             chunk_text=chunk_text,
             chunk_index=chunk_index,
             total_chunks=total_chunks,
+            agent_instructions=agent_instructions,
         )
         raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=prompt)
         logger.debug("gemini analysis chunk completed chunk=%s/%s", chunk_index, total_chunks)
         return self._parse_json_payload(raw=raw, context=f"analysis chunk {chunk_index}")
+
+    def _analysis_agent_instructions(self) -> str:
+        try:
+            return self.agent_settings_service.get_content()
+        except Exception as error:  # noqa: BLE001
+            logger.warning("Failed to load agent instructions; using defaults. error=%s", error)
+            return self.agent_settings_service.default_content()
 
     def _generate_text(self, *, model_name: str, prompt: str) -> str:
         try:
@@ -368,23 +379,23 @@ class GeminiClient:
         title: str,
         language: str,
         relevance_reason: str,
-        brand_keywords: List[str],
         chunk_text: str,
         chunk_index: int,
         total_chunks: int,
+        agent_instructions: str,
     ) -> str:
-        keywords_text = ", ".join(brand_keywords)
         return (
             "You are analyzing influencer video transcript chunks for marketing risk monitoring.\n"
+            "Follow these AGENTS.md instructions for evaluation style and content priorities:\n"
+            f"{agent_instructions}\n"
             "Return strict JSON with keys: summary_text, translated_summary, sentiment, risk_level, "
             "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
-            "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high], "
+            "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
             "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
             "action_recommendation as one short actionable string.\n"
             f"Video title: {title}\n"
             f"Language: {language}\n"
-            f"Brand keywords: {keywords_text}\n"
             f"Relevance reason: {relevance_reason}\n"
             f"Chunk: {chunk_index} of {total_chunks}\n"
             "Focus only on this chunk and cite direct transcript snippets. Do not invent claims beyond transcript evidence.\n"
@@ -397,24 +408,27 @@ class GeminiClient:
         title: str,
         language: str,
         relevance_reason: str,
-        brand_keywords: List[str],
         chunk_analyses: List[dict],
+        agent_instructions: str,
+        knowledge_context: str,
     ) -> str:
         chunk_json = json.dumps(chunk_analyses, ensure_ascii=True)
-        keywords_text = ", ".join(brand_keywords)
         return (
             "You are merging chunk-level transcript analyses into a final decision for marketing risk monitoring.\n"
+            "Follow these AGENTS.md instructions for evaluation style and content priorities:\n"
+            f"{agent_instructions}\n"
             "Return strict JSON with keys: summary_text, translated_summary, sentiment, risk_level, "
             "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
-            "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high], "
+            "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
             "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
             "action_recommendation as one short actionable string.\n"
             "Do not invent evidence. Use only evidence that appears in chunk analyses for summary, points, and recommendation.\n"
+            "Knowledge base context (if provided) can be used to verify product facts, but transcript evidence is still required for claims about this video.\n"
             f"Video title: {title}\n"
             f"Language: {language}\n"
-            f"Brand keywords: {keywords_text}\n"
             f"Relevance reason: {relevance_reason}\n"
+            f"Knowledge base context:\n{knowledge_context}\n"
             f"Chunk analyses JSON:\n{chunk_json}\n"
         )
 

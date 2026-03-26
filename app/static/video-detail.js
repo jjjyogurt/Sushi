@@ -94,11 +94,11 @@ function influencerSignalMarkup(analysis) {
       <h5>Influencer Signal</h5>
       <div class="signal-grid">
         <div>
-          <div class="signal-label">Good (Praise)</div>
+          <div class="signal-label">Praise</div>
           ${pointListMarkup(praisePoints, "No praise points yet.")}
         </div>
         <div>
-          <div class="signal-label">Bad (Criticism)</div>
+          <div class="signal-label">Criticism</div>
           ${pointListMarkup(criticismPoints, "No criticism points yet.")}
         </div>
       </div>
@@ -110,7 +110,7 @@ function actionRecommendationMarkup(analysis) {
   const recommendation = analysis ? String(analysis.action_recommendation || "").trim() : "";
   return `
     <div class="detail-block">
-      <h5>AI Action Recommendation</h5>
+      <h5>Action Recommendation</h5>
       <div class="recommendation-body">${escapeHtml(recommendation || "No recommendation yet.")}</div>
     </div>
   `;
@@ -142,7 +142,8 @@ function renderChatEntries(messages) {
 function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded }) {
   const canAnalyze = video.queue_state === "approved";
   const riskLevel = analysis ? String(analysis.risk_level || "").toUpperCase() : "-";
-  const riskStyle = analysis && analysis.risk_level === "high" ? ' style="color: var(--danger);"' : "";
+  const normalizedRisk = analysis ? String(analysis.risk_level || "").toLowerCase() : "";
+  const riskClass = normalizedRisk ? `risk-level risk-level-${normalizedRisk}` : "risk-level";
   const videoId = extractVideoId(video.video_url);
   const embedMarkup = videoId
     ? `<iframe class="video-embed" src="https://www.youtube.com/embed/${escapeHtml(
@@ -189,7 +190,7 @@ function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded 
           </div>
           <div class="detail-block">
             <h5>Risk Level</h5>
-            <div${riskStyle}><strong>${escapeHtml(riskLevel)}</strong></div>
+            <div><strong class="${riskClass}">${escapeHtml(riskLevel)}</strong></div>
           </div>
         </div>
         ${influencerSignalMarkup(analysis)}

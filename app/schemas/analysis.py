@@ -1,4 +1,5 @@
 from typing import List
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +9,7 @@ from app.schemas.common import TimestampedResponse
 
 class AnalysisRequest(BaseModel):
     force_reanalyze: bool = False
+    knowledge_base_id: Optional[int] = None
 
 
 class EvidenceItem(BaseModel):

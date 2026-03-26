@@ -1,5 +1,6 @@
 import logging
 from uuid import uuid4
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -7,9 +8,9 @@ from app.config import get_settings
 from app.models.enums import AnalysisStatus, QueueState
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.analysis_repository import AnalysisRepository
-from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.video_repository import VideoRepository
 from app.services.gemini_client import GeminiClient
+from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
 from app.services.exceptions import (
     GeminiConfigurationError,
     GeminiDependencyError,
@@ -32,11 +33,11 @@ class AnalysisService:
         self.audit_repository = AuditRepository(session)
         self.analysis_repository = AnalysisRepository(session)
         self.video_repository = VideoRepository(session)
-        self.monitor_repository = MonitorRepository(session)
         self.gemini_client = GeminiClient(self.settings)
+        self.knowledge_retrieval_service = KnowledgeRetrievalService(session)
         self.transcript_service = TranscriptService()
 
-    def analyze_video(self, *, video_id: int, force_reanalyze: bool = False):
+    def analyze_video(self, *, video_id: int, force_reanalyze: bool = False, knowledge_base_id: Optional[int] = None):
         request_id = uuid4().hex[:10]
         logger.info(
             "analysis requested request_id=%s video_id=%s force_reanalyze=%s version=%s model=%s",
@@ -92,8 +93,6 @@ class AnalysisService:
             result.status = AnalysisStatus.PROCESSING
             self.analysis_repository.save(result)
 
-            profile = self.monitor_repository.get(candidate.monitor_profile_id)
-            brand_keywords = self.monitor_repository.unpack_keywords(profile) if profile else []
             preferred_languages = self._preferred_languages(candidate.language)
             logger.info(
                 "analysis fetching transcript request_id=%s video_id=%s youtube_video_id=%s preferred_languages=%s",
@@ -123,8 +122,14 @@ class AnalysisService:
                 title=candidate.title,
                 language=candidate.language,
                 relevance_reason=candidate.relevance_reason,
-                brand_keywords=brand_keywords,
                 transcript_text=transcript.full_text,
+                knowledge_context=self._resolve_knowledge_context(
+                    monitor_profile_id=candidate.monitor_profile_id,
+                    title=candidate.title,
+                    relevance_reason=candidate.relevance_reason,
+                    transcript_text=transcript.full_text,
+                    knowledge_base_id=knowledge_base_id,
+                ),
             )
 
             result.transcript_text = transcript.full_text
@@ -205,4 +210,25 @@ class AnalysisService:
         if isinstance(error, TranscriptProviderError):
             return "TRANSCRIPT_PROVIDER_ERROR"
         return "ANALYSIS_ERROR"
+
+    def _resolve_knowledge_context(
+        self,
+        *,
+        monitor_profile_id: int,
+        title: str,
+        relevance_reason: str,
+        transcript_text: str,
+        knowledge_base_id: Optional[int],
+    ) -> str:
+        query_text = "\n".join([title, relevance_reason, transcript_text[:1200]])
+        try:
+            return self.knowledge_retrieval_service.build_knowledge_context(
+                monitor_profile_id=monitor_profile_id,
+                query_text=query_text,
+                knowledge_base_id=knowledge_base_id,
+                max_chunks=8,
+                max_chars=7000,
+            )
+        except ValueError:
+            return ""
 

@@ -28,6 +28,10 @@
             <span class="material-symbols-outlined icon">notifications_active</span>
             Alerts
           </button>
+          <button class="nav-btn" data-section="settings" type="button">
+            <span class="material-symbols-outlined icon">settings</span>
+            Settings
+          </button>
         </nav>
         <div class="sidebar-footer">
           <button class="nav-btn" type="button">
@@ -192,15 +196,13 @@
                   </button>
                 </div>
               </div>
-              <div id="search-candidate-list" class="search-candidate-list">
-                <div class="meta">Search for keywords to load candidate videos.</div>
-              </div>
+              <div id="search-candidate-list" class="search-candidate-list"></div>
             </div>
 
             <div class="queue-layout">
               <section class="pane queue-list-pane">
                 <div class="pane-header">
-                  <h3>Candidates</h3>
+                  <h3>Video List</h3>
                   <span id="video-count" class="meta">0</span>
                 </div>
                 <div id="video-list" class="video-list"></div>
@@ -241,12 +243,94 @@
               <ul id="alerts-list" class="alerts-list"></ul>
             </section>
           </section>
+
+          <section id="settings" class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Settings</h2>
+                <p>Configure agent behavior and project-specific knowledge bases.</p>
+              </div>
+            </div>
+            <section class="pane settings-pane">
+              <div class="pane-header">
+                <h3>Agent Settings</h3>
+                <span id="agent-settings-meta" class="meta">Loading...</span>
+              </div>
+              <div class="settings-body">
+                <label class="settings-label" for="agent-settings-input">AGENTS.md Instructions</label>
+                <textarea
+                  id="agent-settings-input"
+                  class="settings-textarea"
+                  rows="20"
+                  placeholder="Define your video analysis agent instructions here..."
+                ></textarea>
+                <div class="button-row">
+                  <button id="save-agent-settings-btn" class="btn btn-primary" type="button">Save Settings</button>
+                  <button id="reset-agent-settings-btn" class="btn btn-secondary" type="button">Reset to Default</button>
+                </div>
+              </div>
+            </section>
+            <section class="pane settings-pane" style="margin-top: 20px;">
+              <div class="pane-header">
+                <h3>Knowledge Base</h3>
+                <span id="knowledge-base-meta" class="meta">0 knowledge base(s)</span>
+              </div>
+              <div class="settings-body">
+                <label class="settings-label" for="knowledge-project-select">Project</label>
+                <select id="knowledge-project-select"></select>
+
+                <label class="settings-label" for="knowledge-base-select">Knowledge Base</label>
+                <select id="knowledge-base-select"></select>
+
+                <div class="button-row">
+                  <input id="knowledge-base-name-input" type="text" placeholder="New knowledge base name" />
+                  <button id="create-knowledge-base-btn" class="btn btn-primary" type="button">Create</button>
+                </div>
+                <div class="button-row">
+                  <input id="knowledge-base-rename-input" type="text" placeholder="Rename selected knowledge base" />
+                  <button id="rename-knowledge-base-btn" class="btn btn-secondary" type="button">Rename</button>
+                  <button id="activate-knowledge-base-btn" class="btn btn-secondary" type="button">Set Active</button>
+                  <button id="delete-knowledge-base-btn" class="btn btn-secondary" type="button">Delete</button>
+                </div>
+
+                <label class="settings-label" for="knowledge-file-input">Upload Knowledge File</label>
+                <div class="button-row">
+                  <input id="knowledge-file-input" type="file" accept=".md,.txt,.csv,.json" />
+                  <button id="upload-knowledge-file-btn" class="btn btn-primary" type="button">Upload File</button>
+                </div>
+
+                <label class="settings-label" for="knowledge-url-input">Add Knowledge URL</label>
+                <div class="button-row">
+                  <input id="knowledge-url-input" type="text" placeholder="https://example.com/specs" />
+                  <input id="knowledge-url-title-input" type="text" placeholder="Optional source title" />
+                  <button id="add-knowledge-url-btn" class="btn btn-primary" type="button">Add URL</button>
+                </div>
+
+                <div class="button-row">
+                  <button id="reindex-knowledge-btn" class="btn btn-secondary" type="button">Reindex Knowledge</button>
+                </div>
+
+                <label class="settings-label">Knowledge Sources</label>
+                <ul id="knowledge-source-list" class="alerts-list"></ul>
+
+                <label class="settings-label" for="knowledge-summary-output">knowledge.md Preview</label>
+                <textarea
+                  id="knowledge-summary-output"
+                  class="settings-textarea"
+                  rows="14"
+                  placeholder="Knowledge summary preview..."
+                  readonly
+                ></textarea>
+              </div>
+            </section>
+          </section>
         </main>
 
         <nav class="mobile-nav">
           <button class="nav-btn active" data-section="dashboard" type="button">Dashboard</button>
           <button class="nav-btn" data-section="queue" type="button">Queue</button>
           <button class="nav-btn" data-section="alerts" type="button">Alerts</button>
+          <button class="nav-btn" data-section="settings" type="button">Settings</button>
         </nav>
       </div>
     </div>

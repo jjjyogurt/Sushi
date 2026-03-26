@@ -16,7 +16,12 @@ router = APIRouter(prefix="/videos/{video_id}/chat", tags=["chat"])
 def ask_chatbot(video_id: int, payload: ChatRequest, db: Session = Depends(get_db_session)):
     service = ChatService(db)
     try:
-        message = service.ask(video_id=video_id, question=payload.question, user_id=payload.user_id)
+        message = service.ask(
+            video_id=video_id,
+            question=payload.question,
+            user_id=payload.user_id,
+            knowledge_base_id=payload.knowledge_base_id,
+        )
         return map_chat_message_response(message)
     except GeminiError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
