@@ -2,9 +2,15 @@ import { syncProjectRoute } from "./router-state.js";
 import { debounce, escapeHtml, getElement } from "./ui-utils.js";
 
 function analysisStatusBadge(video) {
-  const hasAnalysis = Boolean(video.sentiment_label);
-  if (hasAnalysis) {
+  const status = String(video.latest_analysis_status || "").toLowerCase();
+  if (status === "completed") {
     return '<span class="badge positive">Analyzed</span>';
+  }
+  if (status === "queued" || status === "processing") {
+    return '<span class="badge">Analyzing</span>';
+  }
+  if (status === "failed") {
+    return '<span class="badge negative">Failed</span>';
   }
   return '<span class="badge neutral">Not analyzed</span>';
 }

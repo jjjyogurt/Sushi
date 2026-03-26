@@ -55,6 +55,23 @@ class StubGeminiClient:
         )
 
 
+class StubFailingGeminiClient:
+    def ensure_ready(self):
+        return None
+
+    def analyze_video(
+        self,
+        *,
+        title: str,
+        language: str,
+        relevance_reason: str,
+        transcript_text: str,
+        knowledge_context: str = "",
+    ):
+        _ = (title, language, relevance_reason, transcript_text, knowledge_context)
+        raise RuntimeError("provider exploded")
+
+
 def test_skip_reanalysis_when_completed_and_same_version(db_session, discovered_video):
     settings = get_settings()
     original_version = settings.analysis_version
@@ -151,6 +168,41 @@ def test_analysis_runs_without_approval_state(db_session, discovered_video):
     assert result.status == AnalysisStatus.COMPLETED
     assert result.summary_text
     assert result.transcript_text
+
+    settings.analysis_version = original_version
+    settings.gemini_api_key = original_key
+
+
+def test_force_rerun_failure_clears_previous_payload(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    settings.analysis_version = "unit-rerun-fail-clean"
+    settings.gemini_api_key = "unit-test-key"
+
+    service = AnalysisService(db_session)
+    service.transcript_service = StubTranscriptService()
+    service.gemini_client = StubGeminiClient()
+    baseline = service.analyze_video(video_id=discovered_video.id, force_reanalyze=False)
+
+    service.gemini_client = StubFailingGeminiClient()
+    try:
+        service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
+    except RuntimeError as error:
+        assert "provider exploded" in str(error)
+    else:
+        raise AssertionError("Expected rerun to fail with provider exploded.")
+
+    failed = service.analysis_repository.get_latest_for_video(video_candidate_id=discovered_video.id)
+    assert failed is not None
+    assert failed.id == baseline.id
+    assert failed.status == AnalysisStatus.FAILED
+    assert failed.summary_text == ""
+    assert failed.transcript_text == ""
+    assert failed.translated_summary == ""
+    assert failed.evidence_json == "[]"
+    assert failed.insights_json == "{}"
+    assert failed.error_message
 
     settings.analysis_version = original_version
     settings.gemini_api_key = original_key

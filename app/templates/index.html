@@ -273,55 +273,115 @@
             </section>
             <section class="pane settings-pane" style="margin-top: 20px;">
               <div class="pane-header">
-                <h3>Knowledge Base</h3>
+                <h3>Project Brain</h3>
                 <span id="knowledge-base-meta" class="meta">0 knowledge base(s)</span>
               </div>
               <div class="settings-body">
-                <label class="settings-label" for="knowledge-project-select">Project</label>
-                <select id="knowledge-project-select"></select>
-
-                <label class="settings-label" for="knowledge-base-select">Knowledge Base</label>
-                <select id="knowledge-base-select"></select>
-
-                <div class="button-row">
-                  <input id="knowledge-base-name-input" type="text" placeholder="New knowledge base name" />
-                  <button id="create-knowledge-base-btn" class="btn btn-primary" type="button">Create</button>
-                </div>
-                <div class="button-row">
-                  <input id="knowledge-base-rename-input" type="text" placeholder="Rename selected knowledge base" />
-                  <button id="rename-knowledge-base-btn" class="btn btn-secondary" type="button">Rename</button>
-                  <button id="activate-knowledge-base-btn" class="btn btn-secondary" type="button">Set Active</button>
-                  <button id="delete-knowledge-base-btn" class="btn btn-secondary" type="button">Delete</button>
+                <div class="knowledge-setup-step">
+                  <div class="step-header">
+                    <span class="step-number">1</span>
+                    <span class="step-title">Select Project</span>
+                  </div>
+                  <div class="step-content">
+                    <select id="knowledge-project-select" class="full-width-select"></select>
+                  </div>
                 </div>
 
-                <label class="settings-label" for="knowledge-file-input">Upload Knowledge File</label>
-                <div class="button-row">
-                  <input id="knowledge-file-input" type="file" accept=".md,.txt,.csv,.json" />
-                  <button id="upload-knowledge-file-btn" class="btn btn-primary" type="button">Upload File</button>
+                <div class="knowledge-setup-step">
+                  <div class="step-header">
+                    <span class="step-number">2</span>
+                    <span class="step-title">Knowledge Library</span>
+                  </div>
+                  <div class="step-content">
+                    <div class="kb-selection-grid">
+                      <select id="knowledge-base-select" class="full-width-select"></select>
+                      <div class="kb-actions">
+                        <button id="activate-knowledge-base-btn" class="btn btn-secondary btn-icon-only" title="Set Active">
+                          <span class="material-symbols-outlined">check_circle</span>
+                        </button>
+                        <div class="dropdown-container">
+                          <button class="btn btn-secondary btn-icon-only dropdown-toggle" title="More Actions">
+                            <span class="material-symbols-outlined">more_vert</span>
+                          </button>
+                          <div class="dropdown-menu">
+                            <button id="rename-kb-trigger" class="dropdown-item">Rename</button>
+                            <button id="delete-knowledge-base-btn" class="dropdown-item text-danger">Delete</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div id="kb-rename-form" class="inline-form is-hidden">
+                      <input id="knowledge-base-rename-input" type="text" placeholder="New library name" />
+                      <div class="button-row">
+                        <button id="rename-knowledge-base-btn" class="btn btn-primary btn-sm">Save</button>
+                        <button id="cancel-rename-btn" class="btn btn-secondary btn-sm">Cancel</button>
+                      </div>
+                    </div>
+
+                    <div class="add-kb-row">
+                      <input id="knowledge-base-name-input" type="text" placeholder="Create new library..." />
+                      <button id="create-knowledge-base-btn" class="btn btn-primary">Create</button>
+                    </div>
+                  </div>
                 </div>
 
-                <label class="settings-label" for="knowledge-url-input">Add Knowledge URL</label>
-                <div class="button-row">
-                  <input id="knowledge-url-input" type="text" placeholder="https://example.com/specs" />
-                  <input id="knowledge-url-title-input" type="text" placeholder="Optional source title" />
-                  <button id="add-knowledge-url-btn" class="btn btn-primary" type="button">Add URL</button>
+                <div class="knowledge-setup-step">
+                  <div class="step-header">
+                    <span class="step-number">3</span>
+                    <span class="step-title">Content Sources</span>
+                  </div>
+                  <div class="step-content">
+                    <div class="source-actions-row">
+                      <div class="dropdown-container">
+                        <button class="btn btn-primary dropdown-toggle">
+                          <span class="material-symbols-outlined">add</span> Add Source
+                        </button>
+                        <div class="dropdown-menu">
+                          <button id="upload-file-trigger" class="dropdown-item">Upload File</button>
+                          <button id="add-url-trigger" class="dropdown-item">Add URL</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div id="file-upload-form" class="inline-form is-hidden">
+                      <input id="knowledge-file-input" type="file" accept=".md,.txt,.csv,.json" />
+                      <div class="button-row">
+                        <button id="upload-knowledge-file-btn" class="btn btn-primary btn-sm">Upload</button>
+                        <button id="cancel-file-btn" class="btn btn-secondary btn-sm">Cancel</button>
+                      </div>
+                    </div>
+
+                    <div id="url-add-form" class="inline-form is-hidden">
+                      <div class="url-inputs">
+                        <input id="knowledge-url-input" type="text" placeholder="https://example.com/specs" />
+                        <input id="knowledge-url-title-input" type="text" placeholder="Optional title" />
+                      </div>
+                      <div class="button-row">
+                        <button id="add-knowledge-url-btn" class="btn btn-primary btn-sm">Add URL</button>
+                        <button id="cancel-url-btn" class="btn btn-secondary btn-sm">Cancel</button>
+                      </div>
+                    </div>
+
+                    <ul id="knowledge-source-list" class="knowledge-source-list-v2"></ul>
+                  </div>
                 </div>
 
-                <div class="button-row">
-                  <button id="reindex-knowledge-btn" class="btn btn-secondary" type="button">Reindex Knowledge</button>
+                <div class="knowledge-setup-step">
+                  <div class="step-header">
+                    <span class="step-number">4</span>
+                    <span class="step-title">Knowledge Preview</span>
+                  </div>
+                  <div class="step-content">
+                    <textarea
+                      id="knowledge-summary-output"
+                      class="settings-textarea"
+                      rows="14"
+                      placeholder="Your project's consolidated knowledge will appear here..."
+                      readonly
+                    ></textarea>
+                  </div>
                 </div>
-
-                <label class="settings-label">Knowledge Sources</label>
-                <ul id="knowledge-source-list" class="alerts-list"></ul>
-
-                <label class="settings-label" for="knowledge-summary-output">knowledge.md Preview</label>
-                <textarea
-                  id="knowledge-summary-output"
-                  class="settings-textarea"
-                  rows="14"
-                  placeholder="Knowledge summary preview..."
-                  readonly
-                ></textarea>
               </div>
             </section>
           </section>

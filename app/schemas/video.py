@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.models.enums import QueueState, Sentiment
+from app.models.enums import AnalysisStatus, QueueState, Sentiment
 from app.schemas.common import TimestampedResponse
 
 
@@ -76,6 +76,7 @@ class VideoResponse(TimestampedResponse):
     relevance_reason: str
     queue_state: QueueState
     sentiment_label: Optional[Sentiment] = None
+    latest_analysis_status: Optional[AnalysisStatus] = None
 
 
 class VideoListResponse(BaseModel):

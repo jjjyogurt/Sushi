@@ -37,11 +37,13 @@ logger = logging.getLogger(__name__)
 def map_videos_with_context(service: TriageService, videos):
     profile_names = service.get_monitor_profile_names_for_videos(videos)
     sentiment_labels = service.get_sentiment_labels_for_videos(videos)
+    analysis_statuses = service.get_analysis_statuses_for_videos(videos)
     return [
         map_video_response(
             item,
             monitor_profile_name=profile_names.get(item.monitor_profile_id),
             sentiment_label=sentiment_labels.get(item.id),
+            latest_analysis_status=analysis_statuses.get(item.id),
         )
         for item in videos
     ]

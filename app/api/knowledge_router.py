@@ -7,7 +7,6 @@ from app.schemas.knowledge import (
     KnowledgeBaseListResponse,
     KnowledgeBaseResponse,
     KnowledgeBaseUpdateRequest,
-    KnowledgeReindexRequest,
     KnowledgeSourceListResponse,
     KnowledgeSourceResponse,
     KnowledgeSummaryResponse,
@@ -162,19 +161,6 @@ def delete_knowledge_source(source_id: int, db: Session = Depends(get_db_session
         return {"status": "success"}
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
-
-
-@router.post("/reindex")
-def reindex_knowledge(payload: KnowledgeReindexRequest, db: Session = Depends(get_db_session)):
-    service = KnowledgeIngestionService(db)
-    try:
-        service.reindex_base(
-            monitor_profile_id=payload.monitor_profile_id,
-            knowledge_base_id=payload.knowledge_base_id,
-        )
-        return {"status": "success"}
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.get("/summary", response_model=KnowledgeSummaryResponse)

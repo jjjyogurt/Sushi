@@ -47,7 +47,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
     if (!(select instanceof HTMLSelectElement)) {
       return;
     }
-    select.innerHTML = '<option value="">Select knowledge base</option>';
+    select.innerHTML = '<option value="">Select library</option>';
     state.bases.forEach((base) => {
       const option = document.createElement("option");
       option.value = String(base.id);
@@ -58,7 +58,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
       select.value = String(state.selectedKnowledgeBaseId);
     }
     if (meta) {
-      meta.textContent = `${state.bases.length} knowledge base(s)`;
+      meta.textContent = `${state.bases.length} library(ies)`;
     }
   }
 
@@ -88,18 +88,23 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
       return;
     }
     if (!items.length) {
-      list.innerHTML = '<li class="meta">No sources in this knowledge base.</li>';
+      list.innerHTML = '<li class="meta">No sources in this library.</li>';
       return;
     }
     list.innerHTML = items
       .map(
         (item) => `
         <li class="knowledge-source-item">
-          <div>
-            <div class="knowledge-source-title">${escapeHtml(item.title)}</div>
-            <div class="meta">${escapeHtml(item.source_type)} • ${escapeHtml(item.status)}</div>
+          <div class="knowledge-source-info">
+            <div class="knowledge-source-title">
+              ${escapeHtml(item.title)}
+              <span class="knowledge-source-badge ${escapeHtml(item.status.toLowerCase())}">${escapeHtml(item.status)}</span>
+            </div>
+            <div class="knowledge-source-meta">${escapeHtml(item.source_type)}</div>
           </div>
-          <button class="btn btn-secondary" data-delete-source-id="${item.id}" type="button">Delete</button>
+          <button class="btn btn-secondary btn-icon-only" data-delete-source-id="${item.id}" type="button" title="Delete Source">
+            <span class="material-symbols-outlined">delete</span>
+          </button>
         </li>
       `
       )
@@ -238,19 +243,6 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
     await loadSourcesAndSummary();
   }
 
-  async function reindexKnowledge() {
-    const projectId = selectedProjectIdFromState();
-    const kbId = state.selectedKnowledgeBaseId;
-    if (!projectId || !kbId) {
-      throw new Error("Select a project and knowledge base first.");
-    }
-    await request("/knowledge/reindex", {
-      method: "POST",
-      body: JSON.stringify({ monitor_profile_id: projectId, knowledge_base_id: kbId }),
-    });
-    await loadSourcesAndSummary();
-  }
-
   function bindKnowledgeSettingsControls() {
     const projectSelect = getElement("knowledge-project-select");
     const kbSelect = getElement("knowledge-base-select");
@@ -260,8 +252,46 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
     const deleteKbBtn = getElement("delete-knowledge-base-btn");
     const uploadBtn = getElement("upload-knowledge-file-btn");
     const addUrlBtn = getElement("add-knowledge-url-btn");
-    const reindexBtn = getElement("reindex-knowledge-btn");
     const sourceList = getElement("knowledge-source-list");
+
+    // UI Toggle Elements
+    const renameTrigger = getElement("rename-kb-trigger");
+    const renameForm = getElement("kb-rename-form");
+    const cancelRenameBtn = getElement("cancel-rename-btn");
+    const uploadFileTrigger = getElement("upload-file-trigger");
+    const fileUploadForm = getElement("file-upload-form");
+    const cancelFileBtn = getElement("cancel-file-btn");
+    const addUrlTrigger = getElement("add-url-trigger");
+    const urlAddForm = getElement("url-add-form");
+    const cancelUrlBtn = getElement("cancel-url-btn");
+
+    if (renameTrigger && renameForm && cancelRenameBtn) {
+      renameTrigger.addEventListener("click", () => {
+        renameForm.classList.remove("is-hidden");
+        const input = getElement("knowledge-base-rename-input");
+        if (input instanceof HTMLInputElement) {
+          const selectedKb = state.bases.find((b) => b.id === state.selectedKnowledgeBaseId);
+          input.value = selectedKb ? selectedKb.name : "";
+        }
+      });
+      cancelRenameBtn.addEventListener("click", () => renameForm.classList.add("is-hidden"));
+    }
+
+    if (uploadFileTrigger && fileUploadForm && cancelFileBtn) {
+      uploadFileTrigger.addEventListener("click", () => {
+        fileUploadForm.classList.remove("is-hidden");
+        urlAddForm?.classList.add("is-hidden");
+      });
+      cancelFileBtn.addEventListener("click", () => fileUploadForm.classList.add("is-hidden"));
+    }
+
+    if (addUrlTrigger && urlAddForm && cancelUrlBtn) {
+      addUrlTrigger.addEventListener("click", () => {
+        urlAddForm.classList.remove("is-hidden");
+        fileUploadForm?.classList.add("is-hidden");
+      });
+      cancelUrlBtn.addEventListener("click", () => urlAddForm.classList.add("is-hidden"));
+    }
 
     if (projectSelect instanceof HTMLSelectElement) {
       projectSelect.addEventListener("change", () => {
@@ -295,27 +325,29 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
       renameBtn.addEventListener("click", () => {
         void runTask(async () => {
           await renameKnowledgeBase();
-        }, "Knowledge base renamed.");
+          renameForm?.classList.add("is-hidden");
+        }, "Library renamed.");
       });
     }
     if (activateBtn instanceof HTMLButtonElement) {
       activateBtn.addEventListener("click", () => {
         void runTask(async () => {
           await activateKnowledgeBase();
-        }, "Knowledge base activated.");
+        }, "Library activated.");
       });
     }
     if (deleteKbBtn instanceof HTMLButtonElement) {
       deleteKbBtn.addEventListener("click", () => {
         void runTask(async () => {
           await deleteKnowledgeBase();
-        }, "Knowledge base deleted.");
+        }, "Library deleted.");
       });
     }
     if (uploadBtn instanceof HTMLButtonElement) {
       uploadBtn.addEventListener("click", () => {
         void runTask(async () => {
           await uploadFileSource();
+          fileUploadForm?.classList.add("is-hidden");
         }, "Knowledge file uploaded.");
       });
     }
@@ -323,14 +355,8 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
       addUrlBtn.addEventListener("click", () => {
         void runTask(async () => {
           await addUrlSource();
+          urlAddForm?.classList.add("is-hidden");
         }, "Knowledge URL added.");
-      });
-    }
-    if (reindexBtn instanceof HTMLButtonElement) {
-      reindexBtn.addEventListener("click", () => {
-        void runTask(async () => {
-          await reindexKnowledge();
-        }, "Knowledge base reindexed.");
       });
     }
     if (sourceList) {

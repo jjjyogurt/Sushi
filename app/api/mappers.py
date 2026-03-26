@@ -24,7 +24,7 @@ def map_monitor_response(model: MonitorProfile) -> MonitorProfileResponse:
     )
 
 
-def map_video_response(model, *, monitor_profile_name=None, sentiment_label=None) -> VideoResponse:
+def map_video_response(model, *, monitor_profile_name=None, sentiment_label=None, latest_analysis_status=None) -> VideoResponse:
     return VideoResponse(
         id=model.id,
         created_at=model.created_at,
@@ -41,6 +41,7 @@ def map_video_response(model, *, monitor_profile_name=None, sentiment_label=None
         relevance_reason=model.relevance_reason,
         queue_state=model.queue_state,
         sentiment_label=sentiment_label,
+        latest_analysis_status=latest_analysis_status,
     )
 
 

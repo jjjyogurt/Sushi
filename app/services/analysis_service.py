@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models.enums import AnalysisStatus
+from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.video_repository import VideoRepository
@@ -150,6 +150,15 @@ class AnalysisService:
         except Exception as error:  # noqa: BLE001
             captured_error = error
             error_code = self._error_code_for_exception(error)
+            # Keep failed reruns clean so stale data from prior runs never appears.
+            result.transcript_text = ""
+            result.summary_text = ""
+            result.translated_summary = ""
+            result.sentiment = Sentiment.NEUTRAL
+            result.risk_level = RiskLevel.LOW
+            result.confidence_score = "0.0"
+            result.evidence_json = "[]"
+            result.insights_json = "{}"
             result.status = AnalysisStatus.FAILED
             result.error_message = str(error)
             logger.exception(

@@ -152,13 +152,6 @@ class KnowledgeIngestionService:
         if not deleted:
             raise ValueError("Knowledge source not found.")
 
-    def reindex_base(self, *, monitor_profile_id: int, knowledge_base_id: int):
-        self._require_kb_scope(monitor_profile_id=monitor_profile_id, knowledge_base_id=knowledge_base_id)
-        sources = self.repository.list_sources(monitor_profile_id=monitor_profile_id, knowledge_base_id=knowledge_base_id)
-        for source in sources:
-            self._index_source(source_id=source.id, monitor_profile_id=monitor_profile_id, knowledge_base_id=knowledge_base_id)
-        self._refresh_snapshot(monitor_profile_id=monitor_profile_id, knowledge_base_id=knowledge_base_id)
-
     def get_summary(self, *, monitor_profile_id: int, knowledge_base_id: int) -> str:
         self._require_kb_scope(monitor_profile_id=monitor_profile_id, knowledge_base_id=knowledge_base_id)
         snapshot = self.repository.get_snapshot(monitor_profile_id=monitor_profile_id, knowledge_base_id=knowledge_base_id)

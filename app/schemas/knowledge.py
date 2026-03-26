@@ -52,11 +52,6 @@ class KnowledgeSourceListResponse(BaseModel):
     total: int
 
 
-class KnowledgeReindexRequest(BaseModel):
-    monitor_profile_id: int
-    knowledge_base_id: int
-
-
 class KnowledgeSummaryResponse(BaseModel):
     monitor_profile_id: int
     knowledge_base_id: int

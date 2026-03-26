@@ -68,6 +68,10 @@ class TriageService:
         video_ids = [video.id for video in videos]
         return self.analysis_repository.get_latest_sentiment_by_video_ids(video_ids)
 
+    def get_analysis_statuses_for_videos(self, videos) -> Dict[int, str]:
+        video_ids = [video.id for video in videos]
+        return self.analysis_repository.get_latest_status_by_video_ids(video_ids)
+
     def discover_for_profile(self, *, monitor_profile_id: int, max_results: int):
         profile = self._require_profile(monitor_profile_id)
 

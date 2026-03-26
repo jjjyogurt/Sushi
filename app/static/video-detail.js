@@ -150,7 +150,7 @@ function analysisStatusLabel(analysis) {
   return statusValue.charAt(0).toUpperCase() + statusValue.slice(1);
 }
 
-function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded }) {
+function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded, isRerunning }) {
   const riskLevel = analysis ? String(analysis.risk_level || "").toUpperCase() : "-";
   const normalizedRisk = analysis ? String(analysis.risk_level || "").toLowerCase() : "";
   const riskClass = normalizedRisk ? `risk-level risk-level-${normalizedRisk}` : "risk-level";
@@ -176,7 +176,7 @@ function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded 
       ${embedMarkup}
 
       <div class="inline-actions">
-        <button id="analyze-btn" class="btn btn-primary" type="button">Run Analysis</button>
+        <button id="analyze-btn" class="btn btn-primary" type="button">${isRerunning ? "Re-running..." : analysis ? "Re-run Analysis" : "Run Analysis"}</button>
         <button id="escalate-btn" class="btn btn-danger" type="button">Escalate</button>
         <button id="delete-video-btn" class="btn btn-secondary" type="button">Delete</button>
       </div>
@@ -229,6 +229,7 @@ export function createVideoDetailController({
 }) {
   let analysisCache = {};
   let chatCache = {};
+  let rerunStateByVideoId = {};
   let detailAbortController = null;
 
   function getSelectedVideo() {
@@ -239,8 +240,24 @@ export function createVideoDetailController({
   function invalidateVideoCache(videoId) {
     const { [videoId]: _analysis, ...remainingAnalysis } = analysisCache;
     const { [videoId]: _chat, ...remainingChat } = chatCache;
+    const { [videoId]: _rerun, ...remainingRerun } = rerunStateByVideoId;
     analysisCache = remainingAnalysis;
     chatCache = remainingChat;
+    rerunStateByVideoId = remainingRerun;
+  }
+
+  function transientProcessingAnalysis() {
+    return {
+      status: "processing",
+      summary_text: "",
+      transcript_text: "",
+      sentiment: "neutral",
+      risk_level: "low",
+      evidence: [],
+      praise_points: [],
+      criticism_points: [],
+      action_recommendation: "",
+    };
   }
 
   function renderVideoDetailEmpty(message) {
@@ -322,22 +339,43 @@ export function createVideoDetailController({
         runTask(async () => {
           const originalLabel = analyzeButton.textContent;
           analyzeButton.disabled = true;
-          analyzeButton.textContent = "Analyzing...";
+          analyzeButton.textContent = "Re-running...";
+          rerunStateByVideoId = {
+            ...rerunStateByVideoId,
+            [videoId]: true,
+          };
+          analysisCache = {
+            ...analysisCache,
+            [videoId]: transientProcessingAnalysis(),
+          };
+          await renderVideoDetail();
           try {
             await request(`/videos/${videoId}/analyze`, {
               method: "POST",
               body: JSON.stringify({ force_reanalyze: true }),
             });
-            invalidateVideoCache(videoId);
+            rerunStateByVideoId = {
+              ...rerunStateByVideoId,
+              [videoId]: false,
+            };
+            const { [videoId]: _ignored, ...remainingAnalysis } = analysisCache;
+            analysisCache = remainingAnalysis;
             await renderVideoDetail();
           } catch (error) {
+            rerunStateByVideoId = {
+              ...rerunStateByVideoId,
+              [videoId]: false,
+            };
+            const { [videoId]: _ignored, ...remainingAnalysis } = analysisCache;
+            analysisCache = remainingAnalysis;
+            await renderVideoDetail();
             const errorMessage = error instanceof Error ? error.message : "Analysis failed.";
             throw new Error(normalizeAnalysisErrorMessage(errorMessage));
           } finally {
             analyzeButton.disabled = false;
-            analyzeButton.textContent = originalLabel || "Run Analysis";
+            analyzeButton.textContent = originalLabel || "Re-run Analysis";
           }
-        }, "Analysis refreshed.");
+        }, "Analysis rerun completed.");
     }
 
     const escalateButton = getElement("escalate-btn");
@@ -427,6 +465,7 @@ export function createVideoDetailController({
       analysis,
       analysisError,
       transcriptExpanded: state.transcriptExpanded,
+      isRerunning: Boolean(rerunStateByVideoId[selectedVideo.id]),
     });
     bindDetailActions(selectedVideo.id);
     await renderChat(selectedVideo.id);
@@ -439,6 +478,7 @@ export function createVideoDetailController({
     resetCaches() {
       analysisCache = {};
       chatCache = {};
+      rerunStateByVideoId = {};
     },
   };
 }

@@ -120,6 +120,8 @@ def test_list_videos_global_includes_project_name_and_sentiment(client, api_db_s
     assert by_video_id["router-global-1"]["monitor_profile_name"] == api_monitor_profile.name
     assert by_video_id["router-global-2"]["monitor_profile_name"] == second_profile.name
     assert by_video_id["router-global-1"]["sentiment_label"] == "positive"
+    assert by_video_id["router-global-1"]["latest_analysis_status"] == "completed"
+    assert by_video_id["router-global-2"]["latest_analysis_status"] is None
 
 
 def test_search_and_bulk_add_endpoints(client, api_monitor_profile):
