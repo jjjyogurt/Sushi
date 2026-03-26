@@ -53,7 +53,7 @@ function transcriptMarkup(analysis, transcriptExpanded) {
   const transcript = analysis ? analysis.transcript_text || "" : "";
   const buttonLabel = transcriptExpanded ? "Collapse" : "Expand";
   const excerpt = transcriptExpanded ? transcript : transcript.split("\n").slice(0, 24).join("\n");
-  const bodyText = excerpt || "Run analysis after approval to generate a transcript.";
+  const bodyText = excerpt || "Run analysis to generate a transcript.";
   return `
     <div class="detail-block">
       <h5>Transcript</h5>
@@ -139,8 +139,18 @@ function renderChatEntries(messages) {
     .join("");
 }
 
+function analysisStatusLabel(analysis) {
+  if (!analysis) {
+    return "Not started";
+  }
+  const statusValue = String(analysis.status || "").trim();
+  if (!statusValue) {
+    return "Unknown";
+  }
+  return statusValue.charAt(0).toUpperCase() + statusValue.slice(1);
+}
+
 function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded }) {
-  const canAnalyze = video.queue_state === "approved";
   const riskLevel = analysis ? String(analysis.risk_level || "").toUpperCase() : "-";
   const normalizedRisk = analysis ? String(analysis.risk_level || "").toLowerCase() : "";
   const riskClass = normalizedRisk ? `risk-level risk-level-${normalizedRisk}` : "risk-level";
@@ -159,19 +169,14 @@ function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded 
           ${escapeHtml(video.video_url)} ↗
         </a>
         <div class="analysis-status">
-          Queue state: <strong>${escapeHtml(video.queue_state)}</strong>
-          ${analysis ? ` | Analysis: <strong>${escapeHtml(analysis.status)}</strong>` : ""}
+          Analysis status: <strong>${escapeHtml(analysisStatusLabel(analysis))}</strong>
         </div>
       </div>
 
       ${embedMarkup}
 
       <div class="inline-actions">
-        <button id="approve-btn" class="btn btn-secondary" type="button">Approve</button>
-        <button id="reject-btn" class="btn btn-secondary" type="button">Reject</button>
-        <button id="analyze-btn" class="btn btn-primary" type="button" ${canAnalyze ? "" : "disabled"}>
-          ${canAnalyze ? "Run Analysis" : "Approve First"}
-        </button>
+        <button id="analyze-btn" class="btn btn-primary" type="button">Run Analysis</button>
         <button id="escalate-btn" class="btn btn-danger" type="button">Escalate</button>
         <button id="delete-video-btn" class="btn btn-secondary" type="button">Delete</button>
       </div>
@@ -299,7 +304,7 @@ export function createVideoDetailController({
     }
   }
 
-  function bindDetailActions(videoId, canAnalyze) {
+  function bindDetailActions(videoId) {
     const transcriptToggle = getElement("toggle-transcript-btn");
     if (transcriptToggle) {
       transcriptToggle.onclick = () => {
@@ -311,39 +316,10 @@ export function createVideoDetailController({
       };
     }
 
-    const approveButton = getElement("approve-btn");
-    if (approveButton) {
-      approveButton.onclick = () =>
-        runTask(async () => {
-          await request(`/videos/${videoId}/approve`, {
-            method: "POST",
-            body: JSON.stringify({ approved: true }),
-          });
-          invalidateVideoCache(videoId);
-          await onVideosChanged();
-        }, "Video approved.");
-    }
-
-    const rejectButton = getElement("reject-btn");
-    if (rejectButton) {
-      rejectButton.onclick = () =>
-        runTask(async () => {
-          await request(`/videos/${videoId}/approve`, {
-            method: "POST",
-            body: JSON.stringify({ approved: false }),
-          });
-          invalidateVideoCache(videoId);
-          await onVideosChanged();
-        }, "Video rejected.");
-    }
-
     const analyzeButton = getElement("analyze-btn");
     if (analyzeButton) {
       analyzeButton.onclick = () =>
         runTask(async () => {
-          if (!canAnalyze) {
-            return;
-          }
           const originalLabel = analyzeButton.textContent;
           analyzeButton.disabled = true;
           analyzeButton.textContent = "Analyzing...";
@@ -437,7 +413,9 @@ export function createVideoDetailController({
         return;
       }
       const errorMessage = error instanceof Error ? error.message : "Failed to load analysis.";
-      analysisError = normalizeAnalysisErrorMessage(errorMessage);
+      if (!errorMessage.includes("Analysis not found")) {
+        analysisError = normalizeAnalysisErrorMessage(errorMessage);
+      }
     }
 
     if (renderTargetId !== getState().selectedVideoId) {
@@ -450,7 +428,7 @@ export function createVideoDetailController({
       analysisError,
       transcriptExpanded: state.transcriptExpanded,
     });
-    bindDetailActions(selectedVideo.id, selectedVideo.queue_state === "approved");
+    bindDetailActions(selectedVideo.id);
     await renderChat(selectedVideo.id);
   }
 

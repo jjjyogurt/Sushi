@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models.enums import AnalysisStatus, QueueState
+from app.models.enums import AnalysisStatus
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.video_repository import VideoRepository
@@ -50,8 +50,6 @@ class AnalysisService:
         candidate = self.video_repository.get_by_id(video_id)
         if candidate is None:
             raise ValueError("Video not found.")
-        if candidate.queue_state != QueueState.APPROVED:
-            raise ValueError("Video must be approved before analysis.")
 
         if not force_reanalyze:
             existing = self.analysis_repository.get_completed_by_version(

@@ -1,13 +1,17 @@
 import { syncProjectRoute } from "./router-state.js";
 import { debounce, escapeHtml, getElement } from "./ui-utils.js";
 
-function queueStateBadge(queueState) {
-  return `<span class="badge">${escapeHtml(queueState || "discovered")}</span>`;
+function analysisStatusBadge(video) {
+  const hasAnalysis = Boolean(video.sentiment_label);
+  if (hasAnalysis) {
+    return '<span class="badge positive">Analyzed</span>';
+  }
+  return '<span class="badge neutral">Not analyzed</span>';
 }
 
 function sentimentBadge(sentimentLabel) {
   if (!sentimentLabel) {
-    return '<span class="badge">unknown</span>';
+    return "";
   }
   const css = sentimentLabel === "negative" ? "negative" : sentimentLabel === "positive" ? "positive" : "";
   return `<span class="badge ${css}">${escapeHtml(sentimentLabel)}</span>`;
@@ -48,12 +52,13 @@ export function createQueueController({
 
   function renderVideoListItem(video, isGlobalScope, isActive) {
     const projectMeta = isGlobalScope && video.monitor_profile_name ? ` • ${escapeHtml(video.monitor_profile_name)}` : "";
+    const sentimentMarkup = sentimentBadge(video.sentiment_label);
     return `
       <div class="video-list-row ${isActive ? "active" : ""}">
         <button class="video-item ${isActive ? "active" : ""}" data-video-id="${video.id}" type="button">
           <div class="meta-row">
-            ${queueStateBadge(video.queue_state)}
-            ${sentimentBadge(video.sentiment_label)}
+            ${analysisStatusBadge(video)}
+            ${sentimentMarkup}
             <span class="meta">${escapeHtml(video.channel_name)}${projectMeta}</span>
           </div>
           <h4>${escapeHtml(video.title)}</h4>
@@ -283,6 +288,56 @@ export function createQueueController({
     await refreshVideos();
   }
 
+  async function runAllAnalyses(runAllButton) {
+    const state = getState();
+    const videos = [...state.videos];
+    if (videos.length === 0) {
+      throw new Error("No videos in this list to analyze.");
+    }
+
+    const button = runAllButton || getElement("run-all-analysis-btn");
+    const originalLabel = button ? button.textContent : "Run All Analysis";
+    if (button) {
+      button.disabled = true;
+    }
+
+    let successCount = 0;
+    let failedCount = 0;
+    const failures = [];
+
+    try {
+      for (let index = 0; index < videos.length; index += 1) {
+        const video = videos[index];
+        if (button) {
+          button.textContent = `Analyzing ${index + 1}/${videos.length}`;
+        }
+        try {
+          await request(`/videos/${video.id}/analyze`, {
+            method: "POST",
+            body: JSON.stringify({ force_reanalyze: true }),
+          });
+          videoDetailController.invalidateVideoCache(video.id);
+          successCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          const message = error instanceof Error ? error.message : "Analysis failed.";
+          failures.push(`${video.title}: ${message}`);
+        }
+      }
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalLabel || "Run All Analysis";
+      }
+    }
+
+    await refreshVideos();
+    if (failedCount > 0) {
+      const failurePreview = failures.slice(0, 2).join(" | ");
+      throw new Error(`Run all completed: ${successCount} succeeded, ${failedCount} failed. ${failurePreview}`);
+    }
+  }
+
   async function deleteVideo(videoId) {
     if (!window.confirm("Delete this video from the list? This action cannot be undone.")) {
       return;
@@ -375,6 +430,15 @@ export function createQueueController({
         void runTask(async () => {
           await discoverVideos();
         }, "Discovery completed.");
+      });
+    }
+
+    const runAllAnalysisButton = getElement("run-all-analysis-btn");
+    if (runAllAnalysisButton) {
+      runAllAnalysisButton.addEventListener("click", () => {
+        void runTask(async () => {
+          await runAllAnalyses(runAllAnalysisButton);
+        }, "Run all analysis completed.");
       });
     }
 

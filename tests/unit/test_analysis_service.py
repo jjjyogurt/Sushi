@@ -1,6 +1,6 @@
 from app.config import get_settings
 from app.models.analysis_result import AnalysisResult
-from app.models.enums import AnalysisStatus, QueueState, RiskLevel, Sentiment
+from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
 from app.services.analysis_service import AnalysisService
 from app.services.types import AnalysisOutput, TranscriptOutput
 from app.utils.json_codec import decode_json, encode_json
@@ -60,9 +60,6 @@ def test_skip_reanalysis_when_completed_and_same_version(db_session, discovered_
     original_version = settings.analysis_version
     settings.analysis_version = "unit-v1"
 
-    discovered_video.queue_state = QueueState.APPROVED
-    db_session.commit()
-
     existing = AnalysisResult(
         video_candidate_id=discovered_video.id,
         analysis_version="unit-v1",
@@ -97,9 +94,6 @@ def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session,
     settings.analysis_version = "unit-v2"
     settings.gemini_api_key = "unit-test-key"
 
-    discovered_video.queue_state = QueueState.APPROVED
-    db_session.commit()
-
     service = AnalysisService(db_session)
     service.transcript_service = StubTranscriptService()
     service.gemini_client = StubGeminiClient()
@@ -125,9 +119,6 @@ def test_analysis_fails_closed_when_gemini_is_unavailable(db_session, discovered
     settings.analysis_version = "unit-fail-closed"
     settings.gemini_api_key = ""
 
-    discovered_video.queue_state = QueueState.APPROVED
-    db_session.commit()
-
     service = AnalysisService(db_session)
     service.transcript_service = StubTranscriptService()
 
@@ -145,12 +136,22 @@ def test_analysis_fails_closed_when_gemini_is_unavailable(db_session, discovered
     settings.gemini_api_key = original_key
 
 
-def test_analysis_requires_approved_state(db_session, discovered_video):
+def test_analysis_runs_without_approval_state(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    settings.analysis_version = "unit-without-approval"
+    settings.gemini_api_key = "unit-test-key"
+
     service = AnalysisService(db_session)
-    try:
-        service.analyze_video(video_id=discovered_video.id, force_reanalyze=False)
-    except ValueError as error:
-        assert "approved" in str(error).lower()
-    else:
-        raise AssertionError("Expected ValueError for non-approved candidate.")
+    service.transcript_service = StubTranscriptService()
+    service.gemini_client = StubGeminiClient()
+    result = service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
+
+    assert result.status == AnalysisStatus.COMPLETED
+    assert result.summary_text
+    assert result.transcript_text
+
+    settings.analysis_version = original_version
+    settings.gemini_api_key = original_key
 
