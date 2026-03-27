@@ -1,8 +1,6 @@
-import sys
-import types
-
 import pytest
 
+from app.config import get_settings
 from app.services.exceptions import (
     TranscriptBlockedError,
     TranscriptProviderError,
@@ -11,54 +9,83 @@ from app.services.exceptions import (
 from app.services.transcript_service import TranscriptService
 
 
-def install_fake_transcript_module(monkeypatch, api_class):
-    fake_module = types.ModuleType("youtube_transcript_api")
-    fake_module.YouTubeTranscriptApi = api_class
-    monkeypatch.setitem(sys.modules, "youtube_transcript_api", fake_module)
+@pytest.fixture(autouse=True)
+def configure_transcript_settings(monkeypatch):
+    monkeypatch.setenv("YOUTUBE_TRANSCRIPT_API_KEY", "test-key")
+    monkeypatch.setenv("YOUTUBE_TRANSCRIPT_MAX_RETRIES", "0")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
-class BlockingApi:
-    def list(self, _youtube_video_id):
-        raise Exception("YouTube is blocking requests from your IP due to too many requests")
+class FakeResponse:
+    def __init__(self, *, status_code: int, payload):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = str(payload)
 
-
-class UnavailableTranscriptList:
-    def find_transcript(self, _languages):
-        raise Exception("No transcript available")
-
-    def find_generated_transcript(self, _languages):
-        raise Exception("No generated transcript available")
-
-    def __iter__(self):
-        return iter([])
-
-
-class UnavailableApi:
-    def list(self, _youtube_video_id):
-        return UnavailableTranscriptList()
-
-
-class ProviderFailureApi:
-    def list(self, _youtube_video_id):
-        raise Exception("gateway timeout from transcript provider")
+    def json(self):
+        return self._payload
 
 
 def test_transcript_service_classifies_blocked_errors(monkeypatch):
-    install_fake_transcript_module(monkeypatch, BlockingApi)
+    def fake_post(*_args, **_kwargs):
+        return FakeResponse(
+            status_code=429,
+            payload={"error": {"code": "rate_limit_exceeded", "message": "Too many requests"}},
+        )
+
+    monkeypatch.setattr("httpx.post", fake_post)
     service = TranscriptService()
     with pytest.raises(TranscriptBlockedError):
         service.fetch_transcript(youtube_video_id="video123", preferred_languages=["en"])
 
 
 def test_transcript_service_classifies_unavailable_errors(monkeypatch):
-    install_fake_transcript_module(monkeypatch, UnavailableApi)
+    def fake_post(*_args, **_kwargs):
+        return FakeResponse(status_code=404, payload={"error": {"code": "no_captions", "message": "No captions"}})
+
+    monkeypatch.setattr("httpx.post", fake_post)
     service = TranscriptService()
     with pytest.raises(TranscriptUnavailableError):
         service.fetch_transcript(youtube_video_id="video456", preferred_languages=["en"])
 
 
 def test_transcript_service_classifies_provider_errors(monkeypatch):
-    install_fake_transcript_module(monkeypatch, ProviderFailureApi)
+    def fake_post(*_args, **_kwargs):
+        return FakeResponse(status_code=500, payload={"error": {"code": "internal_error", "message": "boom"}})
+
+    monkeypatch.setattr("httpx.post", fake_post)
     service = TranscriptService()
     with pytest.raises(TranscriptProviderError):
         service.fetch_transcript(youtube_video_id="video789", preferred_languages=["en"])
+
+
+def test_transcript_service_returns_normalized_segments(monkeypatch):
+    def fake_post(*_args, **_kwargs):
+        return FakeResponse(
+            status_code=200,
+            payload={
+                "status": "completed",
+                "data": {
+                    "transcript": {
+                        "language": "en",
+                        "text": "Welcome to this tutorial...",
+                        "segments": [
+                            {"text": "Welcome to this tutorial.", "start": 0, "end": 2500},
+                            {"text": "Second line", "start": 2500, "end": 5000},
+                        ],
+                    }
+                },
+            },
+        )
+
+    monkeypatch.setattr("httpx.post", fake_post)
+    service = TranscriptService()
+
+    output = service.fetch_transcript(youtube_video_id="video000", preferred_languages=["en"])
+    assert output.source_language == "en"
+    assert len(output.segments) == 2
+    assert output.segments[0]["timestamp"] == "00:00"
+    assert output.segments[1]["timestamp"] == "00:02"
+    assert "00:00 Welcome to this tutorial." in output.full_text

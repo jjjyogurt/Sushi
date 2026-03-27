@@ -6,7 +6,6 @@ pydantic-settings
 python-dotenv
 google-generativeai
 youtube-search-python
-youtube-transcript-api
 yt-dlp
 pytest
 httpx

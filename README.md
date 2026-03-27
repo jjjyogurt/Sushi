@@ -45,6 +45,10 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 - `GEMINI_MODEL_CHAT` - Gemini model used for per-video chat (default: `gemini-3-flash`).
 - `ENABLE_MOCK_DISCOVERY` - `false` uses live search, `true` forces deterministic mock videos.
 - `TRANSCRIPT_LANGUAGES` - comma-separated transcript preference order.
+- `YOUTUBE_TRANSCRIPT_API_KEY` - required API key for YouTubeTranscript.dev transcript extraction.
+- `YOUTUBE_TRANSCRIPT_BASE_URL` - transcript API base URL (default: `https://www.youtubetranscript.dev/api/v2`).
+- `YOUTUBE_TRANSCRIPT_TIMEOUT_SECONDS` - per-request timeout for transcript provider calls.
+- `YOUTUBE_TRANSCRIPT_MAX_RETRIES` - retry count for transient transcript transport failures.
 - `ANALYSIS_MAX_TRANSCRIPT_CHARS` - max transcript chars considered before chunking.
 - `ANALYSIS_CHUNK_CHARS` - per-chunk character budget used in map-reduce analysis.
 - `ANALYSIS_CHUNK_OVERLAP_CHARS` - overlap budget retained between adjacent chunks.
@@ -83,7 +87,7 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 
 ## Security note
 
-Do not commit raw API keys. Since a key was previously shared in chat, rotate/revoke it and update `.env` with the new key before production usage.
+Do not commit raw API keys. Keep `GEMINI_API_KEY` and `YOUTUBE_TRANSCRIPT_API_KEY` only in local/prod environment variables.
 
 ## Gemini troubleshooting
 

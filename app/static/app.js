@@ -31,7 +31,7 @@ function normalizeAnalysisErrorMessage(rawMessage) {
     return "Gemini is not ready. Configure GEMINI_API_KEY and restart the server.";
   }
   if (message.startsWith("TRANSCRIPT_BLOCKED:")) {
-    return "YouTube blocked transcript requests from this IP. Retry later or switch network.";
+    return "Transcript provider rate-limited requests from this IP. Retry later.";
   }
   if (message.startsWith("TRANSCRIPT_UNAVAILABLE:")) {
     return "This video does not provide transcripts in requested languages.";
