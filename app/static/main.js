@@ -3,7 +3,14 @@ import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js";
 import { createQueueController } from "./queue.js";
 import { getProjectIdFromRoute, navigateToProject, syncProjectRoute } from "./router-state.js";
 import { getState, setState } from "./state.js";
-import { debounce, escapeHtml, getElement, normalizeSelectableValue, splitCsv } from "./ui-utils.js";
+import {
+  debounce,
+  escapeHtml,
+  formatLanguageLabel,
+  getElement,
+  normalizeSelectableValue,
+  splitCsv,
+} from "./ui-utils.js";
 import { createVideoDetailController } from "./video-detail.js";
 import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js";
@@ -86,8 +93,10 @@ function renderTokenList(type) {
 
   tokenContainer.innerHTML = values
     .map(
-      (value, index) =>
-        `<span class="token">${escapeHtml(value)} <button data-type="${type}" data-index="${index}" type="button">x</button></span>`
+      (value, index) => {
+        const displayValue = type === "languages" ? formatLanguageLabel(value) : value;
+        return `<span class="token">${escapeHtml(displayValue)} <button data-type="${type}" data-index="${index}" type="button">x</button></span>`;
+      }
     )
     .join("");
   hiddenInput.value = values.join(",");
@@ -301,7 +310,6 @@ async function bootstrap() {
       selectedProfileId,
       selectedVideoId: null,
       searchCandidates: [],
-      selectedSearchVideoIds: [],
     }));
 
     if (routeProjectId !== null && !hasRouteProject) {

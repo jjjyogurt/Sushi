@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Video Queue</title>
+    <title>Project Sushi</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     <link rel="stylesheet" href="/static/styles.css" />
@@ -12,8 +12,8 @@
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand-block">
-          <h1>Curator Pro</h1>
-          <p>Editorial Workspace</p>
+          <h1>Project Sushi</h1>
+          <p>Content Monitoring</p>
         </div>
         <nav class="sidebar-nav">
           <button class="nav-btn active" data-section="dashboard" type="button">
@@ -22,7 +22,7 @@
           </button>
           <button class="nav-btn" data-section="queue" type="button">
             <span class="material-symbols-outlined icon">queue_play_next</span>
-            Video Queue
+            Project Sushi
           </button>
           <button class="nav-btn" data-section="alerts" type="button">
             <span class="material-symbols-outlined icon">notifications_active</span>
@@ -44,7 +44,7 @@
       <div class="main-shell">
         <header class="topbar">
           <div class="topbar-title">
-            <span class="topbar-context">Video Queue</span>
+            <span class="topbar-context">Project Sushi</span>
           </div>
           <div class="topbar-actions">
             <label class="search-wrap">
@@ -73,7 +73,7 @@
               </button>
             </div>
 
-            <div id="create-profile-container" class="form-panel is-hidden" style="background: #ffffff; border: 1px solid #dde4e5; border-radius: 12px; padding: 32px; margin-bottom: 40px; box-shadow: 0 4px 20px rgba(0,0,0,0.04);">
+            <div id="create-profile-container" class="form-panel is-hidden">
               <form id="profile-form" class="form-grid">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
                   <label>
@@ -177,24 +177,16 @@
               </div>
             </div>
 
-            <div class="candidate-search-panel pane">
-              <div class="pane-header">
-                <h3>Keyword Candidate Search</h3>
-              </div>
-              <div class="candidate-search-controls">
-                <label>
-                  Search Keywords
+            <div class="video-search-panel pane">
+              <div class="video-search-controls">
+                <div class="search-bar-row">
                   <input
                     id="keyword-search-input"
                     type="text"
-                    placeholder="camera review, user feedback, creator comparison..."
+                    placeholder="Search videos..."
+                    aria-label="Search videos"
                   />
-                </label>
-                <div class="button-row">
-                  <button id="search-keyword-btn" class="btn btn-secondary" type="button">Search Candidates</button>
-                  <button id="add-selected-candidates-btn" class="btn btn-primary" type="button" disabled>
-                    Add Selected
-                  </button>
+                  <button id="search-keyword-btn" class="btn btn-secondary" type="button">Search</button>
                 </div>
               </div>
               <div id="search-candidate-list" class="search-candidate-list"></div>

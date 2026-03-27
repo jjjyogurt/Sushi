@@ -18,6 +18,26 @@ export function splitCsv(value) {
     .filter((item) => item.length > 0);
 }
 
+const LANGUAGE_LABELS = {
+  en: "English",
+  de: "German",
+  es: "Spanish",
+  fr: "French",
+  ja: "Japanese",
+  it: "Italian",
+  ko: "Korean",
+  "zh-hans": "Chinese (Simplified)",
+};
+
+export function formatLanguageLabel(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  const normalized = raw.toLowerCase();
+  return LANGUAGE_LABELS[normalized] || raw;
+}
+
 export function normalizeSelectableValue(rawValue, type) {
   const value = (rawValue || "").trim();
   if (!value) {

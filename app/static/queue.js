@@ -1,18 +1,12 @@
 import { syncProjectRoute } from "./router-state.js";
-import { debounce, escapeHtml, getElement } from "./ui-utils.js";
+import { debounce, escapeHtml, formatLanguageLabel, getElement } from "./ui-utils.js";
 
 function analysisStatusBadge(video) {
   const status = String(video.latest_analysis_status || "").toLowerCase();
   if (status === "completed") {
-    return '<span class="badge positive">Analyzed</span>';
+    return '<span class="analysis-check material-symbols-outlined">check_circle</span>';
   }
-  if (status === "queued" || status === "processing") {
-    return '<span class="badge">Analyzing</span>';
-  }
-  if (status === "failed") {
-    return '<span class="badge negative">Failed</span>';
-  }
-  return '<span class="badge neutral">Not analyzed</span>';
+  return "";
 }
 
 function sentimentBadge(sentimentLabel) {
@@ -23,7 +17,7 @@ function sentimentBadge(sentimentLabel) {
   return `<span class="badge ${css}">${escapeHtml(sentimentLabel)}</span>`;
 }
 
-function candidateStatusLabel(candidate) {
+function videoStatusLabel(candidate) {
   if (candidate.can_add) {
     return '<span class="badge positive">Addable</span>';
   }
@@ -62,15 +56,14 @@ export function createQueueController({
     return `
       <div class="video-list-row ${isActive ? "active" : ""}">
         <button class="video-item ${isActive ? "active" : ""}" data-video-id="${video.id}" type="button">
+          ${analysisStatusBadge(video)}
           <div class="meta-row">
-            ${analysisStatusBadge(video)}
             ${sentimentMarkup}
             <span class="meta">${escapeHtml(video.channel_name)}${projectMeta}</span>
           </div>
           <h4>${escapeHtml(video.title)}</h4>
           <div class="meta">
-            ${escapeHtml(video.language)} •
-            <span class="badge">Score ${Number(video.relevance_score || 0).toFixed(2)}</span>
+            ${escapeHtml(formatLanguageLabel(video.language))}
           </div>
         </button>
         <button
@@ -99,7 +92,7 @@ export function createQueueController({
     if (state.videos.length === 0) {
       const emptyMessage = isGlobalScope
         ? "No videos in the global queue yet."
-        : "No candidates yet. Discover videos for this project.";
+        : "No videos yet. Discover or search for videos for this project.";
       list.innerHTML = `<div class="video-detail-empty">${escapeHtml(emptyMessage)}</div>`;
       return;
     }
@@ -111,45 +104,45 @@ export function createQueueController({
 
   function renderSearchCandidates() {
     const candidateList = getElement("search-candidate-list");
-    const addSelectedButton = getElement("add-selected-candidates-btn");
-    if (!candidateList || !addSelectedButton) {
+    if (!candidateList) {
       return;
     }
     const state = getState();
 
     if (state.searchCandidates.length === 0) {
       candidateList.innerHTML = "";
-      addSelectedButton.disabled = true;
       return;
     }
 
     candidateList.innerHTML = state.searchCandidates
       .map((candidate) => {
-        const isChecked = state.selectedSearchVideoIds.includes(candidate.youtube_video_id);
+        const addLabel = candidate.can_add ? "Add" : "Added";
         return `
-          <label class="candidate-row ${candidate.can_add ? "" : "is-disabled"}">
-            <input
-              type="checkbox"
-              data-candidate-video-id="${escapeHtml(candidate.youtube_video_id)}"
-              ${isChecked ? "checked" : ""}
-              ${candidate.can_add ? "" : "disabled"}
-            />
+          <div class="candidate-row ${candidate.can_add ? "" : "is-disabled"}">
             <div class="candidate-body">
               <div class="candidate-title">${escapeHtml(candidate.title)}</div>
-              <div class="meta">${escapeHtml(candidate.channel_name)} • ${escapeHtml(candidate.language)} • Score ${Number(
-          candidate.relevance_score || 0
-        ).toFixed(2)}</div>
+              <div class="meta">${escapeHtml(candidate.channel_name)} • ${escapeHtml(
+          formatLanguageLabel(candidate.language)
+        )}</div>
               <div class="candidate-status-row">
-                ${candidateStatusLabel(candidate)}
-                <a href="${escapeHtml(candidate.video_url)}" target="_blank" rel="noreferrer">Preview ↗</a>
+                ${videoStatusLabel(candidate)}
+                <div class="candidate-status-actions">
+                  <a href="${escapeHtml(candidate.video_url)}" target="_blank" rel="noreferrer">Preview ↗</a>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    type="button"
+                    data-candidate-add-id="${escapeHtml(candidate.youtube_video_id)}"
+                    ${candidate.can_add ? "" : "disabled"}
+                  >
+                    ${addLabel}
+                  </button>
+                </div>
               </div>
             </div>
-          </label>
+          </div>
         `;
       })
       .join("");
-
-    addSelectedButton.disabled = state.selectedSearchVideoIds.length === 0;
   }
 
   async function refreshVideos() {
@@ -217,6 +210,14 @@ export function createQueueController({
       }),
     });
     urlInput.value = "";
+    
+    // Success animation
+    const container = getElement("queue");
+    if (container) {
+      container.classList.add("success-animate");
+      setTimeout(() => container.classList.remove("success-animate"), 400);
+    }
+
     await refreshVideos();
   }
 
@@ -246,49 +247,58 @@ export function createQueueController({
     setState((previous) => ({
       ...previous,
       searchCandidates: Array.isArray(payload.items) ? payload.items : [],
-      selectedSearchVideoIds: [],
     }));
     renderSearchCandidates();
   }
 
-  function selectedCandidatePayload(state) {
-    return state.searchCandidates
-      .filter((candidate) => state.selectedSearchVideoIds.includes(candidate.youtube_video_id))
-      .map((candidate) => ({
-        youtube_video_id: candidate.youtube_video_id,
-        video_url: candidate.video_url,
-        title: candidate.title,
-        channel_name: candidate.channel_name,
-        language: candidate.language,
-        published_at: candidate.published_at,
-        description: candidate.description,
-      }));
+  function candidateToPayload(candidate) {
+    return {
+      youtube_video_id: candidate.youtube_video_id,
+      video_url: candidate.video_url,
+      title: candidate.title,
+      channel_name: candidate.channel_name,
+      language: candidate.language,
+      published_at: candidate.published_at,
+      description: candidate.description,
+    };
   }
 
-  async function addSelectedCandidates() {
+  async function addCandidateByYoutubeId(youtubeVideoId) {
     const state = getState();
     if (!state.selectedProfileId) {
       throw new Error("Select a project first.");
     }
-    if (state.selectedSearchVideoIds.length === 0) {
-      throw new Error("Select at least one candidate.");
-    }
-    const candidates = selectedCandidatePayload(state);
-    if (candidates.length === 0) {
-      throw new Error("Selected candidates are unavailable for adding.");
+    const candidate = state.searchCandidates.find((item) => item.youtube_video_id === youtubeVideoId);
+    if (!candidate || !candidate.can_add) {
+      throw new Error("This candidate is unavailable for adding.");
     }
 
     await request("/videos/bulk-add", {
       method: "POST",
       body: JSON.stringify({
         monitor_profile_id: state.selectedProfileId,
-        candidates,
+        candidates: [candidateToPayload(candidate)],
       }),
     });
 
+    // Success animation
+    const container = getElement("queue");
+    if (container) {
+      container.classList.add("success-animate");
+      setTimeout(() => container.classList.remove("success-animate"), 400);
+    }
+
     setState((previous) => ({
       ...previous,
-      selectedSearchVideoIds: [],
+      searchCandidates: previous.searchCandidates.map((item) =>
+        item.youtube_video_id === youtubeVideoId
+          ? {
+              ...item,
+              can_add: false,
+              block_reason: "Already in queue",
+            }
+          : item
+      ),
     }));
     renderSearchCandidates();
     await refreshVideos();
@@ -410,7 +420,6 @@ export function createQueueController({
           selectedProfileId,
           selectedVideoId: null,
           searchCandidates: [],
-          selectedSearchVideoIds: [],
         }));
         syncProjectRoute(selectedProfileId);
         onProfileSelectionChange();
@@ -478,39 +487,24 @@ export function createQueueController({
       });
     }
 
-    const addSelectedButton = getElement("add-selected-candidates-btn");
-    if (addSelectedButton) {
-      addSelectedButton.addEventListener("click", () => {
-        void runTask(async () => {
-          await addSelectedCandidates();
-        }, "Selected candidates added.");
-      });
-    }
-
     const candidateList = getElement("search-candidate-list");
     if (candidateList) {
-      candidateList.addEventListener("change", (event) => {
+      candidateList.addEventListener("click", (event) => {
         const target = event.target;
-        if (!(target instanceof HTMLInputElement)) {
+        if (!(target instanceof Element)) {
           return;
         }
-        const youtubeVideoId = target.dataset.candidateVideoId;
+        const addButton = target.closest("[data-candidate-add-id]");
+        if (!(addButton instanceof HTMLElement)) {
+          return;
+        }
+        const youtubeVideoId = addButton.dataset.candidateAddId;
         if (!youtubeVideoId) {
           return;
         }
-
-        setState((previous) => {
-          const isAlreadySelected = previous.selectedSearchVideoIds.includes(youtubeVideoId);
-          const nextSelectedVideoIds =
-            target.checked && !isAlreadySelected
-              ? [...previous.selectedSearchVideoIds, youtubeVideoId]
-              : previous.selectedSearchVideoIds.filter((item) => item !== youtubeVideoId);
-          return {
-            ...previous,
-            selectedSearchVideoIds: nextSelectedVideoIds,
-          };
-        });
-        renderSearchCandidates();
+        void runTask(async () => {
+          await addCandidateByYoutubeId(youtubeVideoId);
+        }, "Video added to queue.");
       });
     }
 

@@ -1,4 +1,4 @@
-import { escapeHtml, getElement } from "./ui-utils.js";
+import { escapeHtml, formatLanguageLabel, getElement } from "./ui-utils.js";
 
 function profileCardMarkup(profile, isSelected) {
   return `
@@ -14,7 +14,9 @@ function profileCardMarkup(profile, isSelected) {
         ${profile.markets.map((market) => `<span class="badge">${escapeHtml(market)}</span>`).join("")}
       </div>
       <div class="chip-row">
-        ${profile.languages.map((language) => `<span class="badge">${escapeHtml(language)}</span>`).join("")}
+        ${profile.languages
+          .map((language) => `<span class="badge">${escapeHtml(formatLanguageLabel(language))}</span>`)
+          .join("")}
       </div>
       <button class="open-project-btn btn btn-secondary" type="button" data-open-project-id="${profile.id}">
         Open Project

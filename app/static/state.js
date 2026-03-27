@@ -10,7 +10,6 @@ function initialState() {
     },
     transcriptExpanded: false,
     searchCandidates: [],
-    selectedSearchVideoIds: [],
   };
 }
 
