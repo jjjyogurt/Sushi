@@ -1,17 +1,39 @@
-import { escapeHtml, formatLanguageLabel, getElement } from "./ui-utils.js";
+import { escapeHtml, formatLanguageLabel, formatMarketLabel, getElement } from "./ui-utils.js";
 
-function profileCardMarkup(profile, isSelected) {
+function profileCardMarkup(profile, isSelected, openProjectMenuId) {
+  const isMenuOpen = openProjectMenuId === profile.id;
+  const keyProducts = Array.isArray(profile.key_products) ? profile.key_products : [];
   return `
     <article class="project-card ${isSelected ? "active" : ""}" data-project-id="${profile.id}">
       <div class="project-card-header">
         <h4>${escapeHtml(profile.name)}</h4>
-        <button class="delete-project-btn" data-delete-project-id="${profile.id}" type="button" aria-label="Delete project">
-          ×
-        </button>
+        <div class="project-card-actions">
+          <button
+            class="icon-btn project-menu-btn"
+            data-project-menu-toggle-id="${profile.id}"
+            type="button"
+            aria-label="Project actions"
+            aria-haspopup="menu"
+            aria-expanded="${isMenuOpen ? "true" : "false"}"
+          >
+            <span class="material-symbols-outlined">more_vert</span>
+          </button>
+          <div class="project-card-menu ${isMenuOpen ? "is-open" : ""}" data-project-menu-id="${profile.id}">
+            <button class="dropdown-item" type="button" data-edit-project-id="${profile.id}">Edit Project</button>
+            <button class="dropdown-item text-danger" type="button" data-delete-project-id="${profile.id}">
+              Delete Project
+            </button>
+          </div>
+        </div>
       </div>
       <div class="meta">Keywords: ${escapeHtml(profile.brand_keywords.join(", "))}</div>
+      ${
+        keyProducts.length > 0
+          ? `<div class="meta">Key Products: ${escapeHtml(keyProducts.join(", "))}</div>`
+          : ""
+      }
       <div class="chip-row">
-        ${profile.markets.map((market) => `<span class="badge">${escapeHtml(market)}</span>`).join("")}
+        ${profile.markets.map((market) => `<span class="badge">${escapeHtml(formatMarketLabel(market))}</span>`).join("")}
       </div>
       <div class="chip-row">
         ${profile.languages
@@ -25,7 +47,7 @@ function profileCardMarkup(profile, isSelected) {
   `;
 }
 
-export function renderProfileGrid({ profiles, selectedProfileId }) {
+export function renderProfileGrid({ profiles, selectedProfileId, openProjectMenuId = null }) {
   const profileGrid = getElement("profile-grid");
   if (!profileGrid) {
     return;
@@ -38,15 +60,37 @@ export function renderProfileGrid({ profiles, selectedProfileId }) {
   }
 
   profileGrid.innerHTML = profiles
-    .map((profile) => profileCardMarkup(profile, profile.id === selectedProfileId))
+    .map((profile) => profileCardMarkup(profile, profile.id === selectedProfileId, openProjectMenuId))
     .join("");
 }
 
-export function bindDashboardInteractions({ onOpenProject, onDeleteProject }) {
+export function bindDashboardInteractions({
+  onOpenProject,
+  onDeleteProject,
+  onEditProject,
+  onToggleProjectMenu,
+  onCloseProjectMenu,
+}) {
   const profileGrid = getElement("profile-grid");
   if (!profileGrid) {
     return;
   }
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+    if (!target.closest("#profile-grid")) {
+      onCloseProjectMenu();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      onCloseProjectMenu();
+    }
+  });
 
   profileGrid.addEventListener("click", (event) => {
     const target = event.target;
@@ -54,8 +98,32 @@ export function bindDashboardInteractions({ onOpenProject, onDeleteProject }) {
       return;
     }
 
+    const menuToggle = target.closest("[data-project-menu-toggle-id]");
+    if (menuToggle instanceof HTMLElement) {
+      event.preventDefault();
+      event.stopPropagation();
+      const profileId = Number(menuToggle.dataset.projectMenuToggleId);
+      if (!Number.isNaN(profileId)) {
+        onToggleProjectMenu(profileId);
+      }
+      return;
+    }
+
+    const editButton = target.closest("[data-edit-project-id]");
+    if (editButton instanceof HTMLElement) {
+      event.preventDefault();
+      event.stopPropagation();
+      const profileId = Number(editButton.dataset.editProjectId);
+      if (!Number.isNaN(profileId)) {
+        onEditProject(profileId);
+      }
+      return;
+    }
+
     const deleteButton = target.closest("[data-delete-project-id]");
     if (deleteButton instanceof HTMLElement) {
+      event.preventDefault();
+      event.stopPropagation();
       const profileId = Number(deleteButton.dataset.deleteProjectId);
       if (!Number.isNaN(profileId)) {
         onDeleteProject(profileId);
@@ -74,6 +142,9 @@ export function bindDashboardInteractions({ onOpenProject, onDeleteProject }) {
 
     const card = target.closest("[data-project-id]");
     if (card instanceof HTMLElement) {
+      if (target.closest("[data-project-menu-id]")) {
+        return;
+      }
       const profileId = Number(card.dataset.projectId);
       if (!Number.isNaN(profileId)) {
         onOpenProject(profileId);

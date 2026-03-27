@@ -22,6 +22,11 @@ class TriageService:
         self.relevance_service = RelevanceService()
         self.discovery_service = YouTubeDiscoveryService()
 
+    def _monitoring_keywords(self, profile) -> List[str]:
+        keywords = self.monitor_repository.unpack_keywords(profile)
+        key_products = self.monitor_repository.unpack_key_products(profile)
+        return list(dict.fromkeys([*keywords, *key_products]))
+
     def _require_profile(self, monitor_profile_id: int):
         profile = self.monitor_repository.get(monitor_profile_id)
         if profile is None:
@@ -75,7 +80,7 @@ class TriageService:
     def discover_for_profile(self, *, monitor_profile_id: int, max_results: int):
         profile = self._require_profile(monitor_profile_id)
 
-        keywords = self.monitor_repository.unpack_keywords(profile)
+        keywords = self._monitoring_keywords(profile)
         discovered = self.discovery_service.discover(profile=profile, max_results=max_results)
         persisted = []
         for item in discovered:
@@ -120,7 +125,7 @@ class TriageService:
     def search_candidates(self, *, monitor_profile_id: int, query: str, max_results: int) -> List[dict]:
         profile = self._require_profile(monitor_profile_id)
 
-        profile_keywords = self.monitor_repository.unpack_keywords(profile)
+        profile_keywords = self._monitoring_keywords(profile)
         query_keywords = [item.strip() for item in query.split(",") if item.strip()]
         if not query_keywords:
             raise ValueError("At least one keyword is required for search.")
@@ -172,7 +177,7 @@ class TriageService:
 
     def add_bulk_candidates(self, *, monitor_profile_id: int, candidates: List) -> List:
         profile = self._require_profile(monitor_profile_id)
-        keywords = self.monitor_repository.unpack_keywords(profile)
+        keywords = self._monitoring_keywords(profile)
         persisted = []
         for candidate in candidates:
             relevance_score, relevance_reason = self.relevance_service.score(
@@ -239,7 +244,7 @@ class TriageService:
         canonical_url = f"https://www.youtube.com/watch?v={video_id}"
         metadata = fetch_oembed_metadata(canonical_url)
 
-        keywords = self.monitor_repository.unpack_keywords(profile)
+        keywords = self._monitoring_keywords(profile)
         relevance_score, relevance_reason = self.relevance_service.score(
             title=metadata["title"],
             description=metadata["title"],

@@ -37,6 +37,7 @@ def test_knowledge_retrieval_is_scoped_by_project_and_base(db_session, monitor_p
         brand_keywords=encode_json(["v-copter"]),
         markets=encode_json(["global"]),
         languages=encode_json(["en"]),
+        key_products=encode_json([]),
         alert_sensitivity="medium",
         is_active=True,
     )

@@ -16,6 +16,7 @@ def _seed_profile(session):
         brand_keywords=encode_json(["hoverair"]),
         markets=encode_json(["global"]),
         languages=encode_json(["en"]),
+        key_products=encode_json([]),
         alert_sensitivity="medium",
         is_active=True,
     )

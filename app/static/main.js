@@ -6,6 +6,7 @@ import { getState, setState } from "./state.js";
 import {
   debounce,
   escapeHtml,
+  formatMarketLabel,
   formatLanguageLabel,
   getElement,
   normalizeSelectableValue,
@@ -71,6 +72,14 @@ function setCreatePanelVisible(isVisible) {
   toggleButton.textContent = isVisible ? "Hide Form" : "+ New Project";
 }
 
+function setEditPanelVisible(isVisible) {
+  const container = getElement("edit-profile-container");
+  if (!container) {
+    return;
+  }
+  container.classList.toggle("is-hidden", !isVisible);
+}
+
 function setActiveSection(sectionId) {
   if (!sectionId) {
     return;
@@ -83,88 +92,112 @@ function setActiveSection(sectionId) {
   });
 }
 
-function renderTokenList(type) {
-  const tokenContainer = getElement(`${type}-tokens`);
-  const hiddenInput = getElement(`${type}-hidden`);
+function stateTokenKey(type) {
+  return type === "key-products" ? "keyProducts" : type;
+}
+
+function renderTokenList(type, { prefix = "", stateBucket = "tokenInputs" } = {}) {
+  const tokenContainer = getElement(`${prefix}${type}-tokens`);
+  const hiddenInput = getElement(`${prefix}${type}-hidden`);
   if (!tokenContainer || !hiddenInput) {
     return;
   }
-  const values = getState().tokenInputs[type];
+  const tokenKey = stateTokenKey(type);
+  const state = getState();
+  const values = state[stateBucket][tokenKey];
 
   tokenContainer.innerHTML = values
     .map(
       (value, index) => {
-        const displayValue = type === "languages" ? formatLanguageLabel(value) : value;
-        return `<span class="token">${escapeHtml(displayValue)} <button data-type="${type}" data-index="${index}" type="button">x</button></span>`;
+        const displayValue =
+          tokenKey === "languages"
+            ? formatLanguageLabel(value)
+            : tokenKey === "markets"
+              ? formatMarketLabel(value)
+              : value;
+        return `<span class="token">${escapeHtml(displayValue)} <button data-prefix="${prefix}" data-state-bucket="${stateBucket}" data-type="${type}" data-index="${index}" type="button">x</button></span>`;
       }
     )
     .join("");
   hiddenInput.value = values.join(",");
 }
 
-function addToken(type, rawValue) {
-  const normalized = normalizeSelectableValue(rawValue, type);
+function addToken(type, rawValue, { stateBucket = "tokenInputs" } = {}) {
+  const tokenKey = stateTokenKey(type);
+  const normalized = normalizeSelectableValue(rawValue, tokenKey);
   const state = getState();
-  if (!normalized || state.tokenInputs[type].includes(normalized)) {
+  if (!normalized || state[stateBucket][tokenKey].includes(normalized)) {
     return;
   }
 
   setState((previous) => ({
     ...previous,
-    tokenInputs: {
-      ...previous.tokenInputs,
-      [type]: [...previous.tokenInputs[type], normalized],
+    [stateBucket]: {
+      ...previous[stateBucket],
+      [tokenKey]: [...previous[stateBucket][tokenKey], normalized],
     },
   }));
-  renderTokenList(type);
 }
 
-function removeToken(type, index) {
+function removeToken(type, index, { stateBucket = "tokenInputs" } = {}) {
+  const tokenKey = stateTokenKey(type);
   setState((previous) => ({
     ...previous,
-    tokenInputs: {
-      ...previous.tokenInputs,
-      [type]: previous.tokenInputs[type].filter((_, itemIndex) => itemIndex !== index),
+    [stateBucket]: {
+      ...previous[stateBucket],
+      [tokenKey]: previous[stateBucket][tokenKey].filter((_, itemIndex) => itemIndex !== index),
     },
   }));
-  renderTokenList(type);
 }
 
 function bindTokenInputs() {
-  ["markets", "languages"].forEach((type) => {
-    const input = getElement(`${type}-token-input`);
-    const tokenContainer = getElement(`${type}-tokens`);
-    if (!input || !tokenContainer) {
-      return;
-    }
+  const groups = [
+    { prefix: "", stateBucket: "tokenInputs" },
+    { prefix: "edit-", stateBucket: "editTokenInputs" },
+  ];
+  const tokenTypes = ["markets", "languages", "key-products"];
 
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === ",") {
-        event.preventDefault();
-        addToken(type, input.value);
+  groups.forEach(({ prefix, stateBucket }) => {
+    tokenTypes.forEach((type) => {
+      const input = getElement(`${prefix}${type}-token-input`);
+      const tokenContainer = getElement(`${prefix}${type}-tokens`);
+      if (!input || !tokenContainer) {
+        return;
+      }
+
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === ",") {
+          event.preventDefault();
+          addToken(type, input.value, { stateBucket });
+          input.value = "";
+          renderTokenList(type, { prefix, stateBucket });
+        }
+      });
+
+      input.addEventListener("blur", () => {
+        addToken(type, input.value, { stateBucket });
         input.value = "";
-      }
-    });
+        renderTokenList(type, { prefix, stateBucket });
+      });
 
-    input.addEventListener("blur", () => {
-      addToken(type, input.value);
-      input.value = "";
-    });
+      tokenContainer.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLButtonElement)) {
+          return;
+        }
+        const selectedType = target.getAttribute("data-type");
+        const selectedIndex = Number(target.getAttribute("data-index"));
+        const selectedPrefix = target.getAttribute("data-prefix") || "";
+        const selectedStateBucket = target.getAttribute("data-state-bucket") || "tokenInputs";
+        if (!selectedType || Number.isNaN(selectedIndex)) {
+          return;
+        }
+        removeToken(selectedType, selectedIndex, { stateBucket: selectedStateBucket });
+        renderTokenList(selectedType, { prefix: selectedPrefix, stateBucket: selectedStateBucket });
+      });
 
-    tokenContainer.addEventListener("click", (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLButtonElement)) {
-        return;
-      }
-      const selectedType = target.getAttribute("data-type");
-      const selectedIndex = Number(target.getAttribute("data-index"));
-      if (!selectedType || Number.isNaN(selectedIndex)) {
-        return;
-      }
-      removeToken(selectedType, selectedIndex);
+      renderTokenList(type, { prefix, stateBucket });
     });
-
-    renderTokenList(type);
   });
 }
 
@@ -173,6 +206,9 @@ function bindDashboardControls() {
   if (toggleButton) {
     toggleButton.addEventListener("click", () => {
       const isHidden = getElement("create-profile-container")?.classList.contains("is-hidden");
+      if (isHidden) {
+        setEditPanelVisible(false);
+      }
       setCreatePanelVisible(Boolean(isHidden));
     });
   }
@@ -181,6 +217,17 @@ function bindDashboardControls() {
   if (cancelButton) {
     cancelButton.addEventListener("click", () => {
       setCreatePanelVisible(false);
+    });
+  }
+
+  const cancelEditButton = getElement("cancel-edit-btn");
+  if (cancelEditButton) {
+    cancelEditButton.addEventListener("click", () => {
+      setState((previous) => ({
+        ...previous,
+        editingProjectId: null,
+      }));
+      setEditPanelVisible(false);
     });
   }
 }
@@ -282,6 +329,7 @@ async function bootstrap() {
     renderProfileGrid({
       profiles: state.profiles,
       selectedProfileId: state.selectedProfileId,
+      openProjectMenuId: state.openProjectMenuId,
     });
     if (queueController) {
       queueController.renderProfileSelect();
@@ -303,6 +351,9 @@ async function bootstrap() {
     const routeProjectId = getProjectIdFromRoute();
     const hasRouteProject = routeProjectId !== null && profiles.some((profile) => profile.id === routeProjectId);
     const selectedProfileId = hasRouteProject ? routeProjectId : null;
+    const state = getState();
+    const hasOpenMenuProfile = profiles.some((profile) => profile.id === state.openProjectMenuId);
+    const hasEditingProfile = profiles.some((profile) => profile.id === state.editingProjectId);
 
     setState((previous) => ({
       ...previous,
@@ -310,7 +361,12 @@ async function bootstrap() {
       selectedProfileId,
       selectedVideoId: null,
       searchCandidates: [],
+      openProjectMenuId: hasOpenMenuProfile ? previous.openProjectMenuId : null,
+      editingProjectId: hasEditingProfile ? previous.editingProjectId : null,
     }));
+    if (!hasEditingProfile) {
+      setEditPanelVisible(false);
+    }
 
     if (routeProjectId !== null && !hasRouteProject) {
       showMessage("Project route not found. Showing dashboard view instead.", "error");
@@ -352,6 +408,7 @@ async function bootstrap() {
             brand_keywords: brandKeywords,
             markets: [...state.tokenInputs.markets],
             languages: [...state.tokenInputs.languages],
+            key_products: [...state.tokenInputs.keyProducts],
             alert_sensitivity: formData.get("alert_sensitivity"),
           }),
         });
@@ -362,13 +419,116 @@ async function bootstrap() {
           tokenInputs: {
             markets: [],
             languages: [],
+            keyProducts: [],
           },
         }));
-        renderTokenList("markets");
-        renderTokenList("languages");
+        renderTokenList("markets", { prefix: "", stateBucket: "tokenInputs" });
+        renderTokenList("languages", { prefix: "", stateBucket: "tokenInputs" });
+        renderTokenList("key-products", { prefix: "", stateBucket: "tokenInputs" });
         setCreatePanelVisible(false);
         await loadProfiles();
       }, "Project created.");
+    });
+  }
+
+  function openEditProject(profileId) {
+    const state = getState();
+    const profile = state.profiles.find((item) => item.id === profileId);
+    if (!profile) {
+      showMessage("Project not found.", "error");
+      return;
+    }
+
+    const editForm = getElement("edit-profile-form");
+    if (!(editForm instanceof HTMLFormElement)) {
+      return;
+    }
+    const nameInput = getElement("edit-profile-name");
+    const brandKeywordsInput = getElement("edit-profile-brand-keywords");
+    const profileIdInput = getElement("edit-profile-id");
+    const alertSensitivitySelect = getElement("edit-alert-sensitivity");
+    if (!(nameInput instanceof HTMLInputElement) || !(brandKeywordsInput instanceof HTMLInputElement)) {
+      return;
+    }
+    if (!(profileIdInput instanceof HTMLInputElement) || !(alertSensitivitySelect instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    nameInput.value = profile.name;
+    brandKeywordsInput.value = profile.brand_keywords.join(", ");
+    profileIdInput.value = String(profile.id);
+    alertSensitivitySelect.value = profile.alert_sensitivity || "medium";
+
+    setState((previous) => ({
+      ...previous,
+      editingProjectId: profileId,
+      openProjectMenuId: null,
+      editTokenInputs: {
+        markets: [...profile.markets],
+        languages: [...profile.languages],
+        keyProducts: [...(profile.key_products || [])],
+      },
+    }));
+    renderTokenList("markets", { prefix: "edit-", stateBucket: "editTokenInputs" });
+    renderTokenList("languages", { prefix: "edit-", stateBucket: "editTokenInputs" });
+    renderTokenList("key-products", { prefix: "edit-", stateBucket: "editTokenInputs" });
+    setCreatePanelVisible(false);
+    setEditPanelVisible(true);
+    rerenderProfileArea();
+  }
+
+  function bindEditProfileForm() {
+    const editForm = getElement("edit-profile-form");
+    if (!(editForm instanceof HTMLFormElement)) {
+      return;
+    }
+    editForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void runTask(async () => {
+        const state = getState();
+        if (state.editTokenInputs.markets.length === 0) {
+          throw new Error("Please add at least one market.");
+        }
+        if (state.editTokenInputs.languages.length === 0) {
+          throw new Error("Please add at least one language.");
+        }
+
+        const formData = new FormData(editForm);
+        const profileId = Number(formData.get("profile_id"));
+        if (Number.isNaN(profileId)) {
+          throw new Error("Invalid project.");
+        }
+        const projectName = String(formData.get("name") || "").trim();
+        const brandKeywords = splitCsv(formData.get("brand_keywords"));
+        if (!projectName || brandKeywords.length === 0) {
+          throw new Error("Project name and brand keywords are required.");
+        }
+
+        await request(`/monitor-profiles/${profileId}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            name: projectName,
+            brand_keywords: brandKeywords,
+            markets: [...state.editTokenInputs.markets],
+            languages: [...state.editTokenInputs.languages],
+            key_products: [...state.editTokenInputs.keyProducts],
+            alert_sensitivity: formData.get("alert_sensitivity"),
+          }),
+        });
+
+        setState((previous) => ({
+          ...previous,
+          editingProjectId: null,
+          editTokenInputs: {
+            markets: [],
+            languages: [],
+            keyProducts: [],
+          },
+        }));
+        setEditPanelVisible(false);
+        await loadProfiles();
+        await queueController.refreshVideos();
+      }, "Project updated.");
     });
   }
 
@@ -398,6 +558,7 @@ async function bootstrap() {
   bindTokenInputs();
   bindAlertsControls();
   bindProfileForm();
+  bindEditProfileForm();
   bindGlobalSearch();
   bindProjectBackButton();
   agentSettingsController.bindAgentSettingsControls();
@@ -411,8 +572,33 @@ async function bootstrap() {
       }
       window.setTimeout(() => navigateToProject(profileId), 140);
     },
+    onEditProject: (profileId) => {
+      openEditProject(profileId);
+    },
+    onToggleProjectMenu: (profileId) => {
+      setState((previous) => ({
+        ...previous,
+        openProjectMenuId: previous.openProjectMenuId === profileId ? null : profileId,
+      }));
+      rerenderProfileArea();
+    },
+    onCloseProjectMenu: () => {
+      if (getState().openProjectMenuId === null) {
+        return;
+      }
+      setState((previous) => ({
+        ...previous,
+        openProjectMenuId: null,
+      }));
+      rerenderProfileArea();
+    },
     onDeleteProject: (profileId) => {
       void runTask(async () => {
+        setState((previous) => ({
+          ...previous,
+          openProjectMenuId: null,
+        }));
+        rerenderProfileArea();
         await request(`/monitor-profiles/${profileId}`, { method: "DELETE" });
         const state = getState();
         const isDeletedProjectSelected = state.selectedProfileId === profileId;
@@ -431,6 +617,7 @@ async function bootstrap() {
   });
 
   setCreatePanelVisible(false);
+  setEditPanelVisible(false);
   const routeProjectId = getProjectIdFromRoute();
   setActiveSection(routeProjectId ? "queue" : "dashboard");
 

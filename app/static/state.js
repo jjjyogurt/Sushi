@@ -2,11 +2,19 @@ function initialState() {
   return {
     profiles: [],
     selectedProfileId: null,
+    openProjectMenuId: null,
+    editingProjectId: null,
     videos: [],
     selectedVideoId: null,
     tokenInputs: {
       markets: [],
       languages: [],
+      keyProducts: [],
+    },
+    editTokenInputs: {
+      markets: [],
+      languages: [],
+      keyProducts: [],
     },
     transcriptExpanded: false,
     searchCandidates: [],

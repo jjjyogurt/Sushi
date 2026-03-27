@@ -15,6 +15,7 @@ def create_profile(db_session, name: str):
         brand_keywords=encode_json(["hoverair"]),
         markets=encode_json(["global"]),
         languages=encode_json(["en"]),
+        key_products=encode_json([]),
         alert_sensitivity="medium",
         is_active=True,
     )
@@ -122,4 +123,36 @@ def test_bulk_add_candidates_persists_selected_search_candidates(db_session, mon
     assert persisted[0].youtube_video_id == candidate.youtube_video_id
 
     settings.enable_mock_discovery = original
+
+
+def test_discover_scores_using_key_products(db_session):
+    profile = MonitorProfile(
+        name="Key Product Project",
+        brand_keywords=encode_json(["hoverair"]),
+        markets=encode_json(["global"]),
+        languages=encode_json(["en"]),
+        key_products=encode_json(["x1 promax"]),
+        alert_sensitivity="medium",
+        is_active=True,
+    )
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+
+    service = TriageService(db_session)
+    service.discovery_service.discover = lambda **_: [
+        DiscoveredVideo(
+            youtube_video_id="key-product-hit",
+            video_url="https://www.youtube.com/watch?v=key-product-hit",
+            title="X1 Promax long-term review",
+            channel_name="Creator",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            description="Hands on with x1 promax",
+        )
+    ]
+
+    discovered = service.discover_for_profile(monitor_profile_id=profile.id, max_results=1)
+    assert len(discovered) == 1
+    assert "x1 promax" in discovered[0].relevance_reason.lower()
 

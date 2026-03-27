@@ -15,7 +15,9 @@ class YouTubeDiscoveryService:
         self.settings = get_settings()
 
     def discover(self, *, profile: MonitorProfile, max_results: int) -> List[DiscoveredVideo]:
-        keywords = MonitorRepository.unpack_keywords(profile)
+        keywords = list(
+            dict.fromkeys([*MonitorRepository.unpack_keywords(profile), *MonitorRepository.unpack_key_products(profile)])
+        )
         languages = MonitorRepository.unpack_languages(profile)
         markets = MonitorRepository.unpack_markets(profile)
         return self.discover_by_keywords(

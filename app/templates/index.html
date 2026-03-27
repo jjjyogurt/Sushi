@@ -99,11 +99,27 @@
                       />
                     </div>
                     <datalist id="market-options">
-                      <option value="United States (US)"></option>
-                      <option value="Germany (DE)"></option>
-                      <option value="Spain (ES)"></option>
-                      <option value="Japan (JP)"></option>
                       <option value="Global"></option>
+                      <option value="United States (US)"></option>
+                      <option value="Canada (CA)"></option>
+                      <option value="United Kingdom (GB)"></option>
+                      <option value="Germany (DE)"></option>
+                      <option value="France (FR)"></option>
+                      <option value="Spain (ES)"></option>
+                      <option value="Italy (IT)"></option>
+                      <option value="Netherlands (NL)"></option>
+                      <option value="Sweden (SE)"></option>
+                      <option value="Poland (PL)"></option>
+                      <option value="Japan (JP)"></option>
+                      <option value="South Korea (KR)"></option>
+                      <option value="Taiwan (TW)"></option>
+                      <option value="Hong Kong (HK)"></option>
+                      <option value="Singapore (SG)"></option>
+                      <option value="India (IN)"></option>
+                      <option value="Australia (AU)"></option>
+                      <option value="Brazil (BR)"></option>
+                      <option value="Mexico (MX)"></option>
+                      <option value="United Arab Emirates (AE)"></option>
                     </datalist>
                   </label>
                   <label>
@@ -122,11 +138,39 @@
                       <option value="English (en)"></option>
                       <option value="German (de)"></option>
                       <option value="Spanish (es)"></option>
+                      <option value="Spanish (Latin America) (es-419)"></option>
                       <option value="French (fr)"></option>
+                      <option value="Italian (it)"></option>
+                      <option value="Dutch (nl)"></option>
+                      <option value="Polish (pl)"></option>
+                      <option value="Portuguese (pt)"></option>
+                      <option value="Portuguese (Brazil) (pt-BR)"></option>
+                      <option value="Portuguese (Portugal) (pt-PT)"></option>
                       <option value="Japanese (ja)"></option>
+                      <option value="Korean (ko)"></option>
+                      <option value="Chinese (Simplified) (zh-Hans)"></option>
+                      <option value="Chinese (Traditional) (zh-Hant)"></option>
+                      <option value="Hindi (hi)"></option>
+                      <option value="Indonesian (id)"></option>
+                      <option value="Thai (th)"></option>
+                      <option value="Vietnamese (vi)"></option>
+                      <option value="Arabic (ar)"></option>
+                      <option value="Turkish (tr)"></option>
                     </datalist>
                   </label>
                 </div>
+                <label>
+                  Key Products to Monitor
+                  <input type="hidden" name="key_products" id="key-products-hidden" />
+                  <div class="token-input-group">
+                    <div id="key-products-tokens" class="token-list"></div>
+                    <input
+                      type="text"
+                      id="key-products-token-input"
+                      placeholder="Type product name, then Enter"
+                    />
+                  </div>
+                </label>
                 <label style="width: 200px;">
                   Alert Sensitivity
                   <select name="alert_sensitivity">
@@ -138,6 +182,80 @@
                 <div class="button-row" style="margin-top: 12px; padding-top: 24px; border-top: 1px solid #f1f1f1;">
                   <button class="btn btn-primary" type="submit">Create Project</button>
                   <button class="btn btn-secondary" type="button" id="cancel-create-btn">Cancel</button>
+                </div>
+              </form>
+            </div>
+
+            <div id="edit-profile-container" class="form-panel is-hidden">
+              <form id="edit-profile-form" class="form-grid">
+                <input type="hidden" name="profile_id" id="edit-profile-id" />
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                  <label>
+                    Project Name
+                    <input type="text" name="name" id="edit-profile-name" placeholder="Project name" required />
+                  </label>
+                  <label>
+                    Brand Keywords (comma-separated)
+                    <input
+                      type="text"
+                      name="brand_keywords"
+                      id="edit-profile-brand-keywords"
+                      placeholder="hoverair, hover air x1"
+                      required
+                    />
+                  </label>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                  <label>
+                    Markets
+                    <input type="hidden" name="markets" id="edit-markets-hidden" required />
+                    <div class="token-input-group">
+                      <div id="edit-markets-tokens" class="token-list"></div>
+                      <input
+                        type="text"
+                        id="edit-markets-token-input"
+                        placeholder="Type market, then Enter"
+                        list="market-options"
+                      />
+                    </div>
+                  </label>
+                  <label>
+                    Languages
+                    <input type="hidden" name="languages" id="edit-languages-hidden" required />
+                    <div class="token-input-group">
+                      <div id="edit-languages-tokens" class="token-list"></div>
+                      <input
+                        type="text"
+                        id="edit-languages-token-input"
+                        placeholder="Type language, then Enter"
+                        list="language-options"
+                      />
+                    </div>
+                  </label>
+                </div>
+                <label>
+                  Key Products to Monitor
+                  <input type="hidden" name="key_products" id="edit-key-products-hidden" />
+                  <div class="token-input-group">
+                    <div id="edit-key-products-tokens" class="token-list"></div>
+                    <input
+                      type="text"
+                      id="edit-key-products-token-input"
+                      placeholder="Type product name, then Enter"
+                    />
+                  </div>
+                </label>
+                <label style="width: 200px;">
+                  Alert Sensitivity
+                  <select name="alert_sensitivity" id="edit-alert-sensitivity">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <div class="button-row" style="margin-top: 12px; padding-top: 24px; border-top: 1px solid #f1f1f1;">
+                  <button class="btn btn-primary" type="submit">Save Changes</button>
+                  <button class="btn btn-secondary" type="button" id="cancel-edit-btn">Cancel</button>
                 </div>
               </form>
             </div>

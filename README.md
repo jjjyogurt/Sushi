@@ -4,7 +4,7 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 
 ## What is implemented
 
-- Monitoring profile creation (`brand keywords`, `markets`, `languages`)
+- Monitoring profile setup (`brand keywords`, `key products`, `markets`, `languages`) with edit support
 - Candidate discovery queue (live YouTube search with mock fallback)
 - Manual YouTube URL add flow for guaranteed real-video analysis
 - Relevance scoring from title/description keyword matches
@@ -74,6 +74,7 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 
 - `POST /monitor-profiles`
 - `GET /monitor-profiles`
+- `PUT /monitor-profiles/{profile_id}`
 - `POST /videos/discover`
 - `GET /videos?monitor_profile_id=&risk_level=&sentiment=`
 - `POST /videos/{video_id}/approve`

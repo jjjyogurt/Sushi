@@ -7,7 +7,7 @@ from app.models.knowledge_chunk import KnowledgeChunk
 from app.models.knowledge_snapshot import KnowledgeSnapshot
 from app.models.knowledge_source import KnowledgeSource
 from app.models.monitor_profile import MonitorProfile
-from app.schemas.monitor import MonitorProfileCreate
+from app.schemas.monitor import MonitorProfileCreate, MonitorProfileUpdate
 from app.utils.json_codec import decode_json, encode_json
 
 
@@ -21,9 +21,24 @@ class MonitorRepository:
             brand_keywords=encode_json(payload.brand_keywords),
             markets=encode_json(payload.markets),
             languages=encode_json(payload.languages),
+            key_products=encode_json(payload.key_products),
             alert_sensitivity=payload.alert_sensitivity,
         )
         self.session.add(profile)
+        self.session.commit()
+        self.session.refresh(profile)
+        return profile
+
+    def update(self, profile_id: int, payload: MonitorProfileUpdate) -> Optional[MonitorProfile]:
+        profile = self.get(profile_id)
+        if profile is None:
+            return None
+        profile.name = payload.name
+        profile.brand_keywords = encode_json(payload.brand_keywords)
+        profile.markets = encode_json(payload.markets)
+        profile.languages = encode_json(payload.languages)
+        profile.key_products = encode_json(payload.key_products)
+        profile.alert_sensitivity = payload.alert_sensitivity
         self.session.commit()
         self.session.refresh(profile)
         return profile
@@ -75,4 +90,8 @@ class MonitorRepository:
     @staticmethod
     def unpack_languages(profile: MonitorProfile) -> List[str]:
         return decode_json(profile.languages, [])
+
+    @staticmethod
+    def unpack_key_products(profile: MonitorProfile) -> List[str]:
+        return decode_json(profile.key_products, [])
 

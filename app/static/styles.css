@@ -271,18 +271,41 @@ body {
   flex: 1;
 }
 
-.delete-project-btn {
-  opacity: 0.2;
+.project-card-actions {
+  position: relative;
+}
+
+.project-menu-btn {
+  opacity: 0.35;
   transition: opacity 0.2s;
   margin: -8px -8px 0 0;
 }
 
-.project-card:hover .delete-project-btn {
+.project-menu-btn .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.project-card:hover .project-menu-btn,
+.project-menu-btn[aria-expanded="true"] {
   opacity: 1;
 }
 
-.delete-project-btn:hover {
-  background: #fff5f4 !important;
+.project-card-menu {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  z-index: 12;
+  min-width: 150px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  display: none;
+}
+
+.project-card-menu.is-open {
+  display: block;
 }
 
 .project-grid {

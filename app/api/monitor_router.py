@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.mappers import map_monitor_response
 from app.db import get_db_session
 from app.repositories.monitor_repository import MonitorRepository
-from app.schemas.monitor import MonitorProfileCreate, MonitorProfileResponse
+from app.schemas.monitor import MonitorProfileCreate, MonitorProfileResponse, MonitorProfileUpdate
 
 router = APIRouter(prefix="/monitor-profiles", tags=["monitor-profiles"])
 
@@ -28,6 +28,15 @@ def list_profiles(db: Session = Depends(get_db_session)):
 def get_profile(profile_id: int, db: Session = Depends(get_db_session)):
     repository = MonitorRepository(db)
     profile = repository.get(profile_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Monitor profile not found.")
+    return map_monitor_response(profile)
+
+
+@router.put("/{profile_id}", response_model=MonitorProfileResponse)
+def update_profile(profile_id: int, payload: MonitorProfileUpdate, db: Session = Depends(get_db_session)):
+    repository = MonitorRepository(db)
+    profile = repository.update(profile_id, payload)
     if profile is None:
         raise HTTPException(status_code=404, detail="Monitor profile not found.")
     return map_monitor_response(profile)

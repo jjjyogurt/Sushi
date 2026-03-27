@@ -19,6 +19,7 @@ def map_monitor_response(model: MonitorProfile) -> MonitorProfileResponse:
         brand_keywords=decode_json(model.brand_keywords, []),
         markets=decode_json(model.markets, []),
         languages=decode_json(model.languages, []),
+        key_products=decode_json(model.key_products, []),
         alert_sensitivity=model.alert_sensitivity,
         is_active=model.is_active,
     )

@@ -30,6 +30,7 @@ def monitor_profile(db_session: Session):
         brand_keywords=encode_json(["hoverair", "hover air"]),
         markets=encode_json(["global"]),
         languages=encode_json(["en"]),
+        key_products=encode_json([]),
         alert_sensitivity="medium",
         is_active=True,
     )

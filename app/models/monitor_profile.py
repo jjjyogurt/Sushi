@@ -12,6 +12,7 @@ class MonitorProfile(TimestampMixin, Base):
     brand_keywords: Mapped[str] = mapped_column(Text, nullable=False)
     markets: Mapped[str] = mapped_column(Text, nullable=False)
     languages: Mapped[str] = mapped_column(Text, nullable=False)
+    key_products: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     alert_sensitivity: Mapped[str] = mapped_column(String(30), default="medium")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
