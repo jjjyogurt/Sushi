@@ -90,14 +90,44 @@ class VideoRepository:
         *,
         monitor_profile_id: Optional[int] = None,
         queue_state: Optional[QueueState] = None,
-        title_filter: Optional[str] = None,
+        risk_level: Optional[str] = None,
+        sentiment: Optional[str] = None,
     ) -> List[VideoCandidate]:
+        from app.models.analysis_result import AnalysisResult
+        from sqlalchemy import and_, func
+
+        # Subquery to get the latest analysis_result ID for each video
+        latest_analysis_subquery = (
+            self.session.query(
+                AnalysisResult.video_candidate_id,
+                func.max(AnalysisResult.created_at).label("max_created_at"),
+            )
+            .group_by(AnalysisResult.video_candidate_id)
+            .subquery()
+        )
+
         query = self.session.query(VideoCandidate)
+
+        if risk_level or sentiment:
+            query = query.join(
+                AnalysisResult,
+                and_(
+                    AnalysisResult.video_candidate_id == VideoCandidate.id,
+                    AnalysisResult.created_at
+                    == self.session.query(func.max(AnalysisResult.created_at))
+                    .filter(AnalysisResult.video_candidate_id == VideoCandidate.id)
+                    .scalar_subquery(),
+                ),
+            )
+            if risk_level:
+                query = query.filter(AnalysisResult.risk_level == risk_level.upper())
+            if sentiment:
+                query = query.filter(AnalysisResult.sentiment == sentiment.upper())
+
         if monitor_profile_id is not None:
             query = query.filter(VideoCandidate.monitor_profile_id == monitor_profile_id)
         if queue_state is not None:
             query = query.filter(VideoCandidate.queue_state == queue_state)
-        if title_filter:
-            query = query.filter(VideoCandidate.normalized_title.contains(normalize_title(title_filter)))
+
         return query.order_by(desc(VideoCandidate.published_at)).all()
 

@@ -102,11 +102,19 @@ class TriageService:
         )
         return persisted
 
-    def list_candidates(self, *, monitor_profile_id: int = None, queue_state=None, title_filter: str = None):
+    def list_candidates(
+        self,
+        *,
+        monitor_profile_id: int = None,
+        queue_state=None,
+        risk_level: str = None,
+        sentiment: str = None,
+    ):
         return self.video_repository.list(
             monitor_profile_id=monitor_profile_id,
             queue_state=queue_state,
-            title_filter=title_filter,
+            risk_level=risk_level,
+            sentiment=sentiment,
         )
 
     def search_candidates(self, *, monitor_profile_id: int, query: str, max_results: int) -> List[dict]:

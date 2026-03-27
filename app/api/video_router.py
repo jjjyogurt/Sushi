@@ -82,17 +82,24 @@ def add_manual_video(payload: ManualVideoCreateRequest, db: Session = Depends(ge
 def list_videos(
     monitor_profile_id: Optional[int] = None,
     queue_state: Optional[QueueState] = Query(default=None),
-    title: Optional[str] = None,
+    risk_level: Optional[str] = None,
+    sentiment: Optional[str] = None,
     db: Session = Depends(get_db_session),
 ):
     service = TriageService(db)
     videos = service.list_candidates(
         monitor_profile_id=monitor_profile_id,
         queue_state=queue_state,
-        title_filter=title,
+        risk_level=risk_level,
+        sentiment=sentiment,
     )
     responses = map_videos_with_context(service, videos)
-    return VideoListResponse(items=responses, total=len(responses), title_filter=title)
+    return VideoListResponse(
+        items=responses,
+        total=len(responses),
+        risk_level=risk_level,
+        sentiment=sentiment,
+    )
 
 
 @router.post("/search", response_model=VideoSearchResponse)

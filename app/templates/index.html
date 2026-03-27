@@ -154,26 +154,21 @@
               <div class="button-row">
                 <button id="back-to-dashboard-btn" class="btn btn-secondary" type="button">← Back</button>
                 <button id="refresh-videos-btn" class="btn btn-secondary" type="button">Refresh List</button>
-                <button id="run-all-analysis-btn" class="btn btn-secondary" type="button">Run All Analysis</button>
                 <button id="discover-btn" class="btn btn-primary" type="button">Discover Videos</button>
               </div>
             </div>
 
             <div class="queue-controls">
               <label>
-                Queue Scope
+                Select Project
                 <select id="profile-select"></select>
               </label>
-              <label>
-                Title Filter
-                <input id="title-filter" type="text" placeholder="Filter by keywords..." />
-              </label>
-              <label>
-                Add YouTube URL
-                <input id="manual-video-url" type="text" placeholder="https://www.youtube.com/watch?v=..." />
-              </label>
-              <div class="queue-add-wrap">
-                <button id="add-manual-video-btn" class="btn btn-secondary" type="button">Add Video</button>
+              <div class="url-add-group-wrap">
+                <label>Add YouTube URL</label>
+                <div class="url-add-group">
+                  <input id="manual-video-url" type="text" placeholder="https://www.youtube.com/watch?v=..." />
+                  <button id="add-manual-video-btn" class="btn btn-secondary" type="button">Add Video</button>
+                </div>
               </div>
             </div>
 
@@ -195,8 +190,26 @@
             <div class="queue-layout">
               <section class="pane queue-list-pane">
                 <div class="pane-header">
-                  <h3>Video List</h3>
-                  <span id="video-count" class="meta">0</span>
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <h3>Video List</h3>
+                    <span id="video-count" class="meta">0</span>
+                  </div>
+                  <button id="run-all-analysis-btn" class="btn btn-secondary btn-sm" type="button">Run All Analysis</button>
+                </div>
+                <div class="list-filters">
+                  <select id="risk-filter">
+                    <option value="">All Risk Levels</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                  <select id="sentiment-filter">
+                    <option value="">All Sentiments</option>
+                    <option value="positive">Positive</option>
+                    <option value="neutral">Neutral</option>
+                    <option value="negative">Negative</option>
+                  </select>
                 </div>
                 <div id="video-list" class="video-list"></div>
               </section>

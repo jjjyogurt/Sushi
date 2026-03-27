@@ -82,7 +82,8 @@ class VideoResponse(TimestampedResponse):
 class VideoListResponse(BaseModel):
     items: List[VideoResponse]
     total: int
-    title_filter: Optional[str] = None
+    risk_level: Optional[str] = None
+    sentiment: Optional[str] = None
 
 
 class VideoBulkAddResponse(BaseModel):

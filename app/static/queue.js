@@ -147,13 +147,17 @@ export function createQueueController({
 
   async function refreshVideos() {
     const state = getState();
-    const titleFilter = (getElement("title-filter")?.value || "").trim();
+    const riskFilter = (getElement("risk-filter")?.value || "").trim();
+    const sentimentFilter = (getElement("sentiment-filter")?.value || "").trim();
     const query = new URLSearchParams();
     if (state.selectedProfileId) {
       query.set("monitor_profile_id", String(state.selectedProfileId));
     }
-    if (titleFilter) {
-      query.set("title", titleFilter);
+    if (riskFilter) {
+      query.set("risk_level", riskFilter);
+    }
+    if (sentimentFilter) {
+      query.set("sentiment", sentimentFilter);
     }
 
     const data = await request(`/videos?${query.toString()}`);
@@ -508,15 +512,21 @@ export function createQueueController({
       });
     }
 
-    const titleFilterInput = getElement("title-filter");
-    if (titleFilterInput) {
-      const debouncedRefresh = debounce(() => {
+    const riskFilterSelect = getElement("risk-filter");
+    if (riskFilterSelect) {
+      riskFilterSelect.addEventListener("change", () => {
         void runTask(async () => {
           await refreshVideos();
         });
-      }, 260);
-      titleFilterInput.addEventListener("input", () => {
-        debouncedRefresh();
+      });
+    }
+
+    const sentimentFilterSelect = getElement("sentiment-filter");
+    if (sentimentFilterSelect) {
+      sentimentFilterSelect.addEventListener("change", () => {
+        void runTask(async () => {
+          await refreshVideos();
+        });
       });
     }
   }
