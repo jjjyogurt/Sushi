@@ -124,6 +124,78 @@ def test_list_videos_global_includes_project_name_and_sentiment(client, api_db_s
     assert by_video_id["router-global-2"]["latest_analysis_status"] is None
 
 
+def test_list_videos_supports_risk_and_sentiment_filters(client, api_db_session, api_monitor_profile):
+    repository = VideoRepository(api_db_session)
+    matching_video = repository.upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="router-filter-match",
+        video_url="https://youtu.be/router-filter-match",
+        title="Filter match",
+        channel_name="CreatorMatch",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.6,
+        relevance_reason="seed",
+    )
+    non_matching_video = repository.upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="router-filter-miss",
+        video_url="https://youtu.be/router-filter-miss",
+        title="Filter miss",
+        channel_name="CreatorMiss",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+
+    api_db_session.add_all(
+        [
+            AnalysisResult(
+                video_candidate_id=matching_video.id,
+                analysis_version="v1",
+                model_name="test-model",
+                status=AnalysisStatus.COMPLETED,
+                transcript_text="transcript",
+                summary_text="summary",
+                translated_summary="summary",
+                sentiment=Sentiment.NEGATIVE,
+                risk_level=RiskLevel.HIGH,
+                confidence_score="0.9",
+                evidence_json="[]",
+                insights_json="[]",
+                error_message="",
+            ),
+            AnalysisResult(
+                video_candidate_id=non_matching_video.id,
+                analysis_version="v1",
+                model_name="test-model",
+                status=AnalysisStatus.COMPLETED,
+                transcript_text="transcript",
+                summary_text="summary",
+                translated_summary="summary",
+                sentiment=Sentiment.POSITIVE,
+                risk_level=RiskLevel.LOW,
+                confidence_score="0.9",
+                evidence_json="[]",
+                insights_json="[]",
+                error_message="",
+            ),
+        ]
+    )
+    api_db_session.commit()
+
+    risk_response = client.get("/videos?risk_level=high")
+    assert risk_response.status_code == 200
+    risk_items = risk_response.json()["items"]
+    assert [item["youtube_video_id"] for item in risk_items] == ["router-filter-match"]
+
+    sentiment_response = client.get("/videos?sentiment=negative")
+    assert sentiment_response.status_code == 200
+    sentiment_items = sentiment_response.json()["items"]
+    assert [item["youtube_video_id"] for item in sentiment_items] == ["router-filter-match"]
+
+
 def test_search_and_bulk_add_endpoints(client, api_monitor_profile):
     settings = get_settings()
     original = settings.enable_mock_discovery

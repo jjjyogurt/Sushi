@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from app.models.analysis_result import AnalysisResult
+from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
 from app.models.monitor_profile import MonitorProfile
 from app.repositories.video_repository import VideoRepository
 from app.utils.json_codec import encode_json
@@ -77,8 +79,8 @@ def test_same_title_different_video_id_creates_two_records(db_session, monitor_p
         relevance_reason="keyword",
     )
 
-    filtered = repository.list(monitor_profile_id=monitor_profile.id, title_filter="overview")
-    assert len(filtered) == 2
+    all_items = repository.list(monitor_profile_id=monitor_profile.id)
+    assert len(all_items) == 2
 
 
 def test_list_without_profile_filter_returns_all_projects(db_session, monitor_profile):
@@ -141,4 +143,132 @@ def test_upsert_keeps_original_project_owner_for_same_video_id(db_session, monit
     )
 
     assert updated.monitor_profile_id == monitor_profile.id
+
+
+def test_list_filters_by_risk_level_on_latest_analysis(db_session, monitor_profile):
+    repository = VideoRepository(db_session)
+    medium_video = repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="risk-medium",
+        video_url="https://youtu.be/risk-medium",
+        title="Risk medium",
+        channel_name="CreatorOne",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.7,
+        relevance_reason="seed",
+    )
+    low_video = repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="risk-low",
+        video_url="https://youtu.be/risk-low",
+        title="Risk low",
+        channel_name="CreatorTwo",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+    db_session.add_all(
+        [
+            AnalysisResult(
+                video_candidate_id=medium_video.id,
+                analysis_version="v1",
+                model_name="test-model",
+                status=AnalysisStatus.COMPLETED,
+                transcript_text="",
+                summary_text="",
+                translated_summary="",
+                sentiment=Sentiment.NEUTRAL,
+                risk_level=RiskLevel.MEDIUM,
+                confidence_score="0.8",
+                evidence_json="[]",
+                insights_json="[]",
+                error_message="",
+            ),
+            AnalysisResult(
+                video_candidate_id=low_video.id,
+                analysis_version="v1",
+                model_name="test-model",
+                status=AnalysisStatus.COMPLETED,
+                transcript_text="",
+                summary_text="",
+                translated_summary="",
+                sentiment=Sentiment.POSITIVE,
+                risk_level=RiskLevel.LOW,
+                confidence_score="0.8",
+                evidence_json="[]",
+                insights_json="[]",
+                error_message="",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    filtered = repository.list(monitor_profile_id=monitor_profile.id, risk_level="medium")
+    assert [item.youtube_video_id for item in filtered] == ["risk-medium"]
+
+
+def test_list_filters_by_sentiment_on_latest_analysis(db_session, monitor_profile):
+    repository = VideoRepository(db_session)
+    negative_video = repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="sentiment-negative",
+        video_url="https://youtu.be/sentiment-negative",
+        title="Sentiment negative",
+        channel_name="CreatorOne",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.7,
+        relevance_reason="seed",
+    )
+    neutral_video = repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="sentiment-neutral",
+        video_url="https://youtu.be/sentiment-neutral",
+        title="Sentiment neutral",
+        channel_name="CreatorTwo",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.6,
+        relevance_reason="seed",
+    )
+    db_session.add_all(
+        [
+            AnalysisResult(
+                video_candidate_id=negative_video.id,
+                analysis_version="v1",
+                model_name="test-model",
+                status=AnalysisStatus.COMPLETED,
+                transcript_text="",
+                summary_text="",
+                translated_summary="",
+                sentiment=Sentiment.NEGATIVE,
+                risk_level=RiskLevel.HIGH,
+                confidence_score="0.8",
+                evidence_json="[]",
+                insights_json="[]",
+                error_message="",
+            ),
+            AnalysisResult(
+                video_candidate_id=neutral_video.id,
+                analysis_version="v1",
+                model_name="test-model",
+                status=AnalysisStatus.COMPLETED,
+                transcript_text="",
+                summary_text="",
+                translated_summary="",
+                sentiment=Sentiment.NEUTRAL,
+                risk_level=RiskLevel.MEDIUM,
+                confidence_score="0.8",
+                evidence_json="[]",
+                insights_json="[]",
+                error_message="",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    filtered = repository.list(monitor_profile_id=monitor_profile.id, sentiment="negative")
+    assert [item.youtube_video_id for item in filtered] == ["sentiment-negative"]
 

@@ -367,6 +367,26 @@ body {
   background: #f2f4f4;
 }
 
+.btn-clean {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  font-weight: 500;
+}
+
+.btn-clean:hover {
+  color: var(--text);
+  background: var(--surface-soft);
+}
+
+.btn-clean .material-symbols-outlined {
+  font-size: 1.2rem;
+}
+
 .form-panel {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1191,14 +1211,20 @@ body {
 
 .queue-controls {
   display: flex;
-  gap: 32px;
+  gap: 16px;
   margin-bottom: 24px;
   align-items: flex-end;
   width: 100%;
 }
 
 .queue-controls > label {
-  flex: 0 0 240px;
+  flex: 0 0 200px;
+}
+
+.queue-controls #discover-btn-inline {
+  margin-bottom: 0;
+  height: 40px;
+  white-space: nowrap;
 }
 
 .url-add-group-wrap {

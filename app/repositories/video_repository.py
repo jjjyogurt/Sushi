@@ -96,7 +96,7 @@ class VideoRepository:
         from app.models.analysis_result import AnalysisResult
         from sqlalchemy import and_, func
 
-        # Subquery to get the latest analysis_result ID for each video
+        # Subquery for the latest analysis timestamp per video.
         latest_analysis_subquery = (
             self.session.query(
                 AnalysisResult.video_candidate_id,
@@ -110,13 +110,13 @@ class VideoRepository:
 
         if risk_level or sentiment:
             query = query.join(
+                latest_analysis_subquery,
+                latest_analysis_subquery.c.video_candidate_id == VideoCandidate.id,
+            ).join(
                 AnalysisResult,
                 and_(
-                    AnalysisResult.video_candidate_id == VideoCandidate.id,
-                    AnalysisResult.created_at
-                    == self.session.query(func.max(AnalysisResult.created_at))
-                    .filter(AnalysisResult.video_candidate_id == VideoCandidate.id)
-                    .scalar_subquery(),
+                    AnalysisResult.video_candidate_id == latest_analysis_subquery.c.video_candidate_id,
+                    AnalysisResult.created_at == latest_analysis_subquery.c.max_created_at,
                 ),
             )
             if risk_level:

@@ -452,6 +452,15 @@ export function createQueueController({
       });
     }
 
+    const discoverButtonInline = getElement("discover-btn-inline");
+    if (discoverButtonInline) {
+      discoverButtonInline.addEventListener("click", () => {
+        void runTask(async () => {
+          await discoverVideos();
+        }, "Discovery completed.");
+      });
+    }
+
     const runAllAnalysisButton = getElement("run-all-analysis-btn");
     if (runAllAnalysisButton) {
       runAllAnalysisButton.addEventListener("click", () => {

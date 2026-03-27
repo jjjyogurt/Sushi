@@ -75,7 +75,7 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 - `POST /monitor-profiles`
 - `GET /monitor-profiles`
 - `POST /videos/discover`
-- `GET /videos?monitor_profile_id=&title=`
+- `GET /videos?monitor_profile_id=&risk_level=&sentiment=`
 - `POST /videos/{video_id}/approve`
 - `POST /videos/{video_id}/analyze`
 - `GET /videos/{video_id}/analysis`
