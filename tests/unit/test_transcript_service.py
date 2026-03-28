@@ -89,3 +89,64 @@ def test_transcript_service_returns_normalized_segments(monkeypatch):
     assert output.segments[0]["timestamp"] == "00:00"
     assert output.segments[1]["timestamp"] == "00:02"
     assert "00:00 Welcome to this tutorial." in output.full_text
+
+
+def test_transcript_service_classifies_asr_required_as_unavailable(monkeypatch):
+    def fake_post(*_args, **_kwargs):
+        return FakeResponse(
+            status_code=200,
+            payload={
+                "status": "requires_asr_confirmation",
+                "error": "No captions available. Audio transcription is required.",
+                "suggestion": 'Use source="asr" or set allow_asr=true to enable ASR.',
+            },
+        )
+
+    monkeypatch.setattr("httpx.post", fake_post)
+    service = TranscriptService()
+
+    with pytest.raises(TranscriptUnavailableError) as error:
+        service.fetch_transcript(youtube_video_id="video-asr", preferred_languages=["en"])
+
+    assert "requires ASR transcription" in str(error.value)
+
+
+def test_transcript_service_falls_back_to_next_language_when_asr_required(monkeypatch):
+    call_count = {"value": 0}
+
+    def fake_post(*_args, **kwargs):
+        call_count["value"] += 1
+        payload = kwargs.get("json", {})
+        requested_language = payload.get("language")
+        if requested_language == "de":
+            return FakeResponse(
+                status_code=200,
+                payload={
+                    "status": "requires_asr_confirmation",
+                    "error": "No captions available. Audio transcription is required.",
+                    "suggestion": 'Use source="asr" or set allow_asr=true to enable ASR.',
+                },
+            )
+        return FakeResponse(
+            status_code=200,
+            payload={
+                "status": "completed",
+                "data": {
+                    "transcript": {
+                        "language": "en",
+                        "text": "Recovered transcript",
+                        "segments": [
+                            {"text": "Recovered transcript", "start": 0, "end": 2000},
+                        ],
+                    }
+                },
+            },
+        )
+
+    monkeypatch.setattr("httpx.post", fake_post)
+    service = TranscriptService()
+
+    output = service.fetch_transcript(youtube_video_id="video-fallback", preferred_languages=["de", "en"])
+    assert output.source_language == "en"
+    assert "Recovered transcript" in output.full_text
+    assert call_count["value"] >= 2

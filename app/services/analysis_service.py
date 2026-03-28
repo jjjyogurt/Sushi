@@ -133,6 +133,9 @@ class AnalysisService:
             result.transcript_text = transcript.full_text
             result.summary_text = output.summary_text
             result.translated_summary = output.translated_summary
+            result.summary_headline = output.summary_headline
+            result.summary_body = output.summary_body
+            result.business_impact = output.business_impact
             result.sentiment = output.sentiment
             result.risk_level = output.risk_level
             result.confidence_score = f"{output.confidence_score:.2f}"
@@ -154,6 +157,9 @@ class AnalysisService:
             result.transcript_text = ""
             result.summary_text = ""
             result.translated_summary = ""
+            result.summary_headline = ""
+            result.summary_body = ""
+            result.business_impact = ""
             result.sentiment = Sentiment.NEUTRAL
             result.risk_level = RiskLevel.LOW
             result.confidence_score = "0.0"

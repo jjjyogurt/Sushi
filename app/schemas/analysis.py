@@ -26,6 +26,9 @@ class AnalysisResponse(TimestampedResponse):
     transcript_text: str
     summary_text: str
     translated_summary: str
+    summary_headline: str = ""
+    summary_body: str = ""
+    business_impact: str = ""
     sentiment: Sentiment
     risk_level: RiskLevel
     confidence_score: float = Field(default=0.0)

@@ -258,6 +258,9 @@ class GeminiClient:
             raise GeminiResponseError("Gemini analysis output is missing summary_text.")
 
         translated_summary = str(parsed.get("translated_summary", "")).strip() or summary_text
+        summary_headline = str(parsed.get("summary_headline", "")).strip()
+        summary_body = str(parsed.get("summary_body", "")).strip()
+        business_impact = str(parsed.get("business_impact", "")).strip()
         sentiment = GeminiClient._safe_sentiment(parsed.get("sentiment"))
         risk_level = GeminiClient._safe_risk_level(parsed.get("risk_level"))
         confidence_score = GeminiClient._safe_confidence(parsed.get("confidence_score"), fallback=0.0)
@@ -271,6 +274,9 @@ class GeminiClient:
             transcript_text=fallback_transcript,
             summary_text=summary_text,
             translated_summary=translated_summary,
+            summary_headline=summary_headline,
+            summary_body=summary_body,
+            business_impact=business_impact,
             sentiment=sentiment,
             risk_level=risk_level,
             confidence_score=confidence_score,
@@ -388,7 +394,8 @@ class GeminiClient:
             "You are analyzing influencer video transcript chunks for marketing risk monitoring.\n"
             "Follow these AGENTS.md instructions for evaluation style and content priorities:\n"
             f"{agent_instructions}\n"
-            "Return strict JSON with keys: summary_text, translated_summary, sentiment, risk_level, "
+            "Return strict JSON with keys: summary_text, translated_summary, summary_headline, summary_body, "
+            "business_impact, sentiment, risk_level, "
             "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
@@ -417,7 +424,8 @@ class GeminiClient:
             "You are merging chunk-level transcript analyses into a final decision for marketing risk monitoring.\n"
             "Follow these AGENTS.md instructions for evaluation style and content priorities:\n"
             f"{agent_instructions}\n"
-            "Return strict JSON with keys: summary_text, translated_summary, sentiment, risk_level, "
+            "Return strict JSON with keys: summary_text, translated_summary, summary_headline, summary_body, "
+            "business_impact, sentiment, risk_level, "
             "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "

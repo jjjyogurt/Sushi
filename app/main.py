@@ -11,7 +11,7 @@ from app.api.incident_router import router as incident_router
 from app.api.knowledge_router import router as knowledge_router
 from app.api.monitor_router import router as monitor_router
 from app.api.video_router import router as video_router
-from app.db_migrations import ensure_monitor_profiles_key_products_column
+from app.db_migrations import ensure_analysis_results_summary_columns, ensure_monitor_profiles_key_products_column
 from app.db import engine
 from app.models.base import Base
 
@@ -22,12 +22,14 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # Ensure local SQLite tables exist for both API runtime and local script usage.
 Base.metadata.create_all(bind=engine)
 ensure_monitor_profiles_key_products_column(engine)
+ensure_analysis_results_summary_columns(engine)
 
 
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_monitor_profiles_key_products_column(engine)
+    ensure_analysis_results_summary_columns(engine)
 
 
 @app.get("/", response_class=HTMLResponse)

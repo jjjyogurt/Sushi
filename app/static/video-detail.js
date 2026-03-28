@@ -17,6 +17,15 @@ function normalizeAnalysisErrorMessage(rawMessage) {
   if (message.startsWith("TRANSCRIPT_PROVIDER_ERROR:")) {
     return "Transcript provider failed unexpectedly. Please retry in a moment.";
   }
+  if (
+    message.toLowerCase().includes("requires asr transcription") ||
+    message.toLowerCase().includes("audio transcription is required")
+  ) {
+    return "This video does not expose captions. Transcript provider requires ASR transcription for this video.";
+  }
+  if (message.startsWith("Malformed transcript payload")) {
+    return "Transcript provider returned an unsupported response. Please retry in a moment.";
+  }
   if (message.startsWith("GEMINI_PROVIDER_ERROR:") || message.startsWith("GEMINI_RESPONSE_ERROR:")) {
     return "Gemini request failed. Check /health/gemini and server logs for details.";
   }
@@ -73,6 +82,26 @@ function evidenceText(analysis) {
     return "No evidence snippets yet.";
   }
   return analysis.evidence.map((item) => `${item.timestamp} - ${item.quote} (${item.reason})`).join("\n");
+}
+
+function summaryMarkup(analysis) {
+  if (!analysis) {
+    return "No analysis yet.";
+  }
+  const headline = String(analysis.summary_headline || "").trim();
+  const body = String(analysis.summary_body || "").trim();
+  const businessImpact = String(analysis.business_impact || "").trim();
+  if (!headline && !body && !businessImpact) {
+    return escapeHtml(String(analysis.summary_text || "").trim() || "No analysis yet.");
+  }
+
+  return `
+    <div class="summary-structured">
+      ${headline ? `<div class="summary-headline">${escapeHtml(headline)}</div>` : ""}
+      ${body ? `<div class="summary-body">${escapeHtml(body)}</div>` : ""}
+      ${businessImpact ? `<div class="summary-impact"><strong>Business impact:</strong> ${escapeHtml(businessImpact)}</div>` : ""}
+    </div>
+  `;
 }
 
 function pointListMarkup(points, emptyLabel) {
@@ -186,7 +215,7 @@ function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded,
       <div class="detail-grid">
         <div class="detail-block">
           <h5>Summary</h5>
-          <div>${escapeHtml(analysis ? analysis.summary_text : "No analysis yet.")}</div>
+          <div>${summaryMarkup(analysis)}</div>
         </div>
         <div class="split-grid">
           <div class="detail-block">
@@ -250,6 +279,9 @@ export function createVideoDetailController({
     return {
       status: "processing",
       summary_text: "",
+      summary_headline: "",
+      summary_body: "",
+      business_impact: "",
       transcript_text: "",
       sentiment: "neutral",
       risk_level: "low",
@@ -446,6 +478,12 @@ export function createVideoDetailController({
 
     try {
       analysis = await fetchAnalysis(renderTargetId);
+      if (analysis && String(analysis.status || "").toLowerCase() === "failed") {
+        const persistedError = String(analysis.error_message || "").trim();
+        if (persistedError) {
+          analysisError = normalizeAnalysisErrorMessage(persistedError);
+        }
+      }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         return;

@@ -39,6 +39,15 @@ function normalizeAnalysisErrorMessage(rawMessage) {
   if (message.startsWith("TRANSCRIPT_PROVIDER_ERROR:")) {
     return "Transcript provider failed unexpectedly. Please retry in a moment.";
   }
+  if (
+    message.toLowerCase().includes("requires asr transcription") ||
+    message.toLowerCase().includes("audio transcription is required")
+  ) {
+    return "This video does not expose captions. Transcript provider requires ASR transcription for this video.";
+  }
+  if (message.startsWith("Malformed transcript payload")) {
+    return "Transcript provider returned an unsupported response. Please retry in a moment.";
+  }
   if (message.startsWith("GEMINI_PROVIDER_ERROR:") || message.startsWith("GEMINI_RESPONSE_ERROR:")) {
     return "Gemini request failed. Check /health/gemini and server logs for details.";
   }
@@ -460,11 +469,18 @@ async function renderVideoDetail() {
 
   try {
     analysis = await fetchAnalysis(renderTargetId);
+    if (analysis && String(analysis.status || "").toLowerCase() === "failed") {
+      const persistedError = String(analysis.error_message || "").trim();
+      if (persistedError) {
+        analysisError = normalizeAnalysisErrorMessage(persistedError);
+      }
+    }
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       return;
     }
-    analysisError = error instanceof Error ? error.message : "Failed to load analysis.";
+    const errorMessage = error instanceof Error ? error.message : "Failed to load analysis.";
+    analysisError = normalizeAnalysisErrorMessage(errorMessage);
   }
 
   if (renderTargetId !== state.selectedVideoId) {

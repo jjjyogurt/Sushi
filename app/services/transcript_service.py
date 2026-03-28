@@ -1,4 +1,5 @@
 import json
+import logging
 from statistics import median
 from typing import Dict, List, Optional
 
@@ -11,6 +12,8 @@ from app.services.exceptions import (
     TranscriptUnavailableError,
 )
 from app.services.types import TranscriptOutput
+
+logger = logging.getLogger(__name__)
 
 
 class TranscriptService:
@@ -28,12 +31,24 @@ class TranscriptService:
             try:
                 return self._fetch_from_provider(youtube_video_id=youtube_video_id, language=language, api_key=api_key)
             except TranscriptUnavailableError as error:
+                logger.info(
+                    "transcript unavailable video_id=%s language=%s error=%s",
+                    youtube_video_id,
+                    language,
+                    error,
+                )
                 last_unavailable_error = error
                 continue
 
         try:
             return self._fetch_from_provider(youtube_video_id=youtube_video_id, language=None, api_key=api_key)
         except TranscriptUnavailableError as error:
+            logger.info(
+                "transcript unavailable fallback video_id=%s language=%s error=%s",
+                youtube_video_id,
+                "auto",
+                error,
+            )
             raise last_unavailable_error or error from error
 
     @staticmethod
@@ -80,11 +95,54 @@ class TranscriptService:
                 )
 
             response_payload = self._parse_json(response)
+            provider_status = str(response_payload.get("status") or "").strip().lower()
+            logger.info(
+                "transcript provider response video_id=%s language=%s http_status=%s provider_status=%s",
+                youtube_video_id,
+                language or "auto",
+                response.status_code,
+                provider_status or "unknown",
+            )
+            self._raise_for_non_completed_success(
+                youtube_video_id=youtube_video_id,
+                language=language,
+                payload=response_payload,
+            )
             return self._build_transcript_output(youtube_video_id=youtube_video_id, payload=response_payload)
 
         error_message = str(last_transport_error) if last_transport_error is not None else "unknown transport error"
         raise TranscriptProviderError(
             f"Failed to retrieve transcript for video {youtube_video_id}: {error_message}"
+        )
+
+    @staticmethod
+    def _raise_for_non_completed_success(
+        *, youtube_video_id: str, language: Optional[str], payload: Dict[str, object]
+    ) -> None:
+        status_value = str(payload.get("status") or "").strip().lower()
+        if not status_value or status_value == "completed":
+            return
+
+        error_message = str(payload.get("error") or "").strip()
+        suggestion = str(payload.get("suggestion") or "").strip()
+        context_parts = [part for part in [error_message, suggestion] if part]
+        context = f" Details: {' '.join(context_parts)}" if context_parts else ""
+        language_hint = language or "auto"
+
+        if status_value == "requires_asr_confirmation":
+            raise TranscriptUnavailableError(
+                f"No transcript is available for video {youtube_video_id} in language '{language_hint}'."
+                f" Provider requires ASR transcription before analysis.{context}"
+            )
+
+        if status_value in {"no_captions", "not_found", "unavailable"}:
+            raise TranscriptUnavailableError(
+                f"No transcript is available for video {youtube_video_id} in language '{language_hint}'.{context}"
+            )
+
+        raise TranscriptProviderError(
+            f"Transcript provider returned status '{status_value}' for video {youtube_video_id} in language "
+            f"'{language_hint}'.{context}"
         )
 
     @staticmethod

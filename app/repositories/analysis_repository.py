@@ -125,6 +125,9 @@ class AnalysisRepository:
         result.transcript_text = ""
         result.summary_text = ""
         result.translated_summary = ""
+        result.summary_headline = ""
+        result.summary_body = ""
+        result.business_impact = ""
         result.sentiment = Sentiment.NEUTRAL
         result.risk_level = RiskLevel.LOW
         result.confidence_score = "0.0"

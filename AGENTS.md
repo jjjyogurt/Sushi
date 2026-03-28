@@ -85,14 +85,13 @@ Provide a concise counter-narrative or reframing for one key negative claim
 
 ### 5. Summary
 
-**[One-line headline insight]**  
-(Top line, high signal, emphasize it if a video is negative with high risk )
+Provide all 3 fields clearly:
 
-Then:
-2–3 sentence summary covering:
-- Core sentiment  
-- Main driver of praise or risk  
-- Business impact
+- **Summary Headline (1 line):** One-line high-signal insight
+- **Summary Body (3–4 sentences):** Cover core sentiment and main praise/risk driver
+- **Business Impact (1 sentence):** State likely business consequence
+
+If risk is High/Critical, headline must prioritize safety or reliability impact.
 
 ---
 
@@ -125,7 +124,7 @@ When multiple products appear:
 ---
 
 ## Tone & Style
-- **Alert-oriented:** concise, high signal, no fluff  
+- **Alert-oriented:** concise, easy to read, high signal, no fluff  
 - **Evidence-based:** always reference timestamp or visual cue  
 - **Product-focused:** prioritize actionable insights over description  
 - **Decisive:** avoid ambiguity; make clear calls on risk and severity

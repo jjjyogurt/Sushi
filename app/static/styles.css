@@ -491,6 +491,26 @@ body {
   line-height: 1.5;
 }
 
+.summary-structured {
+  display: grid;
+  gap: 8px;
+}
+
+.summary-headline {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.summary-body {
+  white-space: pre-line;
+  line-height: 1.5;
+}
+
+.summary-impact {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
 .transcript-wrapper {
   border: 1px solid var(--border);
   border-radius: 8px;
