@@ -31,41 +31,56 @@ class GeminiClient:
         knowledge_context: str = "",
     ) -> AnalysisOutput:
         self._ensure_runtime_ready()
-        transcript_for_prompt = transcript_text[: self.settings.analysis_max_transcript_chars]
-        chunks = self._chunk_transcript(transcript_text=transcript_for_prompt)
-        logger.info(
-            "gemini analysis prepared model=%s transcript_chars=%s capped_chars=%s chunk_count=%s",
-            self.settings.gemini_model_analysis,
-            len(transcript_text),
-            len(transcript_for_prompt),
-            len(chunks),
-        )
+        max_transcript_chars = max(1, self.settings.analysis_max_transcript_chars)
+        transcript_for_prompt = transcript_text[:max_transcript_chars]
+        hard_capped = len(transcript_for_prompt) < len(transcript_text)
+        single_pass_threshold = max(1, self.settings.analysis_single_pass_max_estimated_tokens)
         agent_instructions = self._analysis_agent_instructions()
-        chunk_analyses = [
-            self._analyze_chunk(
-                title=title,
-                language=language,
-                relevance_reason=relevance_reason,
-                chunk_text=chunk_text,
-                chunk_index=index + 1,
-                total_chunks=len(chunks),
-                agent_instructions=agent_instructions,
-            )
-            for index, chunk_text in enumerate(chunks)
-        ]
-
-        reduce_prompt = self._build_analysis_reduce_prompt(
+        single_pass_prompt = self._build_analysis_single_pass_prompt(
             title=title,
             language=language,
             relevance_reason=relevance_reason,
-            chunk_analyses=chunk_analyses,
+            transcript_text=transcript_for_prompt,
             agent_instructions=agent_instructions,
             knowledge_context=knowledge_context,
         )
-        raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=reduce_prompt)
-        parsed = self._parse_json_payload(raw=raw, context="analysis reducer")
-        logger.info("gemini analysis reducer completed model=%s", self.settings.gemini_model_analysis)
-        return self._analysis_from_parsed(parsed=parsed, fallback_transcript=transcript_text)
+        estimated_tokens = self._estimate_tokens_from_chars(total_chars=len(single_pass_prompt))
+        route = "single_pass" if estimated_tokens <= single_pass_threshold else "chunk_reduce"
+        logger.info(
+            "gemini analysis route selected model=%s route=%s transcript_chars=%s capped_chars=%s estimated_tokens=%s threshold_tokens=%s hard_capped=%s",
+            self.settings.gemini_model_analysis,
+            route,
+            len(transcript_text),
+            len(transcript_for_prompt),
+            estimated_tokens,
+            single_pass_threshold,
+            hard_capped,
+        )
+
+        if route == "single_pass":
+            try:
+                raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=single_pass_prompt)
+                parsed = self._parse_json_payload(raw=raw, context="analysis single-pass")
+                logger.info("gemini analysis single-pass completed model=%s", self.settings.gemini_model_analysis)
+                return self._analysis_from_parsed(parsed=parsed, fallback_transcript=transcript_text)
+            except GeminiProviderError as error:
+                if not self._is_context_oversize_error(error):
+                    raise
+                logger.warning(
+                    "gemini analysis single-pass oversize fallback model=%s estimated_tokens=%s",
+                    self.settings.gemini_model_analysis,
+                    estimated_tokens,
+                )
+
+        return self._analyze_with_chunk_reduce(
+            title=title,
+            language=language,
+            relevance_reason=relevance_reason,
+            transcript_for_prompt=transcript_for_prompt,
+            fallback_transcript=transcript_text,
+            knowledge_context=knowledge_context,
+            agent_instructions=agent_instructions,
+        )
 
     def ensure_ready(self) -> None:
         self._ensure_runtime_ready()
@@ -131,12 +146,64 @@ class GeminiClient:
         logger.debug("gemini analysis chunk completed chunk=%s/%s", chunk_index, total_chunks)
         return self._parse_json_payload(raw=raw, context=f"analysis chunk {chunk_index}")
 
+    def _analyze_with_chunk_reduce(
+        self,
+        *,
+        title: str,
+        language: str,
+        relevance_reason: str,
+        transcript_for_prompt: str,
+        fallback_transcript: str,
+        knowledge_context: str,
+        agent_instructions: str,
+    ) -> AnalysisOutput:
+        chunks = self._chunk_transcript(transcript_text=transcript_for_prompt)
+        logger.info(
+            "gemini analysis chunk-reduce prepared model=%s capped_chars=%s chunk_count=%s",
+            self.settings.gemini_model_analysis,
+            len(transcript_for_prompt),
+            len(chunks),
+        )
+        chunk_analyses = [
+            self._analyze_chunk(
+                title=title,
+                language=language,
+                relevance_reason=relevance_reason,
+                chunk_text=chunk_text,
+                chunk_index=index + 1,
+                total_chunks=len(chunks),
+                agent_instructions=agent_instructions,
+            )
+            for index, chunk_text in enumerate(chunks)
+        ]
+
+        reduce_prompt = self._build_analysis_reduce_prompt(
+            title=title,
+            language=language,
+            relevance_reason=relevance_reason,
+            chunk_analyses=chunk_analyses,
+            agent_instructions=agent_instructions,
+            knowledge_context=knowledge_context,
+        )
+        raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=reduce_prompt)
+        parsed = self._parse_json_payload(raw=raw, context="analysis reducer")
+        logger.info(
+            "gemini analysis reducer completed model=%s chunk_count=%s",
+            self.settings.gemini_model_analysis,
+            len(chunks),
+        )
+        return self._analysis_from_parsed(parsed=parsed, fallback_transcript=fallback_transcript)
+
     def _analysis_agent_instructions(self) -> str:
         try:
             return self.agent_settings_service.get_content()
         except Exception as error:  # noqa: BLE001
             logger.warning("Failed to load agent instructions; using defaults. error=%s", error)
             return self.agent_settings_service.default_content()
+
+    def _estimate_tokens_from_chars(self, *, total_chars: int) -> int:
+        chars_per_token = max(1, self.settings.analysis_estimated_chars_per_token)
+        return max(1, (total_chars + chars_per_token - 1) // chars_per_token)
 
     def _generate_text(self, *, model_name: str, prompt: str) -> str:
         try:
@@ -378,6 +445,52 @@ class GeminiClient:
                 continue
             citations = [*citations, {"timestamp": timestamp, "quote": quote}]
         return citations
+
+    @staticmethod
+    def _is_context_oversize_error(error: Exception) -> bool:
+        error_text = str(error).lower()
+        strict_markers = (
+            "context",
+            "maximum context length",
+            "token limit",
+            "too many tokens",
+            "too large",
+            "too long",
+            "input token count",
+        )
+        if any(marker in error_text for marker in strict_markers):
+            return True
+        return "exceeds" in error_text and ("token" in error_text or "context" in error_text)
+
+    @staticmethod
+    def _build_analysis_single_pass_prompt(
+        *,
+        title: str,
+        language: str,
+        relevance_reason: str,
+        transcript_text: str,
+        agent_instructions: str,
+        knowledge_context: str,
+    ) -> str:
+        return (
+            "You are analyzing an influencer video transcript for marketing risk monitoring.\n"
+            "Follow these AGENTS.md instructions for evaluation style and content priorities:\n"
+            f"{agent_instructions}\n"
+            "Return strict JSON with keys: summary_text, translated_summary, summary_headline, summary_body, "
+            "business_impact, sentiment, risk_level, "
+            "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
+            "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
+            "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
+            "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
+            "action_recommendation as one short actionable string.\n"
+            "Do not invent evidence. Use only evidence that appears in the transcript for summary, points, and recommendation.\n"
+            "Knowledge base context (if provided) can be used to verify product facts, but transcript evidence is still required for claims about this video.\n"
+            f"Video title: {title}\n"
+            f"Language: {language}\n"
+            f"Relevance reason: {relevance_reason}\n"
+            f"Knowledge base context:\n{knowledge_context}\n"
+            f"Transcript:\n{transcript_text}\n"
+        )
 
     @staticmethod
     def _build_analysis_chunk_prompt(

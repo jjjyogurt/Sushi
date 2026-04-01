@@ -20,7 +20,12 @@ class Settings(BaseSettings):
     )
     youtube_transcript_timeout_seconds: float = Field(default=30.0, alias="YOUTUBE_TRANSCRIPT_TIMEOUT_SECONDS")
     youtube_transcript_max_retries: int = Field(default=1, alias="YOUTUBE_TRANSCRIPT_MAX_RETRIES")
-    analysis_max_transcript_chars: int = Field(default=45000, alias="ANALYSIS_MAX_TRANSCRIPT_CHARS")
+    analysis_max_transcript_chars: int = Field(default=3000000, alias="ANALYSIS_MAX_TRANSCRIPT_CHARS")
+    analysis_single_pass_max_estimated_tokens: int = Field(
+        default=750000,
+        alias="ANALYSIS_SINGLE_PASS_MAX_ESTIMATED_TOKENS",
+    )
+    analysis_estimated_chars_per_token: int = Field(default=4, alias="ANALYSIS_ESTIMATED_CHARS_PER_TOKEN")
     analysis_chunk_chars: int = Field(default=12000, alias="ANALYSIS_CHUNK_CHARS")
     analysis_chunk_overlap_chars: int = Field(default=1200, alias="ANALYSIS_CHUNK_OVERLAP_CHARS")
     analysis_max_chunks: int = Field(default=12, alias="ANALYSIS_MAX_CHUNKS")
