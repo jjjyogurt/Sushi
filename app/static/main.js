@@ -15,6 +15,7 @@ import {
 import { createVideoDetailController } from "./video-detail.js";
 import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js";
+import { createVocController } from "./voc.js";
 
 let messageTimer = null;
 
@@ -310,6 +311,11 @@ async function bootstrap() {
     runTask,
     getState,
   });
+  const vocController = createVocController({
+    request,
+    requestForm,
+    runTask,
+  });
 
   const videoDetailController = createVideoDetailController({
     getState,
@@ -563,6 +569,7 @@ async function bootstrap() {
   bindProjectBackButton();
   agentSettingsController.bindAgentSettingsControls();
   knowledgeSettingsController.bindKnowledgeSettingsControls();
+  vocController.bindVocControls();
   queueController.bindQueueInteractions();
   bindDashboardInteractions({
     onOpenProject: (profileId) => {
@@ -626,6 +633,8 @@ async function bootstrap() {
   await loadAlerts();
   await agentSettingsController.loadSettings();
   await knowledgeSettingsController.loadSettings();
+  await vocController.loadProjects();
+  await vocController.loadSettings();
 }
 
 bootstrap().catch((error) => {

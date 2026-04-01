@@ -24,6 +24,10 @@
             <span class="material-symbols-outlined icon">queue_play_next</span>
             Project
           </button>
+          <button class="nav-btn" data-section="voc" type="button">
+            <span class="material-symbols-outlined icon">voice_chat</span>
+            VOC
+          </button>
           <button class="nav-btn" data-section="alerts" type="button">
             <span class="material-symbols-outlined icon">notifications_active</span>
             Alerts
@@ -261,6 +265,120 @@
             </div>
 
             <div id="profile-grid" class="project-grid"></div>
+          </section>
+
+          <section id="voc" class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>VOC Workspace</h2>
+                <p>Upload feedback, clean data, analyze insights, and publish reports.</p>
+              </div>
+            </div>
+            <div id="voc-status" class="meta"></div>
+            <div class="voc-toolbar">
+              <div class="button-row">
+                <button id="voc-toggle-create-btn" class="btn btn-secondary" type="button">+ New Project</button>
+              </div>
+              <div id="voc-create-container" class="form-panel is-hidden">
+                <form id="voc-project-form" class="form-grid">
+                  <label>
+                    Project Name
+                    <input id="voc-project-name" type="text" placeholder="VOC Q2 Feedback" required />
+                  </label>
+                  <label>
+                    Description
+                    <textarea id="voc-project-description" rows="3" placeholder="Optional context"></textarea>
+                  </label>
+                  <div class="button-row">
+                    <button id="voc-project-create-btn" class="btn btn-primary" type="button">Create Project</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+            <div class="voc-layout">
+              <div class="voc-steps">
+                <section class="pane">
+                  <div class="pane-header">
+                    <h3>Select Project</h3>
+                  </div>
+                  <label>
+                    Project
+                    <select id="voc-project-select"></select>
+                  </label>
+                </section>
+
+                <section class="pane">
+                  <div class="pane-header">
+                    <h3>Upload Raw Data</h3>
+                  </div>
+                  <div class="upload-row">
+                    <input id="voc-upload-input" type="file" accept=".csv" />
+                    <button id="voc-upload-btn" class="btn btn-secondary" type="button">Upload</button>
+                  </div>
+                  <div id="voc-upload-meta" class="meta"></div>
+                </section>
+
+                <section class="pane">
+                  <div class="pane-header">
+                    <h3>Clean Data</h3>
+                  </div>
+                  <div class="button-row">
+                    <button id="voc-clean-btn" class="btn btn-primary" type="button">Start Cleaning</button>
+                    <button id="voc-download-clean-btn" class="btn btn-secondary" type="button">Download Cleaned</button>
+                  </div>
+                  <div id="voc-clean-meta" class="meta"></div>
+                  <div class="table-scroll">
+                    <table class="voc-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Cleaned Content</th>
+                        </tr>
+                      </thead>
+                      <tbody id="voc-cleaned-rows"></tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section class="pane">
+                  <div class="pane-header">
+                    <h3>Analyze</h3>
+                  </div>
+                  <div class="button-row">
+                    <button id="voc-analyze-btn" class="btn btn-primary" type="button">Start Analysis</button>
+                  </div>
+                  <div id="voc-analysis-meta" class="meta"></div>
+                </section>
+              </div>
+
+              <section class="pane voc-report">
+                <div class="pane-header">
+                  <h3>Report</h3>
+                </div>
+                <div class="report-toolbar">
+                  <div class="report-mode-toggle" role="tablist" aria-label="Report mode">
+                    <button id="voc-report-preview-btn" class="btn btn-secondary is-active" type="button">Preview</button>
+                    <button id="voc-report-edit-btn" class="btn btn-secondary" type="button">Edit Markdown</button>
+                  </div>
+                </div>
+                <div id="voc-report-rendered" class="voc-report-rendered">
+                  <p class="meta">Report will appear here after analysis.</p>
+                </div>
+                <div id="voc-report-editor" class="is-hidden">
+                  <textarea
+                    id="voc-report-content"
+                    class="settings-textarea"
+                    rows="22"
+                    placeholder="Report will appear here after analysis..."
+                  ></textarea>
+                </div>
+                <div class="button-row">
+                  <button id="voc-report-save-btn" class="btn btn-secondary" type="button">Save Draft</button>
+                  <button id="voc-report-publish-btn" class="btn btn-primary" type="button">Publish</button>
+                </div>
+                <div id="voc-report-meta" class="meta"></div>
+              </section>
+            </div>
           </section>
 
           <section id="queue" class="panel">
@@ -509,12 +627,50 @@
                 </div>
               </div>
             </section>
+            <section class="pane settings-pane" style="margin-top: 20px;">
+              <div class="pane-header">
+                <h3>VOC Settings</h3>
+                <span class="meta">Configure Cleaner and Analyzer skills</span>
+              </div>
+              <div class="settings-body">
+                <div class="settings-block">
+                  <label class="settings-label" for="voc-cleaner-skill-input">VOC Data Cleaner Skills</label>
+                  <textarea
+                    id="voc-cleaner-skill-input"
+                    class="settings-textarea"
+                    rows="8"
+                    placeholder="Define Cleaner skill instructions..."
+                  ></textarea>
+                  <div class="button-row">
+                    <button id="voc-cleaner-skill-save" class="btn btn-primary" type="button">Save settings</button>
+                    <button id="voc-cleaner-skill-reset" class="btn btn-secondary" type="button">Reset to default</button>
+                  </div>
+                  <div id="voc-cleaner-skill-meta" class="meta"></div>
+                </div>
+
+                <div class="settings-block" style="margin-top: 20px;">
+                  <label class="settings-label" for="voc-analyzer-skill-input">VOC Analyzer Skills</label>
+                  <textarea
+                    id="voc-analyzer-skill-input"
+                    class="settings-textarea"
+                    rows="8"
+                    placeholder="Define Analyzer skill instructions..."
+                  ></textarea>
+                  <div class="button-row">
+                    <button id="voc-analyzer-skill-save" class="btn btn-primary" type="button">Save settings</button>
+                    <button id="voc-analyzer-skill-reset" class="btn btn-secondary" type="button">Reset to default</button>
+                  </div>
+                  <div id="voc-analyzer-skill-meta" class="meta"></div>
+                </div>
+              </div>
+            </section>
           </section>
         </main>
 
         <nav class="mobile-nav">
           <button class="nav-btn active" data-section="dashboard" type="button">Dashboard</button>
           <button class="nav-btn" data-section="queue" type="button">Queue</button>
+          <button class="nav-btn" data-section="voc" type="button">VOC</button>
           <button class="nav-btn" data-section="alerts" type="button">Alerts</button>
           <button class="nav-btn" data-section="settings" type="button">Settings</button>
         </nav>

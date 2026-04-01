@@ -11,6 +11,7 @@ from app.api.incident_router import router as incident_router
 from app.api.knowledge_router import router as knowledge_router
 from app.api.monitor_router import router as monitor_router
 from app.api.video_router import router as video_router
+from app.api.voc_router import router as voc_router
 from app.db_migrations import ensure_analysis_results_summary_columns, ensure_monitor_profiles_key_products_column
 from app.db import engine
 from app.models.base import Base
@@ -49,4 +50,5 @@ app.include_router(incident_router)
 app.include_router(health_router)
 app.include_router(agent_settings_router)
 app.include_router(knowledge_router)
+app.include_router(voc_router)
 

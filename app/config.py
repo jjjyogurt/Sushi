@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     analysis_chunk_overlap_chars: int = Field(default=1200, alias="ANALYSIS_CHUNK_OVERLAP_CHARS")
     analysis_max_chunks: int = Field(default=12, alias="ANALYSIS_MAX_CHUNKS")
     chat_max_context_chars: int = Field(default=24000, alias="CHAT_MAX_CONTEXT_CHARS")
+    voc_failed_ratio_warn: float = Field(default=0.01, alias="VOC_FAILED_RATIO_WARN")
+    voc_failed_ratio_ack: float = Field(default=0.05, alias="VOC_FAILED_RATIO_ACK")
+    voc_confidence_high: float = Field(default=0.8, alias="VOC_CONFIDENCE_HIGH")
+    voc_confidence_medium: float = Field(default=0.6, alias="VOC_CONFIDENCE_MEDIUM")
     model_config = SettingsConfigDict(env_file=".env", populate_by_name=True, extra="ignore")
 
 
