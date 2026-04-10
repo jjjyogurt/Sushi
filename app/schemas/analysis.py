@@ -21,6 +21,7 @@ class EvidenceItem(BaseModel):
 class AnalysisResponse(TimestampedResponse):
     video_candidate_id: int
     analysis_version: str
+    language: str
     model_name: str
     status: AnalysisStatus
     transcript_text: str
@@ -29,6 +30,9 @@ class AnalysisResponse(TimestampedResponse):
     summary_headline: str = ""
     summary_body: str = ""
     business_impact: str = ""
+    comment_summary_text: str = ""
+    comment_highlights: List[str] = Field(default_factory=list)
+    comment_lowlights: List[str] = Field(default_factory=list)
     sentiment: Sentiment
     risk_level: RiskLevel
     confidence_score: float = Field(default=0.0)

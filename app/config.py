@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     )
     youtube_transcript_timeout_seconds: float = Field(default=30.0, alias="YOUTUBE_TRANSCRIPT_TIMEOUT_SECONDS")
     youtube_transcript_max_retries: int = Field(default=1, alias="YOUTUBE_TRANSCRIPT_MAX_RETRIES")
+    youtube_data_api_key: str = Field(default="", alias="YOUTUBE_DATA_API_KEY")
+    youtube_comments_timeout_seconds: float = Field(default=30.0, alias="YOUTUBE_COMMENTS_TIMEOUT_SECONDS")
+    youtube_comments_max_retries: int = Field(default=2, alias="YOUTUBE_COMMENTS_MAX_RETRIES")
+    youtube_comments_page_size: int = Field(default=100, alias="YOUTUBE_COMMENTS_PAGE_SIZE")
+    youtube_comments_max_pages: int = Field(default=200, alias="YOUTUBE_COMMENTS_MAX_PAGES")
+    youtube_comments_max_reply_pages: int = Field(default=20, alias="YOUTUBE_COMMENTS_MAX_REPLY_PAGES")
     analysis_max_transcript_chars: int = Field(default=3000000, alias="ANALYSIS_MAX_TRANSCRIPT_CHARS")
     analysis_single_pass_max_estimated_tokens: int = Field(
         default=750000,

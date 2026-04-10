@@ -747,6 +747,18 @@ body {
   gap: 8px;
 }
 
+.analysis-language-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.analysis-language-toggle .btn.is-active {
+  background: #2d3435;
+  border-color: #2d3435;
+  color: #ffffff;
+}
+
 .btn-danger {
   border-color: #edc7c5;
   color: var(--danger);
@@ -1289,19 +1301,33 @@ body {
 .url-add-group {
   display: flex;
   gap: 0;
+  align-items: stretch;
 }
 
-.url-add-group input {
+.url-add-group textarea {
   flex: 1;
+  height: 40px;
+  min-height: 40px;
+  max-height: 168px;
+  line-height: 20px;
+  resize: none;
+  overflow-y: hidden;
   border-top-right-radius: 0 !important;
   border-bottom-right-radius: 0 !important;
   border-right: 0 !important;
 }
 
 .url-add-group button {
+  height: 40px;
   border-top-left-radius: 0 !important;
   border-bottom-left-radius: 0 !important;
   white-space: nowrap;
+}
+
+.new-video-badge {
+  color: #1b5f4c;
+  border-color: #bcded2;
+  background: #eef8f3;
 }
 
 .list-filters {
@@ -1354,6 +1380,7 @@ body {
 }
 
 .queue-controls input,
+.queue-controls textarea,
 .queue-controls select {
   border: 1px solid var(--border);
   border-radius: 8px;

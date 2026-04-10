@@ -1,4 +1,5 @@
 import { getElement } from "./ui-utils.js";
+import { t } from "./i18n.js";
 
 export function createAgentSettingsController({ request, runTask }) {
   const state = {
@@ -12,10 +13,10 @@ export function createAgentSettingsController({ request, runTask }) {
       return;
     }
     if (state.maxChars > 0) {
-      metaElement.textContent = `${contentLength}/${state.maxChars} chars`;
+      metaElement.textContent = t("charCountWithMax", { count: contentLength, max: state.maxChars });
       return;
     }
-    metaElement.textContent = `${contentLength} chars`;
+    metaElement.textContent = t("charCount", { count: contentLength });
   }
 
   async function loadSettings() {
@@ -75,14 +76,14 @@ export function createAgentSettingsController({ request, runTask }) {
     saveButton.addEventListener("click", () => {
       void runTask(async () => {
         await saveSettings();
-      }, "Agent settings saved.");
+      }, t("agentSettingsSaved"));
     });
 
     if (resetButton instanceof HTMLButtonElement) {
       resetButton.addEventListener("click", () => {
         void runTask(async () => {
           await resetSettings();
-        }, "Agent settings reset.");
+        }, t("agentSettingsReset"));
       });
     }
   }

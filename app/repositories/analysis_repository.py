@@ -14,27 +14,41 @@ class AnalysisRepository:
     def get(self, analysis_id: int) -> Optional[AnalysisResult]:
         return self.session.get(AnalysisResult, analysis_id)
 
-    def get_latest_for_video(self, video_candidate_id: int) -> Optional[AnalysisResult]:
+    def get_latest_for_video(self, video_candidate_id: int, *, language: str = "en") -> Optional[AnalysisResult]:
         return (
             self.session.query(AnalysisResult)
             .filter(AnalysisResult.video_candidate_id == video_candidate_id)
+            .filter(AnalysisResult.language == language)
             .order_by(desc(AnalysisResult.created_at))
             .first()
         )
 
     def get_completed_by_version(
-        self, *, video_candidate_id: int, analysis_version: str
+        self, *, video_candidate_id: int, analysis_version: str, language: str
     ) -> Optional[AnalysisResult]:
         return (
             self.session.query(AnalysisResult)
             .filter(AnalysisResult.video_candidate_id == video_candidate_id)
             .filter(AnalysisResult.analysis_version == analysis_version)
+            .filter(AnalysisResult.language == language)
             .filter(AnalysisResult.status == AnalysisStatus.COMPLETED)
             .order_by(desc(AnalysisResult.created_at))
             .first()
         )
 
-    def get_latest_sentiment_by_video_ids(self, video_ids: List[int]) -> Dict[int, str]:
+    def get_latest_completed_for_video(
+        self, *, video_candidate_id: int, language: str
+    ) -> Optional[AnalysisResult]:
+        return (
+            self.session.query(AnalysisResult)
+            .filter(AnalysisResult.video_candidate_id == video_candidate_id)
+            .filter(AnalysisResult.language == language)
+            .filter(AnalysisResult.status == AnalysisStatus.COMPLETED)
+            .order_by(desc(AnalysisResult.created_at))
+            .first()
+        )
+
+    def get_latest_sentiment_by_video_ids(self, video_ids: List[int], *, language: str = "en") -> Dict[int, str]:
         if not video_ids:
             return {}
 
@@ -44,6 +58,7 @@ class AnalysisRepository:
                 func.max(AnalysisResult.created_at).label("latest_created_at"),
             )
             .filter(AnalysisResult.video_candidate_id.in_(video_ids))
+            .filter(AnalysisResult.language == language)
             .group_by(AnalysisResult.video_candidate_id)
             .subquery()
         )
@@ -61,7 +76,7 @@ class AnalysisRepository:
         )
         return {video_id: sentiment.value for video_id, sentiment in latest_rows if sentiment is not None}
 
-    def get_latest_status_by_video_ids(self, video_ids: List[int]) -> Dict[int, str]:
+    def get_latest_status_by_video_ids(self, video_ids: List[int], *, language: str = "en") -> Dict[int, str]:
         if not video_ids:
             return {}
 
@@ -71,6 +86,7 @@ class AnalysisRepository:
                 func.max(AnalysisResult.created_at).label("latest_created_at"),
             )
             .filter(AnalysisResult.video_candidate_id.in_(video_ids))
+            .filter(AnalysisResult.language == language)
             .group_by(AnalysisResult.video_candidate_id)
             .subquery()
         )
@@ -88,11 +104,19 @@ class AnalysisRepository:
         )
         return {video_id: status.value for video_id, status in latest_rows if status is not None}
 
-    def create_queued(self, *, video_candidate_id: int, analysis_version: str, model_name: str) -> AnalysisResult:
+    def create_queued(
+        self,
+        *,
+        video_candidate_id: int,
+        analysis_version: str,
+        model_name: str,
+        language: str,
+    ) -> AnalysisResult:
         existing = (
             self.session.query(AnalysisResult)
             .filter(AnalysisResult.video_candidate_id == video_candidate_id)
             .filter(AnalysisResult.analysis_version == analysis_version)
+            .filter(AnalysisResult.language == language)
             .one_or_none()
         )
         if existing:
@@ -106,6 +130,7 @@ class AnalysisRepository:
         result = AnalysisResult(
             video_candidate_id=video_candidate_id,
             analysis_version=analysis_version,
+            language=language,
             model_name=model_name,
             status=AnalysisStatus.QUEUED,
         )
@@ -128,6 +153,9 @@ class AnalysisRepository:
         result.summary_headline = ""
         result.summary_body = ""
         result.business_impact = ""
+        result.comment_summary_text = ""
+        result.comment_highlights_json = "[]"
+        result.comment_lowlights_json = "[]"
         result.sentiment = Sentiment.NEUTRAL
         result.risk_level = RiskLevel.LOW
         result.confidence_score = "0.0"

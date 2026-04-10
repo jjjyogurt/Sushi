@@ -1,4 +1,5 @@
 import { getElement } from "./ui-utils.js";
+import { t } from "./i18n.js";
 
 function buildVersionName(prefix) {
   const now = new Date();
@@ -39,7 +40,7 @@ function setVocCreateVisible(isVisible) {
     return;
   }
   container.classList.toggle("is-hidden", !isVisible);
-  toggleButton.textContent = isVisible ? "Hide Form" : "+ New Project";
+  toggleButton.textContent = isVisible ? t("dashboardHideForm") : t("dashboardNewProject");
 }
 
 function parseTableRow(line) {
@@ -72,7 +73,7 @@ function renderMarkdownReport(markdown, target) {
   target.replaceChildren();
   const source = (markdown || "").trim();
   if (!source) {
-    target.append(createTextElement("p", "Report will appear here after analysis.", "meta"));
+    target.append(createTextElement("p", t("reportPlaceholder"), "meta"));
     return;
   }
 
@@ -289,7 +290,7 @@ export function createVocController({ request, requestForm, runTask }) {
     const name = nameInput.value.trim();
     const description = descriptionInput.value.trim();
     if (!name) {
-      throw new Error("Project name is required.");
+      throw new Error(t("errorProjectNameRequired"));
     }
     const payload = await request("/voc/projects", {
       method: "POST",
@@ -319,17 +320,17 @@ export function createVocController({ request, requestForm, runTask }) {
     }));
     renderStatus(
       "voc-upload-meta",
-      latest ? `Latest upload: ${latest.filename} (${latest.total_rows} rows)` : "No uploads yet."
+      latest ? t("latestUploadMeta", { filename: latest.filename, rows: latest.total_rows }) : t("noUploadsYet")
     );
   }
 
   async function uploadFile() {
     const input = getElement("voc-upload-input");
     if (!(input instanceof HTMLInputElement) || !input.files || input.files.length === 0) {
-      throw new Error("Please select a CSV file.");
+      throw new Error(t("errorSelectCsv"));
     }
     if (!state.selectedProjectId) {
-      throw new Error("Select a project first.");
+      throw new Error(t("errorSelectProjectFirst"));
     }
     const formData = new FormData();
     formData.append("project_id", String(state.selectedProjectId));
@@ -339,19 +340,19 @@ export function createVocController({ request, requestForm, runTask }) {
       ...previous,
       selectedUploadId: payload.id,
     }));
-    renderStatus("voc-upload-meta", `Uploaded: ${payload.filename} (${payload.total_rows} rows)`);
+    renderStatus("voc-upload-meta", t("uploadedMeta", { filename: payload.filename, rows: payload.total_rows }));
     input.value = "";
   }
 
   async function startCleaning() {
     if (!state.selectedUploadId) {
-      throw new Error("Upload data before cleaning.");
+      throw new Error(t("errorUploadBeforeCleaning"));
     }
     const payload = await request("/voc/runs/clean", {
       method: "POST",
       body: JSON.stringify({ upload_id: state.selectedUploadId }),
     });
-    renderStatus("voc-clean-meta", `Cleaning status: ${payload.status}`);
+    renderStatus("voc-clean-meta", t("cleaningStatus", { status: payload.status }));
     await loadCleanedRows();
   }
 
@@ -375,7 +376,7 @@ export function createVocController({ request, requestForm, runTask }) {
 
   async function downloadCleaned() {
     if (!state.selectedUploadId) {
-      throw new Error("No cleaned dataset available.");
+      throw new Error(t("errorNoCleanedDataset"));
     }
     const payload = await request(`/voc/rows?upload_id=${state.selectedUploadId}&status=cleaned&limit=500`);
     const rows = Array.isArray(payload.items) ? payload.items : [];
@@ -391,7 +392,7 @@ export function createVocController({ request, requestForm, runTask }) {
 
   async function startAnalysis() {
     if (!state.selectedUploadId) {
-      throw new Error("Upload data before analysis.");
+      throw new Error(t("errorUploadBeforeAnalysis"));
     }
     const report = await request("/voc/runs/analyze", {
       method: "POST",
@@ -403,7 +404,7 @@ export function createVocController({ request, requestForm, runTask }) {
     }));
     syncReportView(report.content || "");
     setReportMode("preview");
-    renderStatus("voc-analysis-meta", "Analysis completed.");
+    renderStatus("voc-analysis-meta", t("analysisCompleted"));
   }
 
   async function loadReport(projectId) {
@@ -414,16 +415,16 @@ export function createVocController({ request, requestForm, runTask }) {
         reportId: report.id,
       }));
       syncReportView(report.content || "");
-      renderStatus("voc-report-meta", `Report status: ${report.status}`);
+      renderStatus("voc-report-meta", t("reportStatus", { status: report.status }));
     } catch {
       syncReportView("");
-      renderStatus("voc-report-meta", "No report yet.");
+      renderStatus("voc-report-meta", t("noReportYet"));
     }
   }
 
   async function saveReport() {
     if (!state.reportId) {
-      throw new Error("No report available to save.");
+      throw new Error(t("errorNoReportToSave"));
     }
     const reportInput = getElement("voc-report-content");
     if (!(reportInput instanceof HTMLTextAreaElement)) {
@@ -434,17 +435,17 @@ export function createVocController({ request, requestForm, runTask }) {
       body: JSON.stringify({ content: reportInput.value }),
     });
     syncReportView(payload.content || reportInput.value);
-    renderStatus("voc-report-meta", `Report saved (${payload.status}).`);
+    renderStatus("voc-report-meta", t("reportSavedStatus", { status: payload.status }));
   }
 
   async function publishReport() {
     if (!state.reportId) {
-      throw new Error("No report available to publish.");
+      throw new Error(t("errorNoReportToPublish"));
     }
     const payload = await request(`/voc/reports/${state.reportId}/publish`, { method: "POST" });
     renderStatus(
       "voc-report-meta",
-      payload.allowed ? "Report published." : `Publish blocked: ${payload.reason}`
+      payload.allowed ? t("reportPublished") : t("publishBlocked", { reason: payload.reason })
     );
   }
 
@@ -463,7 +464,7 @@ export function createVocController({ request, requestForm, runTask }) {
       input.value = active.content || "";
     }
     if (active) {
-      renderStatus(metaId, `Status: ${active.status}`);
+      renderStatus(metaId, t("statusLabel", { status: active.status }));
     }
   }
 
@@ -503,7 +504,7 @@ export function createVocController({ request, requestForm, runTask }) {
         [type]: active,
       },
     }));
-    renderStatus(metaId, `Status: ${active.status}`);
+    renderStatus(metaId, t("statusLabel", { status: active.status }));
   }
 
   async function resetSkillToDefault(type, inputId, metaId) {
@@ -514,7 +515,7 @@ export function createVocController({ request, requestForm, runTask }) {
     const payload = await request("/voc/settings/skills/defaults");
     const field = type === "cleaner" ? "cleaner" : "analyzer";
     input.value = payload[field] ?? "";
-    renderStatus(metaId, "Default text loaded (save to apply).");
+    renderStatus(metaId, t("defaultLoadedSaveToApply"));
   }
 
   function bindVocControls() {
@@ -525,7 +526,7 @@ export function createVocController({ request, requestForm, runTask }) {
         event.stopPropagation();
         void runTask(async () => {
           await createProject();
-        }, "VOC project created.");
+        }, t("vocProjectCreated"));
       });
     }
     const createButton = getElement("voc-project-create-btn");
@@ -533,7 +534,7 @@ export function createVocController({ request, requestForm, runTask }) {
       createButton.addEventListener("click", () => {
         void runTask(async () => {
           await createProject();
-        }, "VOC project created.");
+        }, t("vocProjectCreated"));
       });
     }
     const toggleButton = getElement("voc-toggle-create-btn");
@@ -566,7 +567,7 @@ export function createVocController({ request, requestForm, runTask }) {
       uploadButton.addEventListener("click", () => {
         void runTask(async () => {
           await uploadFile();
-        }, "VOC data uploaded.");
+        }, t("vocDataUploaded"));
       });
     }
 
@@ -575,7 +576,7 @@ export function createVocController({ request, requestForm, runTask }) {
       cleanButton.addEventListener("click", () => {
         void runTask(async () => {
           await startCleaning();
-        }, "Cleaning completed.");
+        }, t("cleaningCompleted"));
       });
     }
 
@@ -593,7 +594,7 @@ export function createVocController({ request, requestForm, runTask }) {
       analyzeButton.addEventListener("click", () => {
         void runTask(async () => {
           await startAnalysis();
-        }, "Analysis completed.");
+        }, t("analysisCompleted"));
       });
     }
 
@@ -602,7 +603,7 @@ export function createVocController({ request, requestForm, runTask }) {
       saveReportButton.addEventListener("click", () => {
         void runTask(async () => {
           await saveReport();
-        }, "Report saved.");
+        }, t("reportSaved"));
       });
     }
 
@@ -640,14 +641,14 @@ export function createVocController({ request, requestForm, runTask }) {
       cleanerSave.addEventListener("click", () => {
         void runTask(async () => {
           await saveSkillSettings("cleaner", "voc-cleaner-skill-input", "voc-cleaner-skill-meta");
-        }, "Cleaner settings saved.");
+        }, t("cleanerSettingsSaved"));
       });
     }
     if (cleanerReset instanceof HTMLButtonElement) {
       cleanerReset.addEventListener("click", () => {
         void runTask(async () => {
           await resetSkillToDefault("cleaner", "voc-cleaner-skill-input", "voc-cleaner-skill-meta");
-        }, "Cleaner default loaded.");
+        }, t("cleanerDefaultLoaded"));
       });
     }
 
@@ -657,14 +658,14 @@ export function createVocController({ request, requestForm, runTask }) {
       analyzerSave.addEventListener("click", () => {
         void runTask(async () => {
           await saveSkillSettings("analyzer", "voc-analyzer-skill-input", "voc-analyzer-skill-meta");
-        }, "Analyzer settings saved.");
+        }, t("analyzerSettingsSaved"));
       });
     }
     if (analyzerReset instanceof HTMLButtonElement) {
       analyzerReset.addEventListener("click", () => {
         void runTask(async () => {
           await resetSkillToDefault("analyzer", "voc-analyzer-skill-input", "voc-analyzer-skill-meta");
-        }, "Analyzer default loaded.");
+        }, t("analyzerDefaultLoaded"));
       });
     }
 

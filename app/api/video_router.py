@@ -186,9 +186,16 @@ def analyze_video(video_id: int, payload: AnalysisRequest, db: Session = Depends
 
 
 @router.get("/{video_id}/analysis", response_model=AnalysisResponse)
-def get_latest_analysis(video_id: int, db: Session = Depends(get_db_session)):
+def get_latest_analysis(video_id: int, language: Optional[str] = Query(default=None), db: Session = Depends(get_db_session)):
     service = AnalysisService(db)
-    result = service.analysis_repository.get_latest_for_video(video_candidate_id=video_id)
+    try:
+        normalized_language = service.normalize_analysis_language(language)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    result = service.analysis_repository.get_latest_for_video(
+        video_candidate_id=video_id,
+        language=normalized_language,
+    )
     if result is None:
         raise HTTPException(status_code=404, detail="Analysis not found.")
     return map_analysis_response(result)

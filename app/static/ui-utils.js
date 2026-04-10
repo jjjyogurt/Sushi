@@ -1,3 +1,5 @@
+import { getLocale } from "./i18n.js";
+
 export function getElement(id) {
   return document.getElementById(id);
 }
@@ -42,12 +44,39 @@ const LANGUAGE_LABELS = {
   "zh-hant": "Chinese (Traditional)",
 };
 
+const LANGUAGE_LABELS_ZH = {
+  en: "英语",
+  de: "德语",
+  es: "西班牙语",
+  "es-419": "西班牙语（拉美）",
+  fr: "法语",
+  ja: "日语",
+  it: "意大利语",
+  nl: "荷兰语",
+  pl: "波兰语",
+  pt: "葡萄牙语",
+  "pt-br": "葡萄牙语（巴西）",
+  "pt-pt": "葡萄牙语（葡萄牙）",
+  hi: "印地语",
+  id: "印尼语",
+  th: "泰语",
+  vi: "越南语",
+  ar: "阿拉伯语",
+  tr: "土耳其语",
+  ko: "韩语",
+  "zh-hans": "中文（简体）",
+  "zh-hant": "中文（繁体）",
+};
+
 export function formatLanguageLabel(value) {
   const raw = String(value || "").trim();
   if (!raw) {
     return "";
   }
   const normalized = raw.toLowerCase();
+  if (getLocale() === "zh") {
+    return LANGUAGE_LABELS_ZH[normalized] || raw;
+  }
   return LANGUAGE_LABELS[normalized] || raw;
 }
 
@@ -72,6 +101,29 @@ const MARKET_LABELS_BY_CODE = {
   BR: "Brazil",
   MX: "Mexico",
   AE: "United Arab Emirates",
+};
+
+const MARKET_LABELS_BY_CODE_ZH = {
+  US: "美国",
+  CA: "加拿大",
+  GB: "英国",
+  DE: "德国",
+  FR: "法国",
+  ES: "西班牙",
+  IT: "意大利",
+  NL: "荷兰",
+  SE: "瑞典",
+  PL: "波兰",
+  JP: "日本",
+  KR: "韩国",
+  TW: "台湾",
+  HK: "香港",
+  SG: "新加坡",
+  IN: "印度",
+  AU: "澳大利亚",
+  BR: "巴西",
+  MX: "墨西哥",
+  AE: "阿联酋",
 };
 
 const MARKET_NORMALIZATION = {
@@ -173,7 +225,10 @@ export function formatMarketLabel(value) {
     return "";
   }
   if (raw.toLowerCase() === "global") {
-    return "Global";
+    return getLocale() === "zh" ? "全球" : "Global";
+  }
+  if (getLocale() === "zh" && MARKET_LABELS_BY_CODE_ZH[raw.toUpperCase()]) {
+    return MARKET_LABELS_BY_CODE_ZH[raw.toUpperCase()];
   }
   if (MARKET_LABELS_BY_CODE[raw.toUpperCase()]) {
     return MARKET_LABELS_BY_CODE[raw.toUpperCase()];

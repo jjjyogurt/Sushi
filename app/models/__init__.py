@@ -17,11 +17,13 @@ from app.models.voc_skill_version import VocSkillVersion
 from app.models.voc_template_version import VocTemplateVersion
 from app.models.voc_upload import VocUpload
 from app.models.video_candidate import VideoCandidate
+from app.models.video_comment import VideoComment
 
 __all__ = [
     "AuditLog",
     "MonitorProfile",
     "VideoCandidate",
+    "VideoComment",
     "VocProject",
     "VocUpload",
     "VocRow",

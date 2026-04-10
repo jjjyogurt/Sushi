@@ -1,5 +1,9 @@
 import { syncProjectRoute } from "./router-state.js";
-import { debounce, escapeHtml, formatLanguageLabel, getElement } from "./ui-utils.js";
+import { escapeHtml, formatLanguageLabel, getElement } from "./ui-utils.js";
+import { t } from "./i18n.js";
+
+const MAX_MANUAL_VIDEO_URLS = 100;
+const MAX_VISIBLE_MANUAL_URL_ROWS = 5;
 
 function analysisStatusBadge(video) {
   const status = String(video.latest_analysis_status || "").toLowerCase();
@@ -19,9 +23,39 @@ function sentimentBadge(sentimentLabel) {
 
 function videoStatusLabel(candidate) {
   if (candidate.can_add) {
-    return '<span class="badge positive">Addable</span>';
+    return `<span class="badge positive">${escapeHtml(t("addable"))}</span>`;
   }
-  return `<span class="badge neutral">${escapeHtml(candidate.block_reason || "Unavailable")}</span>`;
+  return `<span class="badge neutral">${escapeHtml(candidate.block_reason || t("unavailable"))}</span>`;
+}
+
+function parseManualVideoUrls(rawValue) {
+  const candidates = String(rawValue || "")
+    .match(/https?:\/\/[^\s,]+/gi) || [];
+  const normalizedUrls = candidates
+    .map((item) => item.trim().replace(/[),.;]+$/, ""))
+    .filter((item) => item.length > 0)
+    .filter((item) => {
+      try {
+        const parsed = new URL(item);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+      } catch (_error) {
+        return false;
+      }
+    });
+  return [...new Set(normalizedUrls)];
+}
+
+function updateManualUrlInputRows(inputElement) {
+  if (!(inputElement instanceof HTMLTextAreaElement)) {
+    return;
+  }
+  const urlCount = parseManualVideoUrls(inputElement.value).length;
+  const nextRows = Math.min(MAX_VISIBLE_MANUAL_URL_ROWS, Math.max(1, urlCount || 1));
+  const baseHeightPx = 40;
+  const rowIncrementPx = 24;
+  const nextHeightPx = baseHeightPx + (nextRows - 1) * rowIncrementPx;
+  inputElement.style.height = `${nextHeightPx}px`;
+  inputElement.style.overflowY = urlCount > MAX_VISIBLE_MANUAL_URL_ROWS ? "auto" : "hidden";
 }
 
 export function createQueueController({
@@ -31,6 +65,7 @@ export function createQueueController({
   runTask,
   videoDetailController,
   onProfileSelectionChange,
+  onAnyVideoAction,
 }) {
   function renderProfileSelect() {
     const profileSelect = getElement("profile-select");
@@ -39,7 +74,7 @@ export function createQueueController({
     }
     const state = getState();
 
-    profileSelect.innerHTML = '<option value="">All Projects</option>';
+    profileSelect.innerHTML = `<option value="">${escapeHtml(t("allProjects"))}</option>`;
     state.profiles.forEach((profile) => {
       const option = document.createElement("option");
       option.value = String(profile.id);
@@ -50,14 +85,16 @@ export function createQueueController({
     profileSelect.value = state.selectedProfileId ? String(state.selectedProfileId) : "";
   }
 
-  function renderVideoListItem(video, isGlobalScope, isActive) {
+  function renderVideoListItem(video, isGlobalScope, isActive, isNew) {
     const projectMeta = isGlobalScope && video.monitor_profile_name ? ` • ${escapeHtml(video.monitor_profile_name)}` : "";
     const sentimentMarkup = sentimentBadge(video.sentiment_label);
+    const newBadgeMarkup = isNew ? `<span class="badge new-video-badge">${escapeHtml(t("new"))}</span>` : "";
     return `
       <div class="video-list-row ${isActive ? "active" : ""}">
         <button class="video-item ${isActive ? "active" : ""}" data-video-id="${video.id}" type="button">
           ${analysisStatusBadge(video)}
           <div class="meta-row">
+            ${newBadgeMarkup}
             ${sentimentMarkup}
             <span class="meta">${escapeHtml(video.channel_name)}${projectMeta}</span>
           </div>
@@ -70,8 +107,8 @@ export function createQueueController({
           class="icon-btn video-item-delete-btn"
           type="button"
           data-delete-video-id="${video.id}"
-          aria-label="Delete ${escapeHtml(video.title)}"
-          title="Delete video"
+          aria-label="${escapeHtml(t("delete"))} ${escapeHtml(video.title)}"
+          title="${escapeHtml(t("deleteVideo"))}"
         >
           <span class="material-symbols-outlined">delete</span>
         </button>
@@ -87,19 +124,46 @@ export function createQueueController({
     }
     const state = getState();
     const isGlobalScope = state.selectedProfileId === null;
+    const newVideoIdSet = new Set(state.newVideoIds);
 
     count.textContent = String(state.videos.length);
     if (state.videos.length === 0) {
-      const emptyMessage = isGlobalScope
-        ? "No videos in the global queue yet."
-        : "No videos yet. Discover or search for videos for this project.";
+      const emptyMessage = isGlobalScope ? t("emptyGlobalQueue") : t("emptyProjectQueue");
       list.innerHTML = `<div class="video-detail-empty">${escapeHtml(emptyMessage)}</div>`;
       return;
     }
 
     list.innerHTML = state.videos
-      .map((video) => renderVideoListItem(video, isGlobalScope, video.id === state.selectedVideoId))
+      .map((video) =>
+        renderVideoListItem(video, isGlobalScope, video.id === state.selectedVideoId, newVideoIdSet.has(video.id))
+      )
       .join("");
+  }
+
+  function markNewlyAddedVideos(previousVideoIds, nextVideos) {
+    const previousIds = previousVideoIds || new Set();
+    const newlyAddedIds = nextVideos
+      .map((video) => video.id)
+      .filter((videoId) => !previousIds.has(videoId));
+    if (newlyAddedIds.length === 0) {
+      return;
+    }
+    setState((previous) => ({
+      ...previous,
+      newVideoIds: [...new Set([...previous.newVideoIds, ...newlyAddedIds])],
+    }));
+  }
+
+  function clearNewVideoLabels() {
+    const state = getState();
+    if (state.newVideoIds.length === 0) {
+      return;
+    }
+    setState((previous) => ({
+      ...previous,
+      newVideoIds: [],
+    }));
+    renderVideos();
   }
 
   function renderSearchCandidates() {
@@ -116,7 +180,7 @@ export function createQueueController({
 
     candidateList.innerHTML = state.searchCandidates
       .map((candidate) => {
-        const addLabel = candidate.can_add ? "Add" : "Added";
+        const addLabel = candidate.can_add ? t("add") : t("added");
         return `
           <div class="candidate-row ${candidate.can_add ? "" : "is-disabled"}">
             <div class="candidate-body">
@@ -127,7 +191,9 @@ export function createQueueController({
               <div class="candidate-status-row">
                 ${videoStatusLabel(candidate)}
                 <div class="candidate-status-actions">
-                  <a href="${escapeHtml(candidate.video_url)}" target="_blank" rel="noreferrer">Preview ↗</a>
+                  <a href="${escapeHtml(candidate.video_url)}" target="_blank" rel="noreferrer">${escapeHtml(
+                    t("preview")
+                  )} ↗</a>
                   <button
                     class="btn btn-secondary btn-sm"
                     type="button"
@@ -170,16 +236,24 @@ export function createQueueController({
       ...previous,
       videos: nextVideos,
       selectedVideoId,
+      newVideoIds: previous.newVideoIds.filter((videoId) => nextVideos.some((video) => video.id === videoId)),
+      analysisLanguageByVideoId: Object.fromEntries(
+        Object.entries(previous.analysisLanguageByVideoId || {}).filter(([videoId]) =>
+          nextVideos.some((video) => String(video.id) === String(videoId))
+        )
+      ),
     }));
     renderVideos();
     await videoDetailController.renderVideoDetail();
+    return nextVideos;
   }
 
   async function discoverVideos() {
     const state = getState();
     if (!state.selectedProfileId) {
-      throw new Error("Select a project first.");
+      throw new Error(t("errorSelectProjectFirst"));
     }
+    const previousVideoIds = new Set(state.videos.map((video) => video.id));
     await request("/videos/discover", {
       method: "POST",
       body: JSON.stringify({
@@ -188,32 +262,51 @@ export function createQueueController({
       }),
     });
     videoDetailController.resetCaches();
-    await refreshVideos();
+    const nextVideos = await refreshVideos();
+    markNewlyAddedVideos(previousVideoIds, nextVideos);
+    renderVideos();
   }
 
   async function addManualVideo() {
     const state = getState();
     if (!state.selectedProfileId) {
-      throw new Error("Select a project first.");
+      throw new Error(t("errorSelectProjectFirst"));
     }
     const urlInput = getElement("manual-video-url");
-    if (!urlInput) {
+    if (!(urlInput instanceof HTMLTextAreaElement || urlInput instanceof HTMLInputElement)) {
       return;
     }
-    const videoUrl = urlInput.value.trim();
-    if (!videoUrl) {
-      throw new Error("Paste a YouTube URL first.");
+    const manualUrls = parseManualVideoUrls(urlInput.value);
+    if (manualUrls.length === 0) {
+      throw new Error(t("errorPasteValidUrls"));
+    }
+    if (manualUrls.length > MAX_MANUAL_VIDEO_URLS) {
+      throw new Error(t("errorUrlLimit", { count: MAX_MANUAL_VIDEO_URLS }));
     }
 
-    await request("/videos/manual", {
-      method: "POST",
-      body: JSON.stringify({
-        monitor_profile_id: state.selectedProfileId,
-        video_url: videoUrl,
-        language: state.tokenInputs.languages[0] || "en",
-      }),
-    });
+    const previousVideoIds = new Set(state.videos.map((video) => video.id));
+    const failedUrls = [];
+    for (const videoUrl of manualUrls) {
+      try {
+        await request("/videos/manual", {
+          method: "POST",
+          body: JSON.stringify({
+            monitor_profile_id: state.selectedProfileId,
+            video_url: videoUrl,
+            language: state.tokenInputs.languages[0] || "en",
+          }),
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : t("failedToAddUrl");
+        failedUrls.push(`${videoUrl} (${message})`);
+      }
+    }
+    if (failedUrls.length === manualUrls.length) {
+      throw new Error(t("errorCouldNotAddAnyUrl", { reason: failedUrls[0] }));
+    }
+
     urlInput.value = "";
+    updateManualUrlInputRows(urlInput);
     
     // Success animation
     const container = getElement("queue");
@@ -222,13 +315,25 @@ export function createQueueController({
       setTimeout(() => container.classList.remove("success-animate"), 400);
     }
 
-    await refreshVideos();
+    const nextVideos = await refreshVideos();
+    markNewlyAddedVideos(previousVideoIds, nextVideos);
+    renderVideos();
+
+    if (failedUrls.length > 0) {
+      throw new Error(
+        t("errorPartialUrlAdd", {
+          successCount: manualUrls.length - failedUrls.length,
+          totalCount: manualUrls.length,
+          reason: failedUrls[0],
+        })
+      );
+    }
   }
 
   async function searchCandidatesByKeyword() {
     const state = getState();
     if (!state.selectedProfileId) {
-      throw new Error("Select a project first.");
+      throw new Error(t("errorSelectProjectFirst"));
     }
     const searchInput = getElement("keyword-search-input");
     if (!searchInput) {
@@ -236,7 +341,7 @@ export function createQueueController({
     }
     const query = searchInput.value.trim();
     if (!query) {
-      throw new Error("Type keywords to search videos.");
+      throw new Error(t("errorTypeSearchKeywords"));
     }
 
     const payload = await request("/videos/search", {
@@ -270,13 +375,14 @@ export function createQueueController({
   async function addCandidateByYoutubeId(youtubeVideoId) {
     const state = getState();
     if (!state.selectedProfileId) {
-      throw new Error("Select a project first.");
+      throw new Error(t("errorSelectProjectFirst"));
     }
     const candidate = state.searchCandidates.find((item) => item.youtube_video_id === youtubeVideoId);
     if (!candidate || !candidate.can_add) {
-      throw new Error("This candidate is unavailable for adding.");
+      throw new Error(t("errorCandidateUnavailable"));
     }
 
+    const previousVideoIds = new Set(state.videos.map((video) => video.id));
     await request("/videos/bulk-add", {
       method: "POST",
       body: JSON.stringify({
@@ -299,24 +405,28 @@ export function createQueueController({
           ? {
               ...item,
               can_add: false,
-              block_reason: "Already in queue",
+              block_reason: t("alreadyInQueue"),
             }
           : item
       ),
     }));
     renderSearchCandidates();
-    await refreshVideos();
+    const nextVideos = await refreshVideos();
+    markNewlyAddedVideos(previousVideoIds, nextVideos);
+    renderVideos();
   }
 
   async function runAllAnalyses(runAllButton) {
+    onAnyVideoAction?.();
+    clearNewVideoLabels();
     const state = getState();
     const videos = [...state.videos];
     if (videos.length === 0) {
-      throw new Error("No videos in this list to analyze.");
+      throw new Error(t("errorNoVideosToAnalyze"));
     }
 
     const button = runAllButton || getElement("run-all-analysis-btn");
-    const originalLabel = button ? button.textContent : "Run All Analysis";
+    const originalLabel = button ? button.textContent : t("runAllAnalysis");
     if (button) {
       button.disabled = true;
     }
@@ -329,7 +439,7 @@ export function createQueueController({
       for (let index = 0; index < videos.length; index += 1) {
         const video = videos[index];
         if (button) {
-          button.textContent = `Analyzing ${index + 1}/${videos.length}`;
+          button.textContent = t("analyzingProgress", { current: index + 1, total: videos.length });
         }
         try {
           await request(`/videos/${video.id}/analyze`, {
@@ -340,29 +450,37 @@ export function createQueueController({
           successCount += 1;
         } catch (error) {
           failedCount += 1;
-          const message = error instanceof Error ? error.message : "Analysis failed.";
+          const message = error instanceof Error ? error.message : t("analysisFailed");
           failures.push(`${video.title}: ${message}`);
         }
       }
     } finally {
       if (button) {
         button.disabled = false;
-        button.textContent = originalLabel || "Run All Analysis";
+        button.textContent = originalLabel || t("runAllAnalysis");
       }
     }
 
     await refreshVideos();
     if (failedCount > 0) {
       const failurePreview = failures.slice(0, 2).join(" | ");
-      throw new Error(`Run all completed: ${successCount} succeeded, ${failedCount} failed. ${failurePreview}`);
+      throw new Error(
+        t("runAllCompletedWithFailures", {
+          successCount,
+          failedCount,
+          failurePreview,
+        })
+      );
     }
   }
 
   async function deleteVideo(videoId) {
-    if (!window.confirm("Delete this video from the list? This action cannot be undone.")) {
+    if (!window.confirm(t("confirmDeleteVideo"))) {
       return;
     }
 
+    onAnyVideoAction?.();
+    clearNewVideoLabels();
     await request(`/videos/${videoId}`, {
       method: "DELETE",
     });
@@ -399,7 +517,7 @@ export function createQueueController({
           if (!Number.isNaN(deleteVideoId)) {
             void runTask(async () => {
               await deleteVideo(deleteVideoId);
-            }, "Video deleted.");
+            }, t("videoDeleted"));
           }
           return;
         }
@@ -448,7 +566,7 @@ export function createQueueController({
       discoverButton.addEventListener("click", () => {
         void runTask(async () => {
           await discoverVideos();
-        }, "Discovery completed.");
+        }, t("discoveryCompleted"));
       });
     }
 
@@ -457,7 +575,7 @@ export function createQueueController({
       discoverButtonInline.addEventListener("click", () => {
         void runTask(async () => {
           await discoverVideos();
-        }, "Discovery completed.");
+        }, t("discoveryCompleted"));
       });
     }
 
@@ -466,7 +584,7 @@ export function createQueueController({
       runAllAnalysisButton.addEventListener("click", () => {
         void runTask(async () => {
           await runAllAnalyses(runAllAnalysisButton);
-        }, "Run all analysis completed.");
+        }, t("runAllAnalysisCompleted"));
       });
     }
 
@@ -475,7 +593,15 @@ export function createQueueController({
       addManualButton.addEventListener("click", () => {
         void runTask(async () => {
           await addManualVideo();
-        }, "Manual video added.");
+        }, t("videosAddedToProject"));
+      });
+    }
+
+    const manualVideoUrlInput = getElement("manual-video-url");
+    if (manualVideoUrlInput instanceof HTMLTextAreaElement) {
+      updateManualUrlInputRows(manualVideoUrlInput);
+      manualVideoUrlInput.addEventListener("input", () => {
+        updateManualUrlInputRows(manualVideoUrlInput);
       });
     }
 
@@ -484,7 +610,7 @@ export function createQueueController({
       keywordSearchButton.addEventListener("click", () => {
         void runTask(async () => {
           await searchCandidatesByKeyword();
-        }, "Search completed.");
+        }, t("searchCompleted"));
       });
     }
 
@@ -495,7 +621,7 @@ export function createQueueController({
           event.preventDefault();
           void runTask(async () => {
             await searchCandidatesByKeyword();
-          }, "Search completed.");
+          }, t("searchCompleted"));
         }
       });
     }
@@ -517,7 +643,7 @@ export function createQueueController({
         }
         void runTask(async () => {
           await addCandidateByYoutubeId(youtubeVideoId);
-        }, "Video added to queue.");
+        }, t("videoAddedToQueue"));
       });
     }
 

@@ -74,12 +74,26 @@ def map_analysis_response(model: AnalysisResult) -> AnalysisResponse:
         criticism_points = []
         action_recommendation = ""
 
+    raw_comment_highlights = decode_json(model.comment_highlights_json, [])
+    raw_comment_lowlights = decode_json(model.comment_lowlights_json, [])
+    comment_highlights = (
+        [item for item in [str(value).strip() for value in raw_comment_highlights] if item][:3]
+        if isinstance(raw_comment_highlights, list)
+        else []
+    )
+    comment_lowlights = (
+        [item for item in [str(value).strip() for value in raw_comment_lowlights] if item][:3]
+        if isinstance(raw_comment_lowlights, list)
+        else []
+    )
+
     return AnalysisResponse(
         id=model.id,
         created_at=model.created_at,
         updated_at=model.updated_at,
         video_candidate_id=model.video_candidate_id,
         analysis_version=model.analysis_version,
+        language=model.language,
         model_name=model.model_name,
         status=model.status,
         transcript_text=model.transcript_text,
@@ -88,6 +102,9 @@ def map_analysis_response(model: AnalysisResult) -> AnalysisResponse:
         summary_headline=model.summary_headline,
         summary_body=model.summary_body,
         business_impact=model.business_impact,
+        comment_summary_text=model.comment_summary_text,
+        comment_highlights=comment_highlights,
+        comment_lowlights=comment_lowlights,
         sentiment=model.sentiment,
         risk_level=model.risk_level,
         confidence_score=float(model.confidence_score or "0"),

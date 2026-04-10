@@ -16,6 +16,7 @@ import { createVideoDetailController } from "./video-detail.js";
 import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js";
 import { createVocController } from "./voc.js";
+import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js";
 
 let messageTimer = null;
 
@@ -58,7 +59,7 @@ async function runTask(task, successMessage = "") {
       showMessage(successMessage, "success");
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Request failed";
+    const message = error instanceof Error ? error.message : t("requestFailed");
     showMessage(message, "error");
   }
 }
@@ -70,7 +71,7 @@ function setCreatePanelVisible(isVisible) {
     return;
   }
   container.classList.toggle("is-hidden", !isVisible);
-  toggleButton.textContent = isVisible ? "Hide Form" : "+ New Project";
+  toggleButton.textContent = isVisible ? t("dashboardHideForm") : t("dashboardNewProject");
 }
 
 function setEditPanelVisible(isVisible) {
@@ -242,7 +243,7 @@ async function loadAlerts() {
   const data = await request("/alerts");
   const alerts = Array.isArray(data.items) ? data.items : [];
   if (alerts.length === 0) {
-    list.innerHTML = '<li class="meta">No active alerts.</li>';
+    list.innerHTML = `<li class="meta">${escapeHtml(t("noActiveAlerts"))}</li>`;
     return;
   }
 
@@ -251,7 +252,7 @@ async function loadAlerts() {
       (alert) => `
         <li class="alert-item">
           <div style="font-weight: 600;">${escapeHtml(alert.message)}</div>
-          <div class="meta">Channel: ${escapeHtml(alert.channel)}</div>
+          <div class="meta">${escapeHtml(t("channel"))}: ${escapeHtml(alert.channel)}</div>
         </li>
       `
     )
@@ -300,7 +301,19 @@ function bindProjectBackButton() {
 }
 
 async function bootstrap() {
+  initI18n();
   let queueController = null;
+  function clearNewVideoLabelsFromAnyAction() {
+    const state = getState();
+    if (state.newVideoIds.length === 0) {
+      return;
+    }
+    setState((previous) => ({
+      ...previous,
+      newVideoIds: [],
+    }));
+    queueController?.renderVideos();
+  }
   const agentSettingsController = createAgentSettingsController({
     request,
     runTask,
@@ -328,6 +341,7 @@ async function bootstrap() {
       }
     },
     onAlertsChanged: loadAlerts,
+    onAnyVideoAction: clearNewVideoLabelsFromAnyAction,
   });
 
   function rerenderProfileArea() {
@@ -343,6 +357,31 @@ async function bootstrap() {
     knowledgeSettingsController.syncProjectSelection();
   }
 
+  function bindLanguageSelector() {
+    const languageSelect = getElement("app-language-select");
+    if (!(languageSelect instanceof HTMLSelectElement)) {
+      return;
+    }
+    languageSelect.value = getLocale();
+    languageSelect.addEventListener("change", () => {
+      setLocale(languageSelect.value);
+    });
+  }
+
+  async function rerenderLocalizedUi() {
+    applyStaticTranslations();
+    const createPanel = getElement("create-profile-container");
+    const isCreatePanelVisible = Boolean(createPanel && !createPanel.classList.contains("is-hidden"));
+    setCreatePanelVisible(isCreatePanelVisible);
+    queueController?.renderProfileSelect();
+    queueController?.renderSearchCandidates();
+    queueController?.renderVideos();
+    await videoDetailController.renderVideoDetail();
+    rerenderProfileArea();
+    await loadAlerts();
+    await knowledgeSettingsController.loadSettings();
+  }
+
   queueController = createQueueController({
     getState,
     setState,
@@ -350,6 +389,7 @@ async function bootstrap() {
     runTask,
     videoDetailController,
     onProfileSelectionChange: rerenderProfileArea,
+    onAnyVideoAction: clearNewVideoLabelsFromAnyAction,
   });
 
   async function loadProfiles() {
@@ -375,7 +415,7 @@ async function bootstrap() {
     }
 
     if (routeProjectId !== null && !hasRouteProject) {
-      showMessage("Project route not found. Showing dashboard view instead.", "error");
+      showMessage(t("projectRouteNotFound"), "error");
       syncProjectRoute(null);
       setActiveSection("dashboard");
     }
@@ -394,17 +434,17 @@ async function bootstrap() {
       void runTask(async () => {
         const state = getState();
         if (state.tokenInputs.markets.length === 0) {
-          throw new Error("Please add at least one market.");
+          throw new Error(t("errorAddAtLeastOneMarket"));
         }
         if (state.tokenInputs.languages.length === 0) {
-          throw new Error("Please add at least one language.");
+          throw new Error(t("errorAddAtLeastOneLanguage"));
         }
 
         const formData = new FormData(profileForm);
         const projectName = String(formData.get("name") || "").trim();
         const brandKeywords = splitCsv(formData.get("brand_keywords"));
         if (!projectName || brandKeywords.length === 0) {
-          throw new Error("Project name and brand keywords are required.");
+          throw new Error(t("errorProjectNameAndKeywordsRequired"));
         }
 
         await request("/monitor-profiles", {
@@ -433,7 +473,7 @@ async function bootstrap() {
         renderTokenList("key-products", { prefix: "", stateBucket: "tokenInputs" });
         setCreatePanelVisible(false);
         await loadProfiles();
-      }, "Project created.");
+      }, t("projectCreated"));
     });
   }
 
@@ -441,7 +481,7 @@ async function bootstrap() {
     const state = getState();
     const profile = state.profiles.find((item) => item.id === profileId);
     if (!profile) {
-      showMessage("Project not found.", "error");
+      showMessage(t("projectNotFound"), "error");
       return;
     }
 
@@ -493,21 +533,21 @@ async function bootstrap() {
       void runTask(async () => {
         const state = getState();
         if (state.editTokenInputs.markets.length === 0) {
-          throw new Error("Please add at least one market.");
+          throw new Error(t("errorAddAtLeastOneMarket"));
         }
         if (state.editTokenInputs.languages.length === 0) {
-          throw new Error("Please add at least one language.");
+          throw new Error(t("errorAddAtLeastOneLanguage"));
         }
 
         const formData = new FormData(editForm);
         const profileId = Number(formData.get("profile_id"));
         if (Number.isNaN(profileId)) {
-          throw new Error("Invalid project.");
+          throw new Error(t("errorInvalidProject"));
         }
         const projectName = String(formData.get("name") || "").trim();
         const brandKeywords = splitCsv(formData.get("brand_keywords"));
         if (!projectName || brandKeywords.length === 0) {
-          throw new Error("Project name and brand keywords are required.");
+          throw new Error(t("errorProjectNameAndKeywordsRequired"));
         }
 
         await request(`/monitor-profiles/${profileId}`, {
@@ -534,7 +574,7 @@ async function bootstrap() {
         setEditPanelVisible(false);
         await loadProfiles();
         await queueController.refreshVideos();
-      }, "Project updated.");
+      }, t("projectUpdated"));
     });
   }
 
@@ -563,6 +603,7 @@ async function bootstrap() {
   bindDashboardControls();
   bindTokenInputs();
   bindAlertsControls();
+  bindLanguageSelector();
   bindProfileForm();
   bindEditProfileForm();
   bindGlobalSearch();
@@ -619,7 +660,7 @@ async function bootstrap() {
         }
         await loadProfiles();
         await queueController.refreshVideos();
-      }, "Project deleted.");
+      }, t("projectDeleted"));
     },
   });
 
@@ -635,9 +676,17 @@ async function bootstrap() {
   await knowledgeSettingsController.loadSettings();
   await vocController.loadProjects();
   await vocController.loadSettings();
+
+  onLocaleChange(() => {
+    const languageSelect = getElement("app-language-select");
+    if (languageSelect instanceof HTMLSelectElement) {
+      languageSelect.value = getLocale();
+    }
+    void rerenderLocalizedUi();
+  });
 }
 
 bootstrap().catch((error) => {
-  const message = error instanceof Error ? error.message : "Unexpected startup failure.";
+  const message = error instanceof Error ? error.message : t("unexpectedStartupFailure");
   showMessage(message, "error");
 });

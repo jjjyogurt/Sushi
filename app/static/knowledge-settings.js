@@ -1,4 +1,5 @@
 import { getElement } from "./ui-utils.js";
+import { t } from "./i18n.js";
 
 function escapeHtml(value) {
   return String(value || "")
@@ -30,7 +31,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
       return;
     }
     const globalState = getState();
-    select.innerHTML = '<option value="">Select project</option>';
+    select.innerHTML = `<option value="">${t("selectProject")}</option>`;
     globalState.profiles.forEach((profile) => {
       const option = document.createElement("option");
       option.value = String(profile.id);
@@ -47,18 +48,18 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
     if (!(select instanceof HTMLSelectElement)) {
       return;
     }
-    select.innerHTML = '<option value="">Select library</option>';
+    select.innerHTML = `<option value="">${t("selectLibrary")}</option>`;
     state.bases.forEach((base) => {
       const option = document.createElement("option");
       option.value = String(base.id);
-      option.textContent = base.is_active ? `${base.name} (active)` : base.name;
+      option.textContent = base.is_active ? `${base.name} (${t("active")})` : base.name;
       select.appendChild(option);
     });
     if (state.selectedKnowledgeBaseId) {
       select.value = String(state.selectedKnowledgeBaseId);
     }
     if (meta) {
-      meta.textContent = `${state.bases.length} library(ies)`;
+      meta.textContent = t("knowledgeLibrariesCount", { count: state.bases.length });
     }
   }
 
@@ -88,7 +89,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
       return;
     }
     if (!items.length) {
-      list.innerHTML = '<li class="meta">No sources in this library.</li>';
+      list.innerHTML = `<li class="meta">${t("noSourcesInLibrary")}</li>`;
       return;
     }
     list.innerHTML = items
@@ -102,7 +103,9 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
             </div>
             <div class="knowledge-source-meta">${escapeHtml(item.source_type)}</div>
           </div>
-          <button class="btn btn-secondary btn-icon-only" data-delete-source-id="${item.id}" type="button" title="Delete Source">
+          <button class="btn btn-secondary btn-icon-only" data-delete-source-id="${item.id}" type="button" title="${escapeHtml(
+            t("deleteSource")
+          )}">
             <span class="material-symbols-outlined">delete</span>
           </button>
         </li>
@@ -141,11 +144,11 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
     const input = getElement("knowledge-base-name-input");
     const projectId = selectedProjectIdFromState();
     if (!(input instanceof HTMLInputElement) || !projectId) {
-      throw new Error("Select a project first.");
+      throw new Error(t("errorSelectProjectFirst"));
     }
     const name = input.value.trim();
     if (!name) {
-      throw new Error("Knowledge base name is required.");
+      throw new Error(t("errorKnowledgeBaseNameRequired"));
     }
     await request("/knowledge/bases", {
       method: "POST",
@@ -159,11 +162,11 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
     const kbId = state.selectedKnowledgeBaseId;
     const input = getElement("knowledge-base-rename-input");
     if (!kbId || !(input instanceof HTMLInputElement)) {
-      throw new Error("Select a knowledge base first.");
+      throw new Error(t("errorSelectKnowledgeBaseFirst"));
     }
     const name = input.value.trim();
     if (!name) {
-      throw new Error("New knowledge base name is required.");
+      throw new Error(t("errorNewKnowledgeBaseNameRequired"));
     }
     await request(`/knowledge/bases/${kbId}`, {
       method: "PATCH",
@@ -176,7 +179,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
   async function activateKnowledgeBase() {
     const kbId = state.selectedKnowledgeBaseId;
     if (!kbId) {
-      throw new Error("Select a knowledge base first.");
+      throw new Error(t("errorSelectKnowledgeBaseFirst"));
     }
     await request(`/knowledge/bases/${kbId}`, {
       method: "PATCH",
@@ -188,9 +191,9 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
   async function deleteKnowledgeBase() {
     const kbId = state.selectedKnowledgeBaseId;
     if (!kbId) {
-      throw new Error("Select a knowledge base first.");
+      throw new Error(t("errorSelectKnowledgeBaseFirst"));
     }
-    if (!window.confirm("Delete this knowledge base and all sources?")) {
+    if (!window.confirm(t("confirmDeleteKnowledgeBase"))) {
       return;
     }
     await request(`/knowledge/bases/${kbId}`, { method: "DELETE" });
@@ -203,7 +206,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
     const kbId = state.selectedKnowledgeBaseId;
     const input = getElement("knowledge-file-input");
     if (!projectId || !kbId || !(input instanceof HTMLInputElement) || !input.files || !input.files[0]) {
-      throw new Error("Select a project/knowledge base and choose a file first.");
+      throw new Error(t("errorSelectProjectKnowledgeBaseAndFile"));
     }
     const form = new FormData();
     form.append("monitor_profile_id", String(projectId));
@@ -220,12 +223,12 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
     const urlInput = getElement("knowledge-url-input");
     const titleInput = getElement("knowledge-url-title-input");
     if (!projectId || !kbId || !(urlInput instanceof HTMLInputElement)) {
-      throw new Error("Select a project and knowledge base first.");
+      throw new Error(t("errorSelectProjectAndKnowledgeBase"));
     }
     const url = urlInput.value.trim();
     const title = titleInput instanceof HTMLInputElement ? titleInput.value.trim() : "";
     if (!url) {
-      throw new Error("URL is required.");
+      throw new Error(t("errorUrlRequired"));
     }
     await request("/knowledge/sources/url", {
       method: "POST",
@@ -318,7 +321,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
       createBtn.addEventListener("click", () => {
         void runTask(async () => {
           await createKnowledgeBase();
-        }, "Knowledge base created.");
+        }, t("knowledgeBaseCreated"));
       });
     }
     if (renameBtn instanceof HTMLButtonElement) {
@@ -326,21 +329,21 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
         void runTask(async () => {
           await renameKnowledgeBase();
           renameForm?.classList.add("is-hidden");
-        }, "Library renamed.");
+        }, t("libraryRenamed"));
       });
     }
     if (activateBtn instanceof HTMLButtonElement) {
       activateBtn.addEventListener("click", () => {
         void runTask(async () => {
           await activateKnowledgeBase();
-        }, "Library activated.");
+        }, t("libraryActivated"));
       });
     }
     if (deleteKbBtn instanceof HTMLButtonElement) {
       deleteKbBtn.addEventListener("click", () => {
         void runTask(async () => {
           await deleteKnowledgeBase();
-        }, "Library deleted.");
+        }, t("libraryDeleted"));
       });
     }
     if (uploadBtn instanceof HTMLButtonElement) {
@@ -348,7 +351,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
         void runTask(async () => {
           await uploadFileSource();
           fileUploadForm?.classList.add("is-hidden");
-        }, "Knowledge file uploaded.");
+        }, t("knowledgeFileUploaded"));
       });
     }
     if (addUrlBtn instanceof HTMLButtonElement) {
@@ -356,7 +359,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
         void runTask(async () => {
           await addUrlSource();
           urlAddForm?.classList.add("is-hidden");
-        }, "Knowledge URL added.");
+        }, t("knowledgeUrlAdded"));
       });
     }
     if (sourceList) {
@@ -376,7 +379,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
         void runTask(async () => {
           await request(`/knowledge/sources/${sourceId}`, { method: "DELETE" });
           await loadSourcesAndSummary();
-        }, "Knowledge source deleted.");
+        }, t("knowledgeSourceDeleted"));
       });
     }
   }

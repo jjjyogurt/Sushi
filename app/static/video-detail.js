@@ -1,33 +1,34 @@
 import { escapeHtml, getElement } from "./ui-utils.js";
+import { t } from "./i18n.js";
 
 function normalizeAnalysisErrorMessage(rawMessage) {
   const message = String(rawMessage || "").trim();
   if (!message) {
-    return "Analysis failed. Please try again.";
+    return t("analysisFailedTryAgain");
   }
   if (message.startsWith("GEMINI_NOT_READY:")) {
-    return "Gemini is not ready. Configure GEMINI_API_KEY and restart the server.";
+    return t("geminiNotReady");
   }
   if (message.startsWith("TRANSCRIPT_BLOCKED:")) {
-    return "Transcript provider rate-limited requests from this IP. Retry later.";
+    return t("transcriptRateLimited");
   }
   if (message.startsWith("TRANSCRIPT_UNAVAILABLE:")) {
-    return "This video does not provide transcripts in requested languages.";
+    return t("transcriptUnavailable");
   }
   if (message.startsWith("TRANSCRIPT_PROVIDER_ERROR:")) {
-    return "Transcript provider failed unexpectedly. Please retry in a moment.";
+    return t("transcriptProviderFailed");
   }
   if (
     message.toLowerCase().includes("requires asr transcription") ||
     message.toLowerCase().includes("audio transcription is required")
   ) {
-    return "This video does not expose captions. Transcript provider requires ASR transcription for this video.";
+    return t("transcriptRequiresAsr");
   }
   if (message.startsWith("Malformed transcript payload")) {
-    return "Transcript provider returned an unsupported response. Please retry in a moment.";
+    return t("transcriptMalformed");
   }
   if (message.startsWith("GEMINI_PROVIDER_ERROR:") || message.startsWith("GEMINI_RESPONSE_ERROR:")) {
-    return "Gemini request failed. Check /health/gemini and server logs for details.";
+    return t("geminiRequestFailed");
   }
   return message;
 }
@@ -52,7 +53,7 @@ function extractVideoId(videoUrl) {
 
 function sentimentBadge(sentiment) {
   if (!sentiment) {
-    return '<span class="badge">unknown</span>';
+    return `<span class="badge">${escapeHtml(t("unknown"))}</span>`;
   }
   const css = sentiment === "negative" ? "negative" : sentiment === "positive" ? "positive" : "";
   return `<span class="badge ${css}">${escapeHtml(sentiment)}</span>`;
@@ -60,15 +61,17 @@ function sentimentBadge(sentiment) {
 
 function transcriptMarkup(analysis, transcriptExpanded) {
   const transcript = analysis ? analysis.transcript_text || "" : "";
-  const buttonLabel = transcriptExpanded ? "Collapse" : "Expand";
+  const buttonLabel = transcriptExpanded ? t("collapse") : t("expand");
   const excerpt = transcriptExpanded ? transcript : transcript.split("\n").slice(0, 24).join("\n");
-  const bodyText = excerpt || "Run analysis to generate a transcript.";
+  const bodyText = excerpt || t("runAnalysisForTranscript");
   return `
     <div class="detail-block">
-      <h5>Transcript</h5>
+      <h5>${escapeHtml(t("transcript"))}</h5>
       <div class="transcript-wrapper">
         <div class="transcript-toolbar">
-          <span class="meta">${transcript ? `${transcript.length.toLocaleString()} characters` : "No transcript available yet"}</span>
+          <span class="meta">${
+            transcript ? t("characterCount", { count: transcript.length.toLocaleString() }) : t("noTranscriptYet")
+          }</span>
           <button id="toggle-transcript-btn" class="btn btn-secondary" type="button">${buttonLabel}</button>
         </div>
         <pre class="transcript-body">${escapeHtml(bodyText)}</pre>
@@ -79,27 +82,33 @@ function transcriptMarkup(analysis, transcriptExpanded) {
 
 function evidenceText(analysis) {
   if (!analysis || !Array.isArray(analysis.evidence) || analysis.evidence.length === 0) {
-    return "No evidence snippets yet.";
+    return t("noEvidenceYet");
   }
   return analysis.evidence.map((item) => `${item.timestamp} - ${item.quote} (${item.reason})`).join("\n");
 }
 
 function summaryMarkup(analysis) {
   if (!analysis) {
-    return "No analysis yet.";
+    return t("noAnalysisYet");
   }
   const headline = String(analysis.summary_headline || "").trim();
   const body = String(analysis.summary_body || "").trim();
   const businessImpact = String(analysis.business_impact || "").trim();
   if (!headline && !body && !businessImpact) {
-    return escapeHtml(String(analysis.summary_text || "").trim() || "No analysis yet.");
+    return escapeHtml(String(analysis.summary_text || "").trim() || t("noAnalysisYet"));
   }
 
   return `
     <div class="summary-structured">
       ${headline ? `<div class="summary-headline">${escapeHtml(headline)}</div>` : ""}
       ${body ? `<div class="summary-body">${escapeHtml(body)}</div>` : ""}
-      ${businessImpact ? `<div class="summary-impact"><strong>Business impact:</strong> ${escapeHtml(businessImpact)}</div>` : ""}
+      ${
+        businessImpact
+          ? `<div class="summary-impact"><strong>${escapeHtml(t("businessImpact"))}:</strong> ${escapeHtml(
+              businessImpact
+            )}</div>`
+          : ""
+      }
     </div>
   `;
 }
@@ -120,15 +129,15 @@ function influencerSignalMarkup(analysis) {
   const criticismPoints = analysis ? analysis.criticism_points || [] : [];
   return `
     <div class="detail-block">
-      <h5>Influencer Signal</h5>
+      <h5>${escapeHtml(t("influencerSignal"))}</h5>
       <div class="signal-grid">
         <div>
-          <div class="signal-label">Praise</div>
-          ${pointListMarkup(praisePoints, "No praise points yet.")}
+          <div class="signal-label">${escapeHtml(t("praise"))}</div>
+          ${pointListMarkup(praisePoints, t("noPraiseYet"))}
         </div>
         <div>
-          <div class="signal-label">Criticism</div>
-          ${pointListMarkup(criticismPoints, "No criticism points yet.")}
+          <div class="signal-label">${escapeHtml(t("criticism"))}</div>
+          ${pointListMarkup(criticismPoints, t("noCriticismYet"))}
         </div>
       </div>
     </div>
@@ -139,15 +148,50 @@ function actionRecommendationMarkup(analysis) {
   const recommendation = analysis ? String(analysis.action_recommendation || "").trim() : "";
   return `
     <div class="detail-block">
-      <h5>Action Recommendation</h5>
-      <div class="recommendation-body">${escapeHtml(recommendation || "No recommendation yet.")}</div>
+      <h5>${escapeHtml(t("actionRecommendation"))}</h5>
+      <div class="recommendation-body">${escapeHtml(recommendation || t("noRecommendationYet"))}</div>
+    </div>
+  `;
+}
+
+function concisePointListMarkup(points) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return `<ul class="point-list"></ul>`;
+  }
+  return `
+    <ul class="point-list">
+      ${points.map((point) => `<li>${escapeHtml(String(point))}</li>`).join("")}
+    </ul>
+  `;
+}
+
+function commentsSentimentMarkup(analysis) {
+  const summary = analysis ? String(analysis.comment_summary_text || "").trim() : "";
+  const highlights = analysis ? analysis.comment_highlights || [] : [];
+  const lowlights = analysis ? analysis.comment_lowlights || [] : [];
+  return `
+    <div class="detail-block">
+      <h5>${escapeHtml(t("commentsSentiment"))}</h5>
+      <div class="summary-structured">
+        <div class="summary-body">${escapeHtml(summary)}</div>
+      </div>
+      <div class="signal-grid">
+        <div>
+          <div class="signal-label">${escapeHtml(t("commentsHighlights"))}</div>
+          ${concisePointListMarkup(highlights)}
+        </div>
+        <div>
+          <div class="signal-label">${escapeHtml(t("commentsLowlights"))}</div>
+          ${concisePointListMarkup(lowlights)}
+        </div>
+      </div>
     </div>
   `;
 }
 
 function renderChatEntries(messages) {
   if (!messages || messages.length === 0) {
-    return '<div class="meta">No chat history yet. Ask a question to begin.</div>';
+    return `<div class="meta">${escapeHtml(t("noChatHistoryYet"))}</div>`;
   }
 
   return messages
@@ -170,16 +214,33 @@ function renderChatEntries(messages) {
 
 function analysisStatusLabel(analysis) {
   if (!analysis) {
-    return "Not started";
+    return t("notStarted");
   }
   const statusValue = String(analysis.status || "").trim();
   if (!statusValue) {
-    return "Unknown";
+    return t("unknown");
   }
   return statusValue.charAt(0).toUpperCase() + statusValue.slice(1);
 }
 
-function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded, isRerunning }) {
+function normalizeAnalysisLanguage(language) {
+  return language === "zh-Hans" ? "zh-Hans" : "en";
+}
+
+function analysisLanguageLabel(language) {
+  return normalizeAnalysisLanguage(language) === "zh-Hans" ? "中文" : "English";
+}
+
+function analysisCacheKey(videoId, language) {
+  return `${videoId}:${normalizeAnalysisLanguage(language)}`;
+}
+
+function selectedAnalysisLanguageForVideo(state, videoId) {
+  const byVideo = state.analysisLanguageByVideoId || {};
+  return normalizeAnalysisLanguage(byVideo[videoId]);
+}
+
+function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded, isRerunning, analysisLanguage }) {
   const riskLevel = analysis ? String(analysis.risk_level || "").toUpperCase() : "-";
   const normalizedRisk = analysis ? String(analysis.risk_level || "").toLowerCase() : "";
   const riskClass = normalizedRisk ? `risk-level risk-level-${normalizedRisk}` : "risk-level";
@@ -197,51 +258,74 @@ function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded,
         <a class="video-link" href="${escapeHtml(video.video_url)}" target="_blank" rel="noreferrer">
           ${escapeHtml(video.video_url)} ↗
         </a>
-        <div class="analysis-status">
-          Analysis status: <strong>${escapeHtml(analysisStatusLabel(analysis))}</strong>
-        </div>
+        <div class="analysis-status">${escapeHtml(t("analysisStatus"))}: <strong>${escapeHtml(
+    analysisStatusLabel(analysis)
+  )}</strong> | ${escapeHtml(analysisLanguageLabel(analysisLanguage))}</div>
       </div>
 
       ${embedMarkup}
 
       <div class="inline-actions">
-        <button id="analyze-btn" class="btn btn-primary" type="button">${isRerunning ? "Re-running..." : analysis ? "Re-run Analysis" : "Run Analysis"}</button>
-        <button id="escalate-btn" class="btn btn-danger" type="button">Escalate</button>
-        <button id="delete-video-btn" class="btn btn-secondary" type="button">Delete</button>
+        <button id="analyze-btn" class="btn btn-primary" type="button">${isRerunning ? escapeHtml(
+          t("rerunning")
+        ) : analysis ? escapeHtml(t("rerunAnalysis")) : escapeHtml(t("runAnalysis"))}</button>
+        <button id="escalate-btn" class="btn btn-danger" type="button">${escapeHtml(t("escalate"))}</button>
+        <button id="delete-video-btn" class="btn btn-secondary" type="button">${escapeHtml(t("delete"))}</button>
+        <div class="analysis-language-toggle" role="group" aria-label="Analysis language">
+          <button
+            id="analysis-lang-en-btn"
+            class="btn btn-secondary btn-sm ${normalizeAnalysisLanguage(analysisLanguage) === "en" ? "is-active" : ""}"
+            type="button"
+          >
+            English
+          </button>
+          <button
+            id="analysis-lang-zh-btn"
+            class="btn btn-secondary btn-sm ${normalizeAnalysisLanguage(analysisLanguage) === "zh-Hans" ? "is-active" : ""}"
+            type="button"
+          >
+            中文
+          </button>
+        </div>
       </div>
 
       ${analysisError ? `<div class="meta" style="color: var(--danger);">${escapeHtml(analysisError)}</div>` : ""}
 
       <div class="detail-grid">
         <div class="detail-block">
-          <h5>Summary</h5>
+          <h5>${escapeHtml(t("summary"))}</h5>
           <div>${summaryMarkup(analysis)}</div>
         </div>
         <div class="split-grid">
           <div class="detail-block">
-            <h5>Sentiment</h5>
-            <div>${analysis ? sentimentBadge(analysis.sentiment) : '<span class="badge">unknown</span>'}</div>
+            <h5>${escapeHtml(t("sentiment"))}</h5>
+            <div>${analysis ? sentimentBadge(analysis.sentiment) : `<span class="badge">${escapeHtml(
+              t("unknown")
+            )}</span>`}</div>
           </div>
           <div class="detail-block">
-            <h5>Risk Level</h5>
+            <h5>${escapeHtml(t("riskLevel"))}</h5>
             <div><strong class="${riskClass}">${escapeHtml(riskLevel)}</strong></div>
           </div>
         </div>
         ${influencerSignalMarkup(analysis)}
+        ${commentsSentimentMarkup(analysis)}
         ${actionRecommendationMarkup(analysis)}
         ${transcriptMarkup(analysis, transcriptExpanded)}
         <div class="detail-block">
-          <h5>Evidence</h5>
+          <h5>${escapeHtml(t("evidence"))}</h5>
           <pre class="transcript-body">${escapeHtml(evidenceText(analysis))}</pre>
         </div>
       </div>
 
       <div>
-        <h5 style="margin: 0 0 8px;">Chat with Video AI</h5>
+        <h5 style="margin: 0 0 8px;">${escapeHtml(t("chatWithVideoAi"))}</h5>
         <div id="chat-window" class="chat-window"></div>
         <div class="inline-actions" style="margin-top: 8px;">
-          <input id="chat-question" type="text" placeholder="Ask about risk, tone, transcript details, or missing points..." style="flex: 1;" />
-          <button id="send-chat-btn" class="btn btn-primary" type="button">Send</button>
+          <input id="chat-question" type="text" placeholder="${escapeHtml(
+            t("chatInputPlaceholder")
+          )}" style="flex: 1;" />
+          <button id="send-chat-btn" class="btn btn-primary" type="button">${escapeHtml(t("send"))}</button>
         </div>
       </div>
     </div>
@@ -255,6 +339,7 @@ export function createVideoDetailController({
   runTask,
   onVideosChanged,
   onAlertsChanged,
+  onAnyVideoAction,
 }) {
   let analysisCache = {};
   let chatCache = {};
@@ -267,29 +352,15 @@ export function createVideoDetailController({
   }
 
   function invalidateVideoCache(videoId) {
-    const { [videoId]: _analysis, ...remainingAnalysis } = analysisCache;
+    const analysisEntries = Object.entries(analysisCache).filter(
+      ([key]) => !key.startsWith(`${videoId}:`)
+    );
+    const remainingAnalysis = Object.fromEntries(analysisEntries);
     const { [videoId]: _chat, ...remainingChat } = chatCache;
     const { [videoId]: _rerun, ...remainingRerun } = rerunStateByVideoId;
     analysisCache = remainingAnalysis;
     chatCache = remainingChat;
     rerunStateByVideoId = remainingRerun;
-  }
-
-  function transientProcessingAnalysis() {
-    return {
-      status: "processing",
-      summary_text: "",
-      summary_headline: "",
-      summary_body: "",
-      business_impact: "",
-      transcript_text: "",
-      sentiment: "neutral",
-      risk_level: "low",
-      evidence: [],
-      praise_points: [],
-      criticism_points: [],
-      action_recommendation: "",
-    };
   }
 
   function renderVideoDetailEmpty(message) {
@@ -300,15 +371,16 @@ export function createVideoDetailController({
     container.className = "video-detail-empty";
     container.innerHTML = `
       <div class="empty-state-content">
-        <h3>No Video Selected</h3>
+        <h3>${escapeHtml(t("noVideoSelected"))}</h3>
         <p>${escapeHtml(message)}</p>
       </div>
     `;
   }
 
-  async function fetchAnalysis(videoId, forceRefresh = false) {
-    if (!forceRefresh && analysisCache[videoId]) {
-      return analysisCache[videoId];
+  async function fetchAnalysis(videoId, language, forceRefresh = false) {
+    const key = analysisCacheKey(videoId, language);
+    if (!forceRefresh && analysisCache[key]) {
+      return analysisCache[key];
     }
 
     if (detailAbortController) {
@@ -316,12 +388,12 @@ export function createVideoDetailController({
     }
     detailAbortController = new AbortController();
 
-    const analysis = await request(`/videos/${videoId}/analysis`, {
+    const analysis = await request(`/videos/${videoId}/analysis?language=${encodeURIComponent(language)}`, {
       signal: detailAbortController.signal,
     });
     analysisCache = {
       ...analysisCache,
-      [videoId]: analysis,
+      [key]: analysis,
     };
     return analysis;
   }
@@ -348,7 +420,7 @@ export function createVideoDetailController({
       chatWindow.innerHTML = renderChatEntries(messages);
       chatWindow.scrollTop = chatWindow.scrollHeight;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to load chat.";
+      const message = error instanceof Error ? error.message : t("failedToLoadChat");
       chatWindow.innerHTML = `<div class="meta" style="color: var(--danger);">${escapeHtml(message)}</div>`;
     }
   }
@@ -357,6 +429,7 @@ export function createVideoDetailController({
     const transcriptToggle = getElement("toggle-transcript-btn");
     if (transcriptToggle) {
       transcriptToggle.onclick = () => {
+        onAnyVideoAction?.();
         setState((previous) => ({
           ...previous,
           transcriptExpanded: !previous.transcriptExpanded,
@@ -369,17 +442,15 @@ export function createVideoDetailController({
     if (analyzeButton) {
       analyzeButton.onclick = () =>
         runTask(async () => {
+          onAnyVideoAction?.();
           const originalLabel = analyzeButton.textContent;
           analyzeButton.disabled = true;
-          analyzeButton.textContent = "Re-running...";
+          analyzeButton.textContent = t("rerunning");
           rerunStateByVideoId = {
             ...rerunStateByVideoId,
             [videoId]: true,
           };
-          analysisCache = {
-            ...analysisCache,
-            [videoId]: transientProcessingAnalysis(),
-          };
+          analysisCache = {};
           await renderVideoDetail();
           try {
             await request(`/videos/${videoId}/analyze`, {
@@ -390,59 +461,60 @@ export function createVideoDetailController({
               ...rerunStateByVideoId,
               [videoId]: false,
             };
-            const { [videoId]: _ignored, ...remainingAnalysis } = analysisCache;
-            analysisCache = remainingAnalysis;
+            analysisCache = {};
             await renderVideoDetail();
           } catch (error) {
             rerunStateByVideoId = {
               ...rerunStateByVideoId,
               [videoId]: false,
             };
-            const { [videoId]: _ignored, ...remainingAnalysis } = analysisCache;
-            analysisCache = remainingAnalysis;
+            analysisCache = {};
             await renderVideoDetail();
-            const errorMessage = error instanceof Error ? error.message : "Analysis failed.";
+            const errorMessage = error instanceof Error ? error.message : t("analysisFailed");
             throw new Error(normalizeAnalysisErrorMessage(errorMessage));
           } finally {
             analyzeButton.disabled = false;
-            analyzeButton.textContent = originalLabel || "Re-run Analysis";
+            analyzeButton.textContent = originalLabel || t("rerunAnalysis");
           }
-        }, "Analysis rerun completed.");
+        }, t("analysisRerunCompleted"));
     }
 
     const escalateButton = getElement("escalate-btn");
     if (escalateButton) {
       escalateButton.onclick = () =>
         runTask(async () => {
+          onAnyVideoAction?.();
           await request(`/videos/${videoId}/escalate`, {
             method: "POST",
             body: JSON.stringify({ owner: "marketing-owner", notes: "Escalated from dashboard" }),
           });
           await onAlertsChanged();
-        }, "Escalated and alert generated.");
+        }, t("escalatedAndAlertGenerated"));
     }
 
     const deleteButton = getElement("delete-video-btn");
     if (deleteButton) {
       deleteButton.onclick = () =>
         runTask(async () => {
+          onAnyVideoAction?.();
           await request(`/videos/${videoId}`, { method: "DELETE" });
           invalidateVideoCache(videoId);
           await onVideosChanged();
-        }, "Video deleted.");
+        }, t("videoDeleted"));
     }
 
     const sendChatButton = getElement("send-chat-btn");
     if (sendChatButton) {
       sendChatButton.onclick = () =>
         runTask(async () => {
+          onAnyVideoAction?.();
           const questionInput = getElement("chat-question");
           if (!questionInput) {
             return;
           }
           const question = questionInput.value.trim();
           if (!question) {
-            throw new Error("Type a question before sending.");
+            throw new Error(t("typeQuestionBeforeSending"));
           }
           await request(`/videos/${videoId}/chat`, {
             method: "POST",
@@ -454,12 +526,42 @@ export function createVideoDetailController({
           await renderChat(videoId);
         });
     }
+
+    const analysisLanguageEnButton = getElement("analysis-lang-en-btn");
+    if (analysisLanguageEnButton) {
+      analysisLanguageEnButton.onclick = () => {
+        onAnyVideoAction?.();
+        setState((previous) => ({
+          ...previous,
+          analysisLanguageByVideoId: {
+            ...(previous.analysisLanguageByVideoId || {}),
+            [videoId]: "en",
+          },
+        }));
+        void renderVideoDetail();
+      };
+    }
+
+    const analysisLanguageZhButton = getElement("analysis-lang-zh-btn");
+    if (analysisLanguageZhButton) {
+      analysisLanguageZhButton.onclick = () => {
+        onAnyVideoAction?.();
+        setState((previous) => ({
+          ...previous,
+          analysisLanguageByVideoId: {
+            ...(previous.analysisLanguageByVideoId || {}),
+            [videoId]: "zh-Hans",
+          },
+        }));
+        void renderVideoDetail();
+      };
+    }
   }
 
   async function renderVideoDetail() {
     const selectedVideo = getSelectedVideo();
     if (!selectedVideo) {
-      renderVideoDetailEmpty("Select a video to view summary, transcript, and AI chat.");
+      renderVideoDetailEmpty(t("selectVideoForDetails"));
       return;
     }
 
@@ -469,15 +571,18 @@ export function createVideoDetailController({
     }
 
     container.className = "";
-    container.innerHTML = '<div class="video-detail-body"><div class="meta">Loading detail...</div></div>';
+    container.innerHTML = `<div class="video-detail-body"><div class="meta">${escapeHtml(
+      t("loadingDetail")
+    )}</div></div>`;
 
     const renderTargetId = selectedVideo.id;
     let analysis = null;
     let analysisError = "";
     const state = getState();
+    const analysisLanguage = selectedAnalysisLanguageForVideo(state, renderTargetId);
 
     try {
-      analysis = await fetchAnalysis(renderTargetId);
+      analysis = await fetchAnalysis(renderTargetId, analysisLanguage);
       if (analysis && String(analysis.status || "").toLowerCase() === "failed") {
         const persistedError = String(analysis.error_message || "").trim();
         if (persistedError) {
@@ -488,7 +593,7 @@ export function createVideoDetailController({
       if (error instanceof Error && error.name === "AbortError") {
         return;
       }
-      const errorMessage = error instanceof Error ? error.message : "Failed to load analysis.";
+      const errorMessage = error instanceof Error ? error.message : t("failedToLoadAnalysis");
       if (!errorMessage.includes("Analysis not found")) {
         analysisError = normalizeAnalysisErrorMessage(errorMessage);
       }
@@ -504,6 +609,7 @@ export function createVideoDetailController({
       analysisError,
       transcriptExpanded: state.transcriptExpanded,
       isRerunning: Boolean(rerunStateByVideoId[selectedVideo.id]),
+      analysisLanguage,
     });
     bindDetailActions(selectedVideo.id);
     await renderChat(selectedVideo.id);

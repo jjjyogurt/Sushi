@@ -70,7 +70,6 @@
             <div class="panel-header">
               <div>
                 <h2>Projects</h2>
-                <p>Create monitoring scopes and editorial rules.</p>
               </div>
               <button id="toggle-create-btn" class="btn btn-secondary" type="button">
                 + New Project
@@ -98,7 +97,7 @@
                       <input
                         type="text"
                         id="markets-token-input"
-                        placeholder="Type market, then Enter"
+                        placeholder=""
                         list="market-options"
                       />
                     </div>
@@ -134,7 +133,7 @@
                       <input
                         type="text"
                         id="languages-token-input"
-                        placeholder="Type language, then Enter"
+                        placeholder=""
                         list="language-options"
                       />
                     </div>
@@ -171,7 +170,7 @@
                     <input
                       type="text"
                       id="key-products-token-input"
-                      placeholder="Type product name, then Enter"
+                      placeholder=""
                     />
                   </div>
                 </label>
@@ -218,7 +217,7 @@
                       <input
                         type="text"
                         id="edit-markets-token-input"
-                        placeholder="Type market, then Enter"
+                        placeholder=""
                         list="market-options"
                       />
                     </div>
@@ -231,7 +230,7 @@
                       <input
                         type="text"
                         id="edit-languages-token-input"
-                        placeholder="Type language, then Enter"
+                        placeholder=""
                         list="language-options"
                       />
                     </div>
@@ -245,7 +244,7 @@
                     <input
                       type="text"
                       id="edit-key-products-token-input"
-                      placeholder="Type product name, then Enter"
+                      placeholder=""
                     />
                   </div>
                 </label>
@@ -402,10 +401,14 @@
               </label>
               <button id="discover-btn-inline" class="btn btn-primary" type="button">Discover Videos</button>
               <div class="url-add-group-wrap">
-                <label>Add YouTube URL</label>
+                <label>Add Video URLs</label>
                 <div class="url-add-group">
-                  <input id="manual-video-url" type="text" placeholder="https://www.youtube.com/watch?v=..." />
-                  <button id="add-manual-video-btn" class="btn btn-secondary" type="button">Add Video</button>
+                  <textarea
+                    id="manual-video-url"
+                    rows="1"
+                    placeholder="Paste one or more URLs (up to 100), one per line"
+                  ></textarea>
+                  <button id="add-manual-video-btn" class="btn btn-secondary" type="button">Add Videos</button>
                 </div>
               </div>
             </div>
@@ -495,7 +498,20 @@
                 <p>Configure agent behavior and project-specific knowledge bases.</p>
               </div>
             </div>
-            <section class="pane settings-pane">
+            <section id="settings-language-pane" class="pane settings-pane">
+              <div class="pane-header">
+                <h3>Language</h3>
+                <span class="meta">Choose your UI language.</span>
+              </div>
+              <div class="settings-body">
+                <label class="settings-label" for="app-language-select">Display Language</label>
+                <select id="app-language-select" class="full-width-select">
+                  <option value="en">English</option>
+                  <option value="zh">Chinese (Simplified)</option>
+                </select>
+              </div>
+            </section>
+            <section id="agent-settings-pane" class="pane settings-pane" style="margin-top: 20px;">
               <div class="pane-header">
                 <h3>Agent Settings</h3>
                 <span id="agent-settings-meta" class="meta">Loading...</span>
@@ -514,7 +530,7 @@
                 </div>
               </div>
             </section>
-            <section class="pane settings-pane" style="margin-top: 20px;">
+            <section id="knowledge-settings-pane" class="pane settings-pane" style="margin-top: 20px;">
               <div class="pane-header">
                 <h3>Project Brain</h3>
                 <span id="knowledge-base-meta" class="meta">0 knowledge base(s)</span>
@@ -627,7 +643,7 @@
                 </div>
               </div>
             </section>
-            <section class="pane settings-pane" style="margin-top: 20px;">
+            <section id="voc-settings-pane" class="pane settings-pane" style="margin-top: 20px;">
               <div class="pane-header">
                 <h3>VOC Settings</h3>
                 <span class="meta">Configure Cleaner and Analyzer skills</span>

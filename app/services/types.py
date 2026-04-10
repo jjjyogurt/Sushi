@@ -42,6 +42,13 @@ class AnalysisOutput:
 
 
 @dataclass(frozen=True)
+class CommentsAnalysisOutput:
+    summary: str
+    highlights: List[str]
+    lowlights: List[str]
+
+
+@dataclass(frozen=True)
 class ChatOutput:
     content: str
     citations: List[dict]

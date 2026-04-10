@@ -1,4 +1,5 @@
 import { escapeHtml, formatLanguageLabel, formatMarketLabel, getElement } from "./ui-utils.js";
+import { t } from "./i18n.js";
 
 function profileCardMarkup(profile, isSelected, openProjectMenuId) {
   const isMenuOpen = openProjectMenuId === profile.id;
@@ -12,24 +13,26 @@ function profileCardMarkup(profile, isSelected, openProjectMenuId) {
             class="icon-btn project-menu-btn"
             data-project-menu-toggle-id="${profile.id}"
             type="button"
-            aria-label="Project actions"
+            aria-label="${escapeHtml(t("projectActions"))}"
             aria-haspopup="menu"
             aria-expanded="${isMenuOpen ? "true" : "false"}"
           >
             <span class="material-symbols-outlined">more_vert</span>
           </button>
           <div class="project-card-menu ${isMenuOpen ? "is-open" : ""}" data-project-menu-id="${profile.id}">
-            <button class="dropdown-item" type="button" data-edit-project-id="${profile.id}">Edit Project</button>
+            <button class="dropdown-item" type="button" data-edit-project-id="${profile.id}">${escapeHtml(
+              t("editProject")
+            )}</button>
             <button class="dropdown-item text-danger" type="button" data-delete-project-id="${profile.id}">
-              Delete Project
+              ${escapeHtml(t("deleteProject"))}
             </button>
           </div>
         </div>
       </div>
-      <div class="meta">Keywords: ${escapeHtml(profile.brand_keywords.join(", "))}</div>
+      <div class="meta">${escapeHtml(t("projectKeywords"))}: ${escapeHtml(profile.brand_keywords.join(", "))}</div>
       ${
         keyProducts.length > 0
-          ? `<div class="meta">Key Products: ${escapeHtml(keyProducts.join(", "))}</div>`
+          ? `<div class="meta">${escapeHtml(t("projectKeyProducts"))}: ${escapeHtml(keyProducts.join(", "))}</div>`
           : ""
       }
       <div class="chip-row">
@@ -41,7 +44,7 @@ function profileCardMarkup(profile, isSelected, openProjectMenuId) {
           .join("")}
       </div>
       <button class="open-project-btn btn btn-secondary" type="button" data-open-project-id="${profile.id}">
-        Open Project
+        ${escapeHtml(t("openProject"))}
       </button>
     </article>
   `;
@@ -54,8 +57,7 @@ export function renderProfileGrid({ profiles, selectedProfileId, openProjectMenu
   }
 
   if (profiles.length === 0) {
-    profileGrid.innerHTML =
-      '<div class="video-detail-empty">No projects yet. Create one to start monitoring videos.</div>';
+    profileGrid.innerHTML = `<div class="video-detail-empty">${escapeHtml(t("noProjectsYet"))}</div>`;
     return;
   }
 

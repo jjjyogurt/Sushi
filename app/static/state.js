@@ -16,8 +16,10 @@ function initialState() {
       languages: [],
       keyProducts: [],
     },
+    analysisLanguageByVideoId: {},
     transcriptExpanded: false,
     searchCandidates: [],
+    newVideoIds: [],
   };
 }
 

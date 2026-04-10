@@ -12,7 +12,13 @@ from app.api.knowledge_router import router as knowledge_router
 from app.api.monitor_router import router as monitor_router
 from app.api.video_router import router as video_router
 from app.api.voc_router import router as voc_router
-from app.db_migrations import ensure_analysis_results_summary_columns, ensure_monitor_profiles_key_products_column
+from app.db_migrations import (
+    ensure_analysis_results_comment_columns,
+    ensure_analysis_results_language_column_and_index,
+    ensure_analysis_results_summary_columns,
+    ensure_monitor_profiles_key_products_column,
+    ensure_video_comments_table,
+)
 from app.db import engine
 from app.models.base import Base
 
@@ -24,6 +30,9 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 Base.metadata.create_all(bind=engine)
 ensure_monitor_profiles_key_products_column(engine)
 ensure_analysis_results_summary_columns(engine)
+ensure_analysis_results_language_column_and_index(engine)
+ensure_analysis_results_comment_columns(engine)
+ensure_video_comments_table(engine)
 
 
 @app.on_event("startup")
@@ -31,6 +40,9 @@ def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_monitor_profiles_key_products_column(engine)
     ensure_analysis_results_summary_columns(engine)
+    ensure_analysis_results_language_column_and_index(engine)
+    ensure_analysis_results_comment_columns(engine)
+    ensure_video_comments_table(engine)
 
 
 @app.get("/", response_class=HTMLResponse)

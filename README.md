@@ -49,6 +49,12 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 - `YOUTUBE_TRANSCRIPT_BASE_URL` - transcript API base URL (default: `https://www.youtubetranscript.dev/api/v2`).
 - `YOUTUBE_TRANSCRIPT_TIMEOUT_SECONDS` - per-request timeout for transcript provider calls.
 - `YOUTUBE_TRANSCRIPT_MAX_RETRIES` - retry count for transient transcript transport failures.
+- `YOUTUBE_DATA_API_KEY` - API key for YouTube Data API comment ingestion.
+- `YOUTUBE_COMMENTS_TIMEOUT_SECONDS` - per-request timeout for YouTube comments calls.
+- `YOUTUBE_COMMENTS_MAX_RETRIES` - retry count for transient YouTube comments transport failures.
+- `YOUTUBE_COMMENTS_PAGE_SIZE` - page size for comments list requests (max 100).
+- `YOUTUBE_COMMENTS_MAX_PAGES` - max pages fetched for top-level comment threads per run.
+- `YOUTUBE_COMMENTS_MAX_REPLY_PAGES` - max pages fetched per comment thread replies.
 - `ANALYSIS_MAX_TRANSCRIPT_CHARS` - max transcript chars considered before chunking.
 - `ANALYSIS_CHUNK_CHARS` - per-chunk character budget used in map-reduce analysis.
 - `ANALYSIS_CHUNK_OVERLAP_CHARS` - overlap budget retained between adjacent chunks.
@@ -57,6 +63,8 @@ Web app for marketing teams to monitor influencer video narratives, analyze sent
 - `DATABASE_URL` - sqlite/postgres DSN for storage.
 
 ## Setup
+
+Step-by-step local guide (venv, Windows, troubleshooting): [LOCAL_SETUP.md](LOCAL_SETUP.md).
 
 1. Create and activate virtual environment:
    - `python3 -m venv .venv`

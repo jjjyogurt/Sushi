@@ -102,6 +102,7 @@ class VideoRepository:
                 AnalysisResult.video_candidate_id,
                 func.max(AnalysisResult.created_at).label("max_created_at"),
             )
+            .filter(AnalysisResult.language == "en")
             .group_by(AnalysisResult.video_candidate_id)
             .subquery()
         )
@@ -117,6 +118,7 @@ class VideoRepository:
                 and_(
                     AnalysisResult.video_candidate_id == latest_analysis_subquery.c.video_candidate_id,
                     AnalysisResult.created_at == latest_analysis_subquery.c.max_created_at,
+                    AnalysisResult.language == "en",
                 ),
             )
             if risk_level:

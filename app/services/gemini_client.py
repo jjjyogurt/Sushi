@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Any, List
 
 from app.config import Settings
@@ -11,7 +12,7 @@ from app.services.exceptions import (
     GeminiResponseError,
 )
 from app.services.agent_settings_service import AgentSettingsService
-from app.services.types import AnalysisOutput, ChatOutput
+from app.services.types import AnalysisOutput, ChatOutput, CommentsAnalysisOutput
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,8 @@ class GeminiClient:
         self,
         *,
         title: str,
-        language: str,
+        source_language: str,
+        target_output_language: str,
         relevance_reason: str,
         transcript_text: str,
         knowledge_context: str = "",
@@ -38,7 +40,8 @@ class GeminiClient:
         agent_instructions = self._analysis_agent_instructions()
         single_pass_prompt = self._build_analysis_single_pass_prompt(
             title=title,
-            language=language,
+            source_language=source_language,
+            target_output_language=target_output_language,
             relevance_reason=relevance_reason,
             transcript_text=transcript_for_prompt,
             agent_instructions=agent_instructions,
@@ -62,7 +65,11 @@ class GeminiClient:
                 raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=single_pass_prompt)
                 parsed = self._parse_json_payload(raw=raw, context="analysis single-pass")
                 logger.info("gemini analysis single-pass completed model=%s", self.settings.gemini_model_analysis)
-                return self._analysis_from_parsed(parsed=parsed, fallback_transcript=transcript_text)
+                return self._analysis_from_parsed(
+                    parsed=parsed,
+                    fallback_transcript=transcript_text,
+                    target_output_language=target_output_language,
+                )
             except GeminiProviderError as error:
                 if not self._is_context_oversize_error(error):
                     raise
@@ -74,7 +81,8 @@ class GeminiClient:
 
         return self._analyze_with_chunk_reduce(
             title=title,
-            language=language,
+            source_language=source_language,
+            target_output_language=target_output_language,
             relevance_reason=relevance_reason,
             transcript_for_prompt=transcript_for_prompt,
             fallback_transcript=transcript_text,
@@ -97,6 +105,83 @@ class GeminiClient:
         raw = self._generate_text(model_name=self.settings.gemini_model_chat, prompt=prompt)
         parsed = self._parse_json_payload(raw=raw, context="chat response")
         return self._chat_from_parsed(parsed=parsed)
+
+    def analyze_comments(
+        self,
+        *,
+        title: str,
+        language: str,
+        comments: List[str],
+    ) -> CommentsAnalysisOutput:
+        self._ensure_runtime_ready()
+        cleaned = [text.strip() for text in comments if str(text).strip()]
+        if not cleaned:
+            return CommentsAnalysisOutput(summary="", highlights=[], lowlights=[])
+
+        max_items = 800
+        joined = "\n".join([f"- {item}" for item in cleaned[:max_items]])
+        prompt = self._build_comments_sentiment_prompt(title=title, language=language, comments_bullets=joined)
+        raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=prompt)
+        parsed = self._parse_json_payload(raw=raw, context="comments sentiment")
+        return self._comments_from_parsed(parsed=parsed)
+
+    def translate_analysis_bundle(
+        self,
+        *,
+        analysis_output: AnalysisOutput,
+        comments_output: CommentsAnalysisOutput,
+        target_output_language: str,
+    ) -> tuple[AnalysisOutput, CommentsAnalysisOutput]:
+        normalized_target = str(target_output_language or "").strip().lower()
+        if normalized_target not in {"en", "zh-hans"}:
+            return analysis_output, comments_output
+        if normalized_target == "en":
+            return analysis_output, comments_output
+
+        translated_fields = self._translate_analysis_text_fields(
+            target_output_language=normalized_target,
+            summary_text=analysis_output.summary_text,
+            translated_summary=analysis_output.translated_summary,
+            summary_headline=analysis_output.summary_headline,
+            summary_body=analysis_output.summary_body,
+            business_impact=analysis_output.business_impact,
+            insights=analysis_output.insights,
+            praise_points=analysis_output.praise_points,
+            criticism_points=analysis_output.criticism_points,
+            action_recommendation=analysis_output.action_recommendation,
+        )
+        translated_comments = self._translate_comments_text_fields(
+            target_output_language=normalized_target,
+            summary=comments_output.summary,
+            highlights=comments_output.highlights,
+            lowlights=comments_output.lowlights,
+        )
+
+        translated_analysis = AnalysisOutput(
+            transcript_text=analysis_output.transcript_text,
+            summary_text=translated_fields.get("summary_text", analysis_output.summary_text),
+            translated_summary=translated_fields.get("translated_summary", analysis_output.translated_summary),
+            summary_headline=translated_fields.get("summary_headline", analysis_output.summary_headline),
+            summary_body=translated_fields.get("summary_body", analysis_output.summary_body),
+            business_impact=translated_fields.get("business_impact", analysis_output.business_impact),
+            sentiment=analysis_output.sentiment,
+            risk_level=analysis_output.risk_level,
+            confidence_score=analysis_output.confidence_score,
+            evidence=analysis_output.evidence,
+            insights=translated_fields.get("insights", analysis_output.insights),
+            praise_points=translated_fields.get("praise_points", analysis_output.praise_points),
+            criticism_points=translated_fields.get("criticism_points", analysis_output.criticism_points),
+            action_recommendation=translated_fields.get(
+                "action_recommendation",
+                analysis_output.action_recommendation,
+            ),
+        )
+        translated_comments_output = CommentsAnalysisOutput(
+            summary=translated_comments.get("summary", comments_output.summary),
+            highlights=translated_comments.get("highlights", comments_output.highlights),
+            lowlights=translated_comments.get("lowlights", comments_output.lowlights),
+        )
+        return translated_analysis, translated_comments_output
 
     def health_status(self, *, probe: bool = False) -> dict:
         api_key_configured = bool(self.settings.gemini_api_key.strip())
@@ -126,7 +211,8 @@ class GeminiClient:
         self,
         *,
         title: str,
-        language: str,
+        source_language: str,
+        target_output_language: str,
         relevance_reason: str,
         chunk_text: str,
         chunk_index: int,
@@ -135,7 +221,8 @@ class GeminiClient:
     ) -> dict:
         prompt = self._build_analysis_chunk_prompt(
             title=title,
-            language=language,
+            source_language=source_language,
+            target_output_language=target_output_language,
             relevance_reason=relevance_reason,
             chunk_text=chunk_text,
             chunk_index=chunk_index,
@@ -150,7 +237,8 @@ class GeminiClient:
         self,
         *,
         title: str,
-        language: str,
+        source_language: str,
+        target_output_language: str,
         relevance_reason: str,
         transcript_for_prompt: str,
         fallback_transcript: str,
@@ -167,7 +255,8 @@ class GeminiClient:
         chunk_analyses = [
             self._analyze_chunk(
                 title=title,
-                language=language,
+                source_language=source_language,
+                target_output_language=target_output_language,
                 relevance_reason=relevance_reason,
                 chunk_text=chunk_text,
                 chunk_index=index + 1,
@@ -179,7 +268,8 @@ class GeminiClient:
 
         reduce_prompt = self._build_analysis_reduce_prompt(
             title=title,
-            language=language,
+            source_language=source_language,
+            target_output_language=target_output_language,
             relevance_reason=relevance_reason,
             chunk_analyses=chunk_analyses,
             agent_instructions=agent_instructions,
@@ -192,7 +282,11 @@ class GeminiClient:
             self.settings.gemini_model_analysis,
             len(chunks),
         )
-        return self._analysis_from_parsed(parsed=parsed, fallback_transcript=fallback_transcript)
+        return self._analysis_from_parsed(
+            parsed=parsed,
+            fallback_transcript=fallback_transcript,
+            target_output_language=target_output_language,
+        )
 
     def _analysis_agent_instructions(self) -> str:
         try:
@@ -318,8 +412,9 @@ class GeminiClient:
             return first[4:].strip()
         return first
 
-    @staticmethod
-    def _analysis_from_parsed(*, parsed: dict, fallback_transcript: str) -> AnalysisOutput:
+    def _analysis_from_parsed(
+        self, *, parsed: dict, fallback_transcript: str, target_output_language: str
+    ) -> AnalysisOutput:
         summary_text = str(parsed.get("summary_text", "")).strip()
         if not summary_text:
             raise GeminiResponseError("Gemini analysis output is missing summary_text.")
@@ -337,6 +432,31 @@ class GeminiClient:
         criticism_points = GeminiClient._normalize_point_list(parsed.get("criticism_points"))
         action_recommendation = GeminiClient._normalize_action_recommendation(parsed.get("action_recommendation"))
 
+        normalized_target = str(target_output_language or "").strip().lower()
+        text_bundle = "\n".join([summary_text, summary_headline, summary_body, business_impact])
+        if self._is_output_language_mismatch(text=text_bundle, target_output_language=normalized_target):
+            translated_fields = self._translate_analysis_text_fields(
+                target_output_language=normalized_target,
+                summary_text=summary_text,
+                translated_summary=translated_summary,
+                summary_headline=summary_headline,
+                summary_body=summary_body,
+                business_impact=business_impact,
+                insights=insights,
+                praise_points=praise_points,
+                criticism_points=criticism_points,
+                action_recommendation=action_recommendation,
+            )
+            summary_text = translated_fields.get("summary_text", summary_text)
+            translated_summary = translated_fields.get("translated_summary", translated_summary)
+            summary_headline = translated_fields.get("summary_headline", summary_headline)
+            summary_body = translated_fields.get("summary_body", summary_body)
+            business_impact = translated_fields.get("business_impact", business_impact)
+            insights = translated_fields.get("insights", insights)
+            praise_points = translated_fields.get("praise_points", praise_points)
+            criticism_points = translated_fields.get("criticism_points", criticism_points)
+            action_recommendation = translated_fields.get("action_recommendation", action_recommendation)
+
         return AnalysisOutput(
             transcript_text=fallback_transcript,
             summary_text=summary_text,
@@ -353,6 +473,107 @@ class GeminiClient:
             criticism_points=criticism_points,
             action_recommendation=action_recommendation,
         )
+
+    def _translate_analysis_text_fields(
+        self,
+        *,
+        target_output_language: str,
+        summary_text: str,
+        translated_summary: str,
+        summary_headline: str,
+        summary_body: str,
+        business_impact: str,
+        insights: List[str],
+        praise_points: List[str],
+        criticism_points: List[str],
+        action_recommendation: str,
+    ) -> dict:
+        if target_output_language not in {"en", "zh-hans"}:
+            return {}
+        language_name = "English" if target_output_language == "en" else "Simplified Chinese"
+        payload = {
+            "summary_text": summary_text,
+            "translated_summary": translated_summary,
+            "summary_headline": summary_headline,
+            "summary_body": summary_body,
+            "business_impact": business_impact,
+            "insights": insights,
+            "praise_points": praise_points,
+            "criticism_points": criticism_points,
+            "action_recommendation": action_recommendation,
+        }
+        prompt = (
+            "Translate and normalize the following analysis text fields.\n"
+            "Return strict JSON with the exact same keys and value shapes.\n"
+            f"All text values must be in {language_name}.\n"
+            f"Input JSON:\n{json.dumps(payload, ensure_ascii=True)}\n"
+        )
+        try:
+            raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=prompt)
+            parsed = self._parse_json_payload(raw=raw, context="analysis language normalization")
+            return {
+                "summary_text": str(parsed.get("summary_text", summary_text)).strip() or summary_text,
+                "translated_summary": str(parsed.get("translated_summary", translated_summary)).strip()
+                or translated_summary,
+                "summary_headline": str(parsed.get("summary_headline", summary_headline)).strip() or summary_headline,
+                "summary_body": str(parsed.get("summary_body", summary_body)).strip() or summary_body,
+                "business_impact": str(parsed.get("business_impact", business_impact)).strip() or business_impact,
+                "insights": self._normalize_insights(parsed.get("insights")) or insights,
+                "praise_points": self._normalize_point_list(parsed.get("praise_points")) or praise_points,
+                "criticism_points": self._normalize_point_list(parsed.get("criticism_points")) or criticism_points,
+                "action_recommendation": self._normalize_action_recommendation(
+                    parsed.get("action_recommendation")
+                )
+                or action_recommendation,
+            }
+        except Exception as error:  # noqa: BLE001
+            logger.warning("analysis language normalization failed: %s", error)
+            return {}
+
+    def _translate_comments_text_fields(
+        self,
+        *,
+        target_output_language: str,
+        summary: str,
+        highlights: List[str],
+        lowlights: List[str],
+    ) -> dict:
+        if target_output_language not in {"en", "zh-hans"}:
+            return {}
+        language_name = "English" if target_output_language == "en" else "Simplified Chinese"
+        payload = {
+            "summary": summary,
+            "highlights": highlights,
+            "lowlights": lowlights,
+        }
+        prompt = (
+            "Translate and normalize the following comments-analysis fields.\n"
+            "Return strict JSON with the exact same keys and value shapes.\n"
+            f"All text values must be in {language_name}.\n"
+            f"Input JSON:\n{json.dumps(payload, ensure_ascii=True)}\n"
+        )
+        try:
+            raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=prompt)
+            parsed = self._parse_json_payload(raw=raw, context="comments language normalization")
+            return {
+                "summary": str(parsed.get("summary", summary)).strip() or summary,
+                "highlights": self._normalize_point_list(parsed.get("highlights")) or highlights,
+                "lowlights": self._normalize_point_list(parsed.get("lowlights")) or lowlights,
+            }
+        except Exception as error:  # noqa: BLE001
+            logger.warning("comments language normalization failed: %s", error)
+            return {}
+
+    @staticmethod
+    def _is_output_language_mismatch(*, text: str, target_output_language: str) -> bool:
+        if not text.strip():
+            return False
+        cjk_count = len(re.findall(r"[\u4e00-\u9fff]", text))
+        if target_output_language == "zh-hans":
+            return cjk_count < 3
+        if target_output_language == "en":
+            return cjk_count >= 3
+        return False
 
     @staticmethod
     def _safe_sentiment(value: Any) -> Sentiment:
@@ -431,6 +652,13 @@ class GeminiClient:
         )
 
     @staticmethod
+    def _comments_from_parsed(*, parsed: dict) -> CommentsAnalysisOutput:
+        summary = str(parsed.get("summary", "")).strip()
+        highlights = GeminiClient._normalize_point_list(parsed.get("highlights"))[:3]
+        lowlights = GeminiClient._normalize_point_list(parsed.get("lowlights"))[:3]
+        return CommentsAnalysisOutput(summary=summary, highlights=highlights, lowlights=lowlights)
+
+    @staticmethod
     def _normalize_citations(value: Any) -> List[dict]:
         if not isinstance(value, list):
             return []
@@ -466,7 +694,8 @@ class GeminiClient:
     def _build_analysis_single_pass_prompt(
         *,
         title: str,
-        language: str,
+        source_language: str,
+        target_output_language: str,
         relevance_reason: str,
         transcript_text: str,
         agent_instructions: str,
@@ -483,10 +712,11 @@ class GeminiClient:
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
             "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
             "action_recommendation as one short actionable string.\n"
+            f"All textual outputs MUST be written in: {target_output_language}.\n"
             "Do not invent evidence. Use only evidence that appears in the transcript for summary, points, and recommendation.\n"
             "Knowledge base context (if provided) can be used to verify product facts, but transcript evidence is still required for claims about this video.\n"
             f"Video title: {title}\n"
-            f"Language: {language}\n"
+            f"Source transcript language: {source_language}\n"
             f"Relevance reason: {relevance_reason}\n"
             f"Knowledge base context:\n{knowledge_context}\n"
             f"Transcript:\n{transcript_text}\n"
@@ -496,7 +726,8 @@ class GeminiClient:
     def _build_analysis_chunk_prompt(
         *,
         title: str,
-        language: str,
+        source_language: str,
+        target_output_language: str,
         relevance_reason: str,
         chunk_text: str,
         chunk_index: int,
@@ -514,8 +745,9 @@ class GeminiClient:
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
             "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
             "action_recommendation as one short actionable string.\n"
+            f"All textual outputs MUST be written in: {target_output_language}.\n"
             f"Video title: {title}\n"
-            f"Language: {language}\n"
+            f"Source transcript language: {source_language}\n"
             f"Relevance reason: {relevance_reason}\n"
             f"Chunk: {chunk_index} of {total_chunks}\n"
             "Focus only on this chunk and cite direct transcript snippets. Do not invent claims beyond transcript evidence.\n"
@@ -526,7 +758,8 @@ class GeminiClient:
     def _build_analysis_reduce_prompt(
         *,
         title: str,
-        language: str,
+        source_language: str,
+        target_output_language: str,
         relevance_reason: str,
         chunk_analyses: List[dict],
         agent_instructions: str,
@@ -544,10 +777,11 @@ class GeminiClient:
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
             "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
             "action_recommendation as one short actionable string.\n"
+            f"All textual outputs MUST be written in: {target_output_language}.\n"
             "Do not invent evidence. Use only evidence that appears in chunk analyses for summary, points, and recommendation.\n"
             "Knowledge base context (if provided) can be used to verify product facts, but transcript evidence is still required for claims about this video.\n"
             f"Video title: {title}\n"
-            f"Language: {language}\n"
+            f"Source transcript language: {source_language}\n"
             f"Relevance reason: {relevance_reason}\n"
             f"Knowledge base context:\n{knowledge_context}\n"
             f"Chunk analyses JSON:\n{chunk_json}\n"
@@ -563,5 +797,22 @@ class GeminiClient:
             f"Preferred answer language: {language}\n"
             f"Context:\n{context}\n"
             f"Question: {question}\n"
+        )
+
+    @staticmethod
+    def _build_comments_sentiment_prompt(*, title: str, language: str, comments_bullets: str) -> str:
+        return (
+            "You are summarizing user sentiment from YouTube comments for a product video.\n"
+            "Return strict JSON with keys: summary, highlights, lowlights.\n"
+            "Rules:\n"
+            "- summary must be 2 to 3 concise sentences.\n"
+            "- highlights is a list of up to 3 positive points users mentioned.\n"
+            "- lowlights is a list of up to 3 negative points users mentioned.\n"
+            "- If no positive points are present, return highlights as [].\n"
+            "- If no negative points are present, return lowlights as [].\n"
+            "- Do not invent claims that are not in the comments.\n"
+            f"Preferred answer language: {language}\n"
+            f"Video title: {title}\n"
+            f"Comments:\n{comments_bullets}\n"
         )
 
