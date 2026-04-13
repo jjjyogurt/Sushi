@@ -83,3 +83,17 @@
 - Changes: Implemented YouTube comments ingestion + persistence, added comments sentiment summary/highlights/lowlights generation, exposed new API fields, and rendered the new section in video detail UI.
 - Check: `python3 -m compileall app`; `pytest` not available in current shell.
 - Next: Add `YOUTUBE_DATA_API_KEY` in env and validate with real videos in the Project page.
+
+## 2026-04-13
+
+- Task: Shorten manual video URL placeholder copy.
+- Changes: Removed “one per line” / “每行一条” from `manualUrlsPlaceholder` in `app/static/i18n.js` (en + zh).
+- Check: ReadLints on `i18n.js`; no issues.
+- Next: None.
+
+## 2026-04-13
+
+- Task: Fix missing project `<select>` on Project workspace after i18n runs.
+- Changes: Wrapped queue “Select Project” copy in `#queue-project-label` in `app/templates/index.html`; pointed `STATIC_BINDINGS` at that span in `app/static/i18n.js` so `textContent` no longer removes `#profile-select`.
+- Check: ReadLints on edited files; no issues.
+- Next: Smoke-test Project page in browser (en/zh).
