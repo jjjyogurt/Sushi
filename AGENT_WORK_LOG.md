@@ -216,3 +216,73 @@
 - Changes: Expanded `.cursor` alpha QA plan with full P0/P1/P2 case catalog, release gates, and kill criteria; executed core and full unit suites.
 - Check: `python3 -m pytest tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_gemini_client.py`; `python3 -m pytest tests/unit` (5 failures in `test_gemini_client.py`).
 - Next: Align `GeminiClient.analyze_video` call contract with tests/analysis flow and rerun alpha gate.
+
+## 2026-04-15 16:52
+
+- Task: Enforce canonical Gemini analysis contract in tests and verify pipeline.
+- Changes: Updated `tests/unit/test_gemini_client.py` to use `source_language` and `target_output_language` in all `analyze_video` calls.
+- Check: `python3 -m pytest tests/unit/test_gemini_client.py tests/unit/test_analysis_service.py tests/unit/test_video_router.py` and `python3 -m pytest tests/unit` (all passing).
+- Next: Optional cleanup: migrate FastAPI startup lifecycle from deprecated `on_event`.
+
+## 2026-04-15 17:08
+
+- Task: Restore project create/edit form and publish alpha release test cases.
+- Changes: Updated dashboard form labels to use dedicated span targets in `index.html`, switched i18n bindings to safe span selectors, and added `ALPHA_RELEASE_TEST_CASES.md`.
+- Check: `python3 -m pytest tests/unit/test_monitor_router.py tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_analysis_service.py tests/unit/test_gemini_client.py` (26 passed); ReadLints clean.
+- Next: Browser smoke check create/edit project in EN and ZH locales.
+
+## 2026-04-15 17:15
+
+- Task: Remove global search UI from topbar.
+- Changes: Deleted `global-search-input` and its `search-wrap` container from `index.html`, removed corresponding i18n bindings in `i18n.js`, and cleaned up `bindGlobalSearch` and its call in `main.js`.
+- Check: ReadLints on edited files; no linter errors.
+- Next: None.
+
+## 2026-04-15 17:37
+
+- Task: Tighten video discovery to keyword-gated title matching and prefill project keywords.
+- Changes: Added title keyword filter in `TriageService.discover_for_profile` with normalized boundary matching and slash-term expansion; prefilled create-project `brand_keywords` defaults in `main.js` while keeping the input editable.
+- Check: `python3 -m pytest tests/unit/test_triage_service.py -q` (8 passed); ReadLints clean on touched files.
+- Next: Optionally apply same title-gating to keyword search preview if you want identical behavior there.
+
+## 2026-04-15 17:53
+
+- Task: Add multilingual discovery query expansion across selected project languages.
+- Changes: Updated `YouTubeDiscoveryService` to normalize language tags, generate per-language queries (English + localized review intent), localize keyword tokens (e.g., Smart), and merge/dedupe ytsearch results by `youtube_video_id`.
+- Check: `python3 -m pytest tests/unit/test_youtube_discovery_service.py tests/unit/test_triage_service.py tests/unit/test_video_router.py -q` (18 passed); ReadLints clean.
+- Next: Optionally add richer per-language keyword phrase dictionary for brand-specific local phrasing.
+
+## 2026-04-15 18:01
+
+- Task: Enforce language+market-aware discovery with localized keyword gating.
+- Changes: Added YouTube Data API search using `relevanceLanguage` + `regionCode` per language×market, expanded localized keyword generation for filtering/scoring, and made title matching Unicode-safe in `TriageService`.
+- Check: `python3 -m pytest tests/unit/test_youtube_discovery_service.py tests/unit/test_triage_service.py tests/unit/test_video_router.py -q` (22 passed); ReadLints clean.
+- Next: Expand phrase dictionaries for additional non-Latin locales beyond current JP-focused mappings.
+
+## 2026-04-15 18:19
+
+- Task: Fix stale inherited videos on new projects and add Japanese mock regression coverage.
+- Changes: Cascade-deleted all video-related rows in `MonitorRepository.delete`, added startup/data migration cleanup for orphan or stale video rows, and added tests including a `Mock HOVERAir Japan` project creation path.
+- Check: `python3 -m pytest tests/unit/test_monitor_repository.py tests/unit/test_db_migrations.py tests/unit/test_monitor_router.py tests/unit/test_video_router.py tests/unit/test_triage_service.py tests/unit/test_youtube_discovery_service.py -q` (30 passed); ReadLints clean.
+- Next: Optionally add a CLI/admin endpoint to run cleanup-on-demand without app restart.
+
+## 2026-04-15 18:39
+
+- Task: Ensure discovery query planning includes every keyword per language and market.
+- Changes: Refactored `YouTubeDiscoveryService` query planner to generate per-keyword localized bundles across each language×market pair; added JP phrase mappings for default terms and tightened per-query result budgets to avoid over-fetching.
+- Check: `python3 -m pytest tests/unit/test_youtube_discovery_service.py tests/unit/test_triage_service.py tests/unit/test_video_router.py -q` (23 passed); manual smoke run confirms `QUERY_COUNT=24` and non-empty JP results.
+- Next: Add quality ranking/allowlist to reduce off-topic matches from broad terms like `ZZR`.
+
+## 2026-04-15 17:37
+
+- Task: Re-run alpha release validation and issue go/no-go recommendation.
+- Changes: Executed P0 gate + full unit regression from `ALPHA_RELEASE_TEST_CASES.md`, browser smoke-tested create/edit/cancel + locale safety, and ran endpoint latency smoke on local server.
+- Check: `python3 -m pytest tests/unit/test_monitor_router.py tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_analysis_service.py tests/unit/test_gemini_client.py`; `python3 -m pytest tests/unit`; browser smoke (pass); curl latency smoke (`/`, `/videos`).
+- Next: Optional follow-up: add automated browser test for responsive viewport to remove manual gap.
+
+## 2026-04-15 19:00
+
+- Task: Rebuild video discover pipeline with Gemini localized queries and JP/DE tests.
+- Changes: Added `DiscoveryKeywordService` + `GeminiClient.plan_youtube_discovery_queries`; `TriageService` builds plans (Gemini or keyword join fallback), calls `discover_live_with_specs` with `relevanceLanguage`/`regionCode`; removed hardcoded review/hint maps from `YouTubeDiscoveryService`; added `test_discovery_keyword_service.py` and JP/DE API tests.
+- Check: `python3 -m pytest tests/unit/ -q` (81 passed).
+- Next: Tune Gemini prompt if quota or off-topic queries appear; consider caching plans per profile hash.

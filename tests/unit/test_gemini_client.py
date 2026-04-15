@@ -110,7 +110,8 @@ def test_analyze_video_uses_chunk_map_reduce_pipeline():
 
     output = client.analyze_video(
         title="Unit Test Video",
-        language="en",
+        source_language="en",
+        target_output_language="en",
         relevance_reason="keyword match",
         transcript_text=transcript,
     )
@@ -139,7 +140,8 @@ def test_analyze_video_uses_single_pass_when_under_threshold():
 
     output = client.analyze_video(
         title="Single Pass Video",
-        language="en",
+        source_language="en",
+        target_output_language="en",
         relevance_reason="direct match",
         transcript_text=transcript,
         knowledge_context="Product note: includes stabilization mode.",
@@ -178,7 +180,8 @@ def test_analyze_video_falls_back_to_chunk_reduce_on_single_pass_oversize():
 
     output = client.analyze_video(
         title="Fallback Video",
-        language="en",
+        source_language="en",
+        target_output_language="en",
         relevance_reason="keyword match",
         transcript_text=transcript,
     )
@@ -201,7 +204,8 @@ def test_analyze_video_applies_hard_cap_before_single_pass():
 
     output = client.analyze_video(
         title="Hard Cap Video",
-        language="en",
+        source_language="en",
+        target_output_language="en",
         relevance_reason="test",
         transcript_text=transcript,
     )
@@ -225,7 +229,8 @@ def test_analyze_video_raises_on_malformed_reducer_json():
     with pytest.raises(GeminiResponseError):
         client.analyze_video(
             title="Broken Reducer",
-            language="en",
+            source_language="en",
+            target_output_language="en",
             relevance_reason="test",
             transcript_text=transcript,
         )

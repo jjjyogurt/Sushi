@@ -1,17 +1,22 @@
+import re
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.app_user_repository import AppUserRepository
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.video_repository import VideoRepository
+from app.services.discovery_keyword_service import DiscoveryKeywordService
 from app.services.exceptions import VideoProjectConflictError
+from app.services.gemini_client import GeminiClient
 from app.services.relevance_service import RelevanceService
 from app.services.types import DiscoveredVideo
 from app.services.youtube_discovery_service import YouTubeDiscoveryService
+from app.utils.text import normalize_title
 from app.utils.youtube import extract_video_id, fetch_oembed_metadata
 
 
@@ -24,11 +29,74 @@ class TriageService:
         self.video_repository = VideoRepository(session)
         self.relevance_service = RelevanceService()
         self.discovery_service = YouTubeDiscoveryService()
+        self.settings = get_settings()
+        gemini_client = GeminiClient(self.settings) if self.settings.gemini_api_key.strip() else None
+        self.discovery_keyword_service = DiscoveryKeywordService(self.settings, gemini_client)
 
     def _monitoring_keywords(self, profile) -> List[str]:
         keywords = self.monitor_repository.unpack_keywords(profile)
         key_products = self.monitor_repository.unpack_key_products(profile)
         return list(dict.fromkeys([*keywords, *key_products]))
+
+    @staticmethod
+    def _normalize_search_text(value: str) -> str:
+        normalized = normalize_title(value or "")
+        alnum_only = re.sub(r"[\W_]+", " ", normalized, flags=re.UNICODE)
+        collapsed = re.sub(r"\s+", " ", alnum_only, flags=re.UNICODE)
+        return collapsed.strip()
+
+    @staticmethod
+    def _contains_non_ascii(value: str) -> bool:
+        return any(ord(character) > 127 for character in str(value or ""))
+
+    def _keyword_matches_title(self, *, normalized_title: str, keyword: str) -> bool:
+        normalized_keyword = self._normalize_search_text(keyword)
+        if not normalized_keyword:
+            return False
+        if self._contains_non_ascii(normalized_keyword):
+            return normalized_keyword in normalized_title
+        pattern = r"\b" + r"\s+".join(re.escape(token) for token in normalized_keyword.split(" ")) + r"\b"
+        return re.search(pattern, normalized_title) is not None
+
+    @staticmethod
+    def _keyword_variants(keyword: str) -> List[str]:
+        normalized_keyword = TriageService._normalize_search_text(keyword)
+        if not normalized_keyword:
+            return []
+        variants = [normalized_keyword]
+
+        lowered_keyword = normalize_title(keyword or "")
+        if "/" in lowered_keyword:
+            slash_parts = [item.strip() for item in lowered_keyword.split("/") if item.strip()]
+            if len(slash_parts) == 2:
+                left = TriageService._normalize_search_text(slash_parts[0])
+                right = TriageService._normalize_search_text(slash_parts[1])
+                if left:
+                    variants.append(left)
+                if left and right and " " in left:
+                    prefix = left.rsplit(" ", 1)[0].strip()
+                    if prefix:
+                        variants.append(f"{prefix} {right}")
+
+        return list(dict.fromkeys(item for item in variants if item))
+
+    def _title_matches_keywords(self, *, title: str, keywords: List[str]) -> bool:
+        normalized_title = self._normalize_search_text(title)
+        if not normalized_title:
+            return False
+
+        keyword_variants = [
+            variant
+            for keyword in keywords
+            for variant in self._keyword_variants(keyword)
+        ]
+        if not keyword_variants:
+            return True
+
+        for keyword in keyword_variants:
+            if self._keyword_matches_title(normalized_title=normalized_title, keyword=keyword):
+                return True
+        return False
 
     def _require_profile(self, monitor_profile_id: int):
         profile = self.monitor_repository.get(monitor_profile_id)
@@ -88,13 +156,28 @@ class TriageService:
         profile = self._require_profile(monitor_profile_id)
 
         keywords = self._monitoring_keywords(profile)
-        discovered = self.discovery_service.discover(profile=profile, max_results=max_results)
+        languages = self.monitor_repository.unpack_languages(profile)
+        markets = self.monitor_repository.unpack_markets(profile)
+
+        if self.settings.enable_mock_discovery:
+            discovered = self.discovery_service.mock_seed_for_profile(profile=profile, max_results=max_results)
+            expanded_keywords = list(dict.fromkeys(keywords))
+        else:
+            plan = self.discovery_keyword_service.build_plan(keywords=keywords, languages=languages, markets=markets)
+            expanded_keywords = list(dict.fromkeys([*plan.match_keywords, *keywords]))
+            discovered = self.discovery_service.discover_live_with_specs(
+                query_specs=plan.query_specs,
+                max_results=max_results,
+            )
+        filtered_discovered = [
+            item for item in discovered if self._title_matches_keywords(title=item.title, keywords=expanded_keywords)
+        ]
         persisted = []
-        for item in discovered:
+        for item in filtered_discovered:
             relevance_score, relevance_reason = self.relevance_service.score(
                 title=item.title,
                 description=item.description,
-                keywords=keywords,
+                keywords=expanded_keywords,
             )
             candidate = self._upsert_owned_video(
                 monitor_profile_id=monitor_profile_id,
@@ -141,13 +224,25 @@ class TriageService:
 
         languages = self.monitor_repository.unpack_languages(profile)
         markets = self.monitor_repository.unpack_markets(profile)
-        discovered = self.discovery_service.discover_by_keywords(
-            keywords=query_keywords,
-            languages=languages,
-            markets=markets,
-            max_results=max_results,
-        )
-        scoring_keywords = list(dict.fromkeys([*profile_keywords, *query_keywords]))
+        if self.settings.enable_mock_discovery:
+            discovered = self.discovery_service.mock_seed_for_keywords(
+                keywords=query_keywords,
+                languages=languages,
+                markets=markets,
+                max_results=max_results,
+            )
+            scoring_keywords = list(dict.fromkeys([*profile_keywords, *query_keywords]))
+        else:
+            plan = self.discovery_keyword_service.build_plan(
+                keywords=query_keywords,
+                languages=languages,
+                markets=markets,
+            )
+            discovered = self.discovery_service.discover_live_with_specs(
+                query_specs=plan.query_specs,
+                max_results=max_results,
+            )
+            scoring_keywords = list(dict.fromkeys([*profile_keywords, *query_keywords, *plan.match_keywords]))
 
         candidates = []
         for item in discovered:

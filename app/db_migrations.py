@@ -136,6 +136,84 @@ def ensure_video_candidate_assignment_columns(engine: Engine) -> None:
             connection.execute(text(statement))
 
 
+def cleanup_orphan_video_data(engine: Engine) -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    if "video_candidates" not in table_names or "monitor_profiles" not in table_names:
+        return
+
+    video_candidate_columns = {column["name"] for column in inspector.get_columns("video_candidates")}
+    monitor_profile_columns = {column["name"] for column in inspector.get_columns("monitor_profiles")}
+    supports_stale_timestamp_check = "created_at" in video_candidate_columns and "created_at" in monitor_profile_columns
+    stale_condition = " OR datetime(vc.created_at) < datetime(mp.created_at)" if supports_stale_timestamp_check else ""
+    stale_or_orphan_video_subquery = (
+        "SELECT vc.id FROM video_candidates vc "
+        "LEFT JOIN monitor_profiles mp ON mp.id = vc.monitor_profile_id "
+        f"WHERE mp.id IS NULL{stale_condition}"
+    )
+
+    with engine.begin() as connection:
+        if "alerts" in table_names and "incidents" in table_names:
+            connection.execute(
+                text(
+                    f"DELETE FROM alerts WHERE incident_id IN (SELECT id FROM incidents WHERE video_candidate_id IN ({stale_or_orphan_video_subquery}))"
+                )
+            )
+            connection.execute(text("DELETE FROM alerts WHERE incident_id NOT IN (SELECT id FROM incidents)"))
+
+        if "chat_messages" in table_names and "chat_sessions" in table_names:
+            connection.execute(
+                text(
+                    f"DELETE FROM chat_messages WHERE chat_session_id IN (SELECT id FROM chat_sessions WHERE video_candidate_id IN ({stale_or_orphan_video_subquery}))"
+                )
+            )
+            connection.execute(text("DELETE FROM chat_messages WHERE chat_session_id NOT IN (SELECT id FROM chat_sessions)"))
+
+        if "video_watchlist_entries" in table_names:
+            connection.execute(
+                text(
+                    f"DELETE FROM video_watchlist_entries WHERE video_candidate_id IN ({stale_or_orphan_video_subquery})"
+                )
+            )
+            connection.execute(
+                text("DELETE FROM video_watchlist_entries WHERE video_candidate_id NOT IN (SELECT id FROM video_candidates)")
+            )
+
+        if "video_comments" in table_names:
+            connection.execute(
+                text(
+                    f"DELETE FROM video_comments WHERE video_candidate_id IN ({stale_or_orphan_video_subquery})"
+                )
+            )
+            connection.execute(text("DELETE FROM video_comments WHERE video_candidate_id NOT IN (SELECT id FROM video_candidates)"))
+
+        if "analysis_results" in table_names:
+            connection.execute(
+                text(
+                    f"DELETE FROM analysis_results WHERE video_candidate_id IN ({stale_or_orphan_video_subquery})"
+                )
+            )
+            connection.execute(text("DELETE FROM analysis_results WHERE video_candidate_id NOT IN (SELECT id FROM video_candidates)"))
+
+        if "incidents" in table_names:
+            connection.execute(
+                text(
+                    f"DELETE FROM incidents WHERE video_candidate_id IN ({stale_or_orphan_video_subquery})"
+                )
+            )
+            connection.execute(text("DELETE FROM incidents WHERE video_candidate_id NOT IN (SELECT id FROM video_candidates)"))
+
+        if "chat_sessions" in table_names:
+            connection.execute(
+                text(
+                    f"DELETE FROM chat_sessions WHERE video_candidate_id IN ({stale_or_orphan_video_subquery})"
+                )
+            )
+            connection.execute(text("DELETE FROM chat_sessions WHERE video_candidate_id NOT IN (SELECT id FROM video_candidates)"))
+
+        connection.execute(text(f"DELETE FROM video_candidates WHERE id IN ({stale_or_orphan_video_subquery})"))
+
+
 def ensure_default_app_users(engine: Engine) -> None:
     inspector = inspect(engine)
     if "app_users" not in inspector.get_table_names():

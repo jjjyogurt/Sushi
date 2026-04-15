@@ -32,6 +32,21 @@ const appVideoSettingsActions = {
   openHighlight: /** @type {null | ((videoId: number) => void)} */ (null),
 };
 
+const DEFAULT_PROJECT_BRAND_KEYWORDS = Object.freeze([
+  "HOVER",
+  "HOVERAir",
+  "ZZR",
+  "zero zero robotics",
+  "X1",
+  "X1 PRO/PROMAX",
+  "X1 PROMAX",
+  "X1 PRO",
+  "HOVERAir AQUA",
+  "AQUA",
+  "HOVERAir X1",
+  "HOVERAir X1 Smart",
+]);
+
 let messageTimer = null;
 
 function clearMessage() {
@@ -409,6 +424,20 @@ function bindProjectBackButton() {
   });
 }
 
+function seedCreateFormBrandKeywords(profileForm) {
+  if (!(profileForm instanceof HTMLFormElement)) {
+    return;
+  }
+  const brandKeywordsInput = profileForm.elements.namedItem("brand_keywords");
+  if (!(brandKeywordsInput instanceof HTMLInputElement)) {
+    return;
+  }
+  if (brandKeywordsInput.value.trim()) {
+    return;
+  }
+  brandKeywordsInput.value = DEFAULT_PROJECT_BRAND_KEYWORDS.join(", ");
+}
+
 async function bootstrap() {
   initI18n();
   const authController = createAuthController({
@@ -600,9 +629,10 @@ async function bootstrap() {
 
   function bindProfileForm() {
     const profileForm = getElement("profile-form");
-    if (!profileForm) {
+    if (!(profileForm instanceof HTMLFormElement)) {
       return;
     }
+    seedCreateFormBrandKeywords(profileForm);
     profileForm.addEventListener("submit", (event) => {
       event.preventDefault();
       void runTask(async () => {
@@ -634,6 +664,7 @@ async function bootstrap() {
         });
 
         profileForm.reset();
+        seedCreateFormBrandKeywords(profileForm);
         setState((previous) => ({
           ...previous,
           tokenInputs: {
@@ -752,27 +783,6 @@ async function bootstrap() {
     });
   }
 
-  function bindGlobalSearch() {
-    const input = getElement("global-search-input");
-    const titleFilter = getElement("title-filter");
-    if (!input || !titleFilter) {
-      return;
-    }
-
-    const propagateSearch = debounce(() => {
-      const value = input.value.trim();
-      titleFilter.value = value;
-      setActiveSection("queue");
-      void runTask(async () => {
-        await queueController.refreshVideos();
-      });
-    }, 280);
-
-    input.addEventListener("input", () => {
-      propagateSearch();
-    });
-  }
-
   bindNav((sectionId) => {
     if (sectionId === "watchlist") {
       void runTask(async () => {
@@ -786,7 +796,6 @@ async function bootstrap() {
   bindLanguageSelector();
   bindProfileForm();
   bindEditProfileForm();
-  bindGlobalSearch();
   bindProjectBackButton();
   agentSettingsController.bindAgentSettingsControls();
   knowledgeSettingsController.bindKnowledgeSettingsControls();

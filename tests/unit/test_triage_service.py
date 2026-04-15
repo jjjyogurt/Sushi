@@ -63,7 +63,7 @@ def test_search_candidates_marks_cross_project_conflict(db_session, monitor_prof
         published_at=datetime.now(timezone.utc),
         description="conflict seed",
     )
-    service.discovery_service.discover_by_keywords = lambda **_: [fixed_candidate]
+    service.discovery_service.mock_seed_for_keywords = lambda **kwargs: [fixed_candidate]
 
     initial_results = service.search_candidates(
         monitor_profile_id=monitor_profile.id,
@@ -126,6 +126,9 @@ def test_bulk_add_candidates_persists_selected_search_candidates(db_session, mon
 
 
 def test_discover_scores_using_key_products(db_session):
+    settings = get_settings()
+    original_mock = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
     profile = MonitorProfile(
         name="Key Product Project",
         brand_keywords=encode_json(["hoverair"]),
@@ -140,7 +143,7 @@ def test_discover_scores_using_key_products(db_session):
     db_session.refresh(profile)
 
     service = TriageService(db_session)
-    service.discovery_service.discover = lambda **_: [
+    service.discovery_service.mock_seed_for_profile = lambda profile, max_results: [
         DiscoveredVideo(
             youtube_video_id="key-product-hit",
             video_url="https://www.youtube.com/watch?v=key-product-hit",
@@ -152,7 +155,176 @@ def test_discover_scores_using_key_products(db_session):
         )
     ]
 
-    discovered = service.discover_for_profile(monitor_profile_id=profile.id, max_results=1)
-    assert len(discovered) == 1
-    assert "x1 promax" in discovered[0].relevance_reason.lower()
+    try:
+        discovered = service.discover_for_profile(monitor_profile_id=profile.id, max_results=1)
+        assert len(discovered) == 1
+        assert "x1 promax" in discovered[0].relevance_reason.lower()
+    finally:
+        settings.enable_mock_discovery = original_mock
+
+
+def test_discover_filters_out_titles_without_keyword_match(db_session):
+    settings = get_settings()
+    original_mock = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
+    profile = MonitorProfile(
+        name="Discovery Filter Project",
+        brand_keywords=encode_json(["hoverair", "x1"]),
+        markets=encode_json(["global"]),
+        languages=encode_json(["en"]),
+        key_products=encode_json([]),
+        alert_sensitivity="medium",
+        is_active=True,
+    )
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+
+    service = TriageService(db_session)
+    service.discovery_service.mock_seed_for_profile = lambda profile, max_results: [
+        DiscoveredVideo(
+            youtube_video_id="keep-hoverair-video",
+            video_url="https://www.youtube.com/watch?v=keep-hoverair-video",
+            title="HoverAir X1 full review",
+            channel_name="Creator",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            description="HoverAir X1 deep dive",
+        ),
+        DiscoveredVideo(
+            youtube_video_id="drop-non-brand-video",
+            video_url="https://www.youtube.com/watch?v=drop-non-brand-video",
+            title="DJI Mini 5 Pro review",
+            channel_name="Creator",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            description="No target keywords",
+        ),
+    ]
+
+    try:
+        discovered = service.discover_for_profile(monitor_profile_id=profile.id, max_results=20)
+        assert [item.youtube_video_id for item in discovered] == ["keep-hoverair-video"]
+    finally:
+        settings.enable_mock_discovery = original_mock
+
+
+def test_discover_filters_use_word_boundaries_for_short_keywords(db_session):
+    settings = get_settings()
+    original_mock = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
+    profile = MonitorProfile(
+        name="Boundary Filter Project",
+        brand_keywords=encode_json(["x1"]),
+        markets=encode_json(["global"]),
+        languages=encode_json(["en"]),
+        key_products=encode_json([]),
+        alert_sensitivity="medium",
+        is_active=True,
+    )
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+
+    service = TriageService(db_session)
+    service.discovery_service.mock_seed_for_profile = lambda profile, max_results: [
+        DiscoveredVideo(
+            youtube_video_id="drop-x10-video",
+            video_url="https://www.youtube.com/watch?v=drop-x10-video",
+            title="Hands-on with X10 camera drone",
+            channel_name="Creator",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            description="Should not match x1 keyword",
+        ),
+        DiscoveredVideo(
+            youtube_video_id="keep-x1-video",
+            video_url="https://www.youtube.com/watch?v=keep-x1-video",
+            title="X1 camera drone first look",
+            channel_name="Creator",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            description="Should match x1 keyword",
+        ),
+    ]
+
+    try:
+        discovered = service.discover_for_profile(monitor_profile_id=profile.id, max_results=20)
+        assert [item.youtube_video_id for item in discovered] == ["keep-x1-video"]
+    finally:
+        settings.enable_mock_discovery = original_mock
+
+
+def test_discover_filters_expand_slash_keywords(db_session):
+    settings = get_settings()
+    original_mock = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
+    profile = MonitorProfile(
+        name="Slash Keyword Project",
+        brand_keywords=encode_json(["x1 pro/promax"]),
+        markets=encode_json(["global"]),
+        languages=encode_json(["en"]),
+        key_products=encode_json([]),
+        alert_sensitivity="medium",
+        is_active=True,
+    )
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+
+    service = TriageService(db_session)
+    service.discovery_service.mock_seed_for_profile = lambda profile, max_results: [
+        DiscoveredVideo(
+            youtube_video_id="keep-promax-video",
+            video_url="https://www.youtube.com/watch?v=keep-promax-video",
+            title="X1 Promax long-term review",
+            channel_name="Creator",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            description="Should match slash-expanded keyword",
+        )
+    ]
+
+    try:
+        discovered = service.discover_for_profile(monitor_profile_id=profile.id, max_results=20)
+        assert [item.youtube_video_id for item in discovered] == ["keep-promax-video"]
+    finally:
+        settings.enable_mock_discovery = original_mock
+
+
+def test_discover_keeps_localized_title_when_language_is_non_latin(db_session):
+    settings = get_settings()
+    original_mock = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
+    profile = MonitorProfile(
+        name="Japanese Discovery Project",
+        brand_keywords=encode_json(["HOVERAir", "X1", "スマート"]),
+        markets=encode_json(["Japan"]),
+        languages=encode_json(["ja"]),
+        key_products=encode_json([]),
+        alert_sensitivity="medium",
+        is_active=True,
+    )
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+
+    service = TriageService(db_session)
+    service.discovery_service.mock_seed_for_profile = lambda profile, max_results: [
+        DiscoveredVideo(
+            youtube_video_id="jp-smart-video",
+            video_url="https://www.youtube.com/watch?v=jp-smart-video",
+            title="HOVERAir X1 スマート レビュー",
+            channel_name="JP Creator",
+            language="ja",
+            published_at=datetime.now(timezone.utc),
+            description="Japanese localized keyword match",
+        )
+    ]
+
+    try:
+        discovered = service.discover_for_profile(monitor_profile_id=profile.id, max_results=20)
+        assert [item.youtube_video_id for item in discovered] == ["jp-smart-video"]
+    finally:
+        settings.enable_mock_discovery = original_mock
 

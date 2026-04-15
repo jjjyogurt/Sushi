@@ -241,6 +241,37 @@ class GeminiClient:
         except Exception as error:  # noqa: BLE001
             return {**status, "probe_ok": False, "probe_error": str(error)}
 
+    def plan_youtube_discovery_queries(
+        self,
+        *,
+        keywords: List[str],
+        language_codes: List[str],
+        region_specs: List[dict],
+    ) -> dict:
+        """Return JSON with queries[] and match_keywords[] for localized YouTube search."""
+        self._ensure_runtime_ready()
+        payload = {
+            "keywords": keywords,
+            "language_codes": language_codes,
+            "regions": region_specs,
+        }
+        prompt = (
+            "You prepare YouTube search query strings for influencer/product video discovery.\n"
+            "Use the user's keywords verbatim for product names, brands, and model numbers.\n"
+            "For each query, add natural local phrasing so relevant videos rank well in that locale "
+            "(reviews, unboxing, hands-on, tests — use what is typical for that language/market).\n"
+            "Return strict JSON only with this exact shape:\n"
+            '{"queries":[{"q":"string","relevanceLanguage":"ISO-639-1","regionCode":"ISO-3166-1 alpha-2 or empty string"}],'
+            '"match_keywords":["string"]}\n'
+            "Coverage: include exactly one query object per combination of language_codes × regions "
+            "when regions imply a country; relevanceLanguage must match the query language; "
+            "regionCode must match the region code for that market, or \"\" when the market is global/worldwide.\n"
+            "match_keywords must include the original keywords plus translations/transliterations useful for title matching.\n"
+            f"Input JSON:\n{json.dumps(payload, ensure_ascii=True)}\n"
+        )
+        raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=prompt)
+        return self._parse_json_payload(raw=raw, context="youtube discovery plan")
+
     def _analyze_chunk(
         self,
         *,
