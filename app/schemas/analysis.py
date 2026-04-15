@@ -18,6 +18,11 @@ class EvidenceItem(BaseModel):
     reason: str
 
 
+class CommentSentimentPoint(BaseModel):
+    point: str = ""
+    quote: str = ""
+
+
 class AnalysisResponse(TimestampedResponse):
     video_candidate_id: int
     analysis_version: str
@@ -31,8 +36,8 @@ class AnalysisResponse(TimestampedResponse):
     summary_body: str = ""
     business_impact: str = ""
     comment_summary_text: str = ""
-    comment_highlights: List[str] = Field(default_factory=list)
-    comment_lowlights: List[str] = Field(default_factory=list)
+    comment_highlights: List[CommentSentimentPoint] = Field(default_factory=list)
+    comment_lowlights: List[CommentSentimentPoint] = Field(default_factory=list)
     sentiment: Sentiment
     risk_level: RiskLevel
     confidence_score: float = Field(default=0.0)

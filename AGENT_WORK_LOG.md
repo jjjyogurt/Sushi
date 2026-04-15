@@ -84,6 +84,27 @@
 - Check: `python3 -m compileall app`; `pytest` not available in current shell.
 - Next: Add `YOUTUBE_DATA_API_KEY` in env and validate with real videos in the Project page.
 
+## 2026-04-14 15:22
+
+- Task: Improve comments authenticity by adding user quote snippets.
+- Changes: Updated comments prompt/output to require `{point, quote}` objects, added robust backward-compatible normalization in service/mapper, and updated video detail UI to render each point with its verbatim quote snippet.
+- Check: `python3 -m compileall app`; ReadLints on edited files returned clean.
+- Next: Re-run analysis on a real video and verify quotes appear under comment highlights/lowlights.
+
+## 2026-04-14 16:03
+
+- Task: Fix `[object Object]` comments rendering and add comprehensive tests.
+- Changes: Hardened JS list renderers for object/string compatibility, updated analysis stubs/tests for structured comment points, and added mapper unit tests for both new `{point, quote}` and legacy string payloads.
+- Check: `python3 -m pytest -q tests/unit/test_analysis_service.py tests/unit/test_api_mappers.py tests/unit/test_video_router.py`; `python3 -m compileall app`; ReadLints clean.
+- Next: Validate in browser with hard refresh after re-run analysis to confirm quote snippets render correctly.
+
+## 2026-04-14 16:48
+
+- Task: Make comments sentiment prompt more unbiased and fact-based.
+- Changes: Updated comments prompt instructions to enforce neutral tone, proportionate positive/negative coverage, explicit uncertainty for mixed evidence, and stricter anti-speculation guidance.
+- Check: `python3 -m compileall app/services/gemini_client.py`; ReadLints clean.
+- Next: Re-run video analysis and verify comments summaries read more balanced and evidence-grounded.
+
 ## 2026-04-13
 
 - Task: Shorten manual video URL placeholder copy.
@@ -97,3 +118,66 @@
 - Changes: Wrapped queue “Select Project” copy in `#queue-project-label` in `app/templates/index.html`; pointed `STATIC_BINDINGS` at that span in `app/static/i18n.js` so `textContent` no longer removes `#profile-select`.
 - Check: ReadLints on edited files; no issues.
 - Next: Smoke-test Project page in browser (en/zh).
+
+## 2026-04-14
+
+- Task: Duplicate-video manual add UX: structured 409, bottom toast with CTA, deep link `?video=`.
+- Changes: `VideoProjectConflictError` + JSON409 from `POST /videos/manual`; `ApiError` in `api-client.js`; queue attaches `videoConflict`; `main.js` toast + `navigateToProjectVideo`; `#app-message` moved and fixed to bottom; `/projects/:id?video=:id` hydration on load.
+- Check: `python3 -m pytest tests/unit/test_video_router.py tests/unit/test_triage_service.py -q` (12 passed).
+- Next: Browser smoke-test toast above mobile nav and “Open video in project” navigation.
+
+## 2026-04-14 (settings all videos)
+
+- Task: Settings → expandable “All videos” list across projects with delete; duplicate-video toast adds “All videos” action.
+- Changes: `all-videos-settings.js` (`GET /videos`, `DELETE`), `<details>` block in `index.html`, i18n + `STATIC_BINDINGS`, table styles, `showMessage` multi-action row, `appVideoSettingsActions` bridge in `main.js`.
+- Check: `python3 -m pytest tests/unit/test_video_router.py -q` (7 passed); ReadLints on touched JS.
+- Next: Browser check expand/load/delete and toast buttons on narrow viewports.
+
+## 2026-04-14 (all videos chevron)
+
+- Task: Show expanded/collapsed affordance on Settings → All videos.
+- Changes: `expand_more` icon in summary + `[open]` rotate 180° in `styles.css`; summary `align-items: center`, `user-select: none`.
+- Check: Not run (visual).
+- Next: None.
+
+## 2026-04-14 17:01
+
+- Task: Fix VOC project selector not selecting reliably.
+- Changes: Hardened `app/static/voc.js` project selection with valid-id fallback, empty-state placeholder/disable behavior, and state/report reset when no projects exist.
+- Check: ReadLints on `app/static/voc.js`; no issues.
+- Next: Quick browser smoke test: switch VOC projects and confirm uploads/report refresh per selection.
+
+## 2026-04-14 17:04
+
+- Task: Restore missing VOC project dropdown control.
+- Changes: Prevented i18n from replacing the VOC label container by adding `#voc-project-label` span in `index.html` and targeting it in `i18n.js`; added `vocNoProjectsYet` translations and wired VOC empty-state placeholder to that key.
+- Check: ReadLints on edited files; no issues.
+- Next: Hard refresh browser and confirm VOC project select renders and remains visible after locale switch.
+
+## 2026-04-14 17:27
+
+- Task: Rewrite VOC cleaner/analyzer default prompts to suppress nonsensical report text without failing rows.
+- Changes: Updated `DEFAULT_CLEANER_SKILL_CONTENT` in `app/voc_defaults.py` to always keep `status=cleaned` while blanking nonsensical rows via `cleaned_text=""`; added hard evidence-hygiene constraints to `DEFAULT_ANALYZER_SKILL_CONTENT`.
+- Check: ReadLints on `app/voc_defaults.py`; no issues.
+- Next: Re-activate or create new VOC cleaner/analyzer skill versions in Settings and rerun cleaning + analysis.
+
+## 2026-04-14 17:29
+
+- Task: Add VOC re-run and clean analysis actions.
+- Changes: Added `Re-run Analysis` and `Clean Result` buttons to VOC Analyze panel (`index.html`), wired handlers in `app/static/voc.js` (`startAnalysis` reuse + report-state clear), and added i18n keys/bindings in `app/static/i18n.js` (en/zh).
+- Check: ReadLints on touched files; no issues.
+- Next: Hard refresh and verify both new Analyze actions update report/meta text as expected.
+
+## 2026-04-14 17:48
+
+- Task: Execute cleaner->analyzer->Gemini VOC report flow with reliability fallback.
+- Changes: Added `GeminiClient.generate_voc_report`, integrated `VocService.start_analysis` to pass cleaned rows + active analyzer prompt to Gemini, and added local-report fallback on Gemini failure.
+- Check: `python3 -m pytest -q tests/unit/test_voc_service.py tests/unit/test_voc_policy.py` (7 passed); `python3 -m compileall` on edited files.
+- Next: Add API/integration tests for Gemini failure codes and payload-size chunking for very large VOC uploads.
+
+## 2026-04-14 18:06
+
+- Task: Fix chat composer flow where Send appears stuck and messages do not progress naturally.
+- Changes: Updated `app/static/video-detail.js` with optimistic user/assistant chat entries, sending/disabled composer state, Enter-to-send, inline error + retry, and unified chat `user_id`; added i18n and chat error styling.
+- Check: `python3 -m pytest tests/unit/test_analysis_service.py tests/unit/test_api_mappers.py tests/unit/test_voc_service.py` (9 passed); ReadLints clean for touched static files.
+- Next: Hard refresh UI and verify chat send flow visually (input clears, “Sending...” appears, reply renders, retry works on failure).

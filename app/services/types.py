@@ -44,8 +44,8 @@ class AnalysisOutput:
 @dataclass(frozen=True)
 class CommentsAnalysisOutput:
     summary: str
-    highlights: List[str]
-    lowlights: List[str]
+    highlights: List[dict]
+    lowlights: List[dict]
 
 
 @dataclass(frozen=True)

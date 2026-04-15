@@ -65,6 +65,17 @@ function createTextElement(tagName, text, className = "") {
   return element;
 }
 
+function resolveSelectableProjectId(projects, preferredId) {
+  if (!Array.isArray(projects) || projects.length === 0) {
+    return null;
+  }
+  const hasPreferred = preferredId !== null && projects.some((project) => project.id === preferredId);
+  if (hasPreferred) {
+    return preferredId;
+  }
+  return projects[0].id;
+}
+
 function renderMarkdownReport(markdown, target) {
   if (!(target instanceof HTMLElement)) {
     return;
@@ -258,26 +269,31 @@ export function createVocController({ request, requestForm, runTask }) {
     if (!(select instanceof HTMLSelectElement)) {
       return;
     }
-    select.innerHTML = projects
-      .map((project) => `<option value="${project.id}">${project.name}</option>`)
-      .join("");
-    if (projects.length > 0) {
-      const selectedId = state.selectedProjectId ?? projects[0].id;
-      setVocState((previous) => ({
-        ...previous,
-        projects,
-        selectedProjectId: selectedId,
-      }));
-      select.value = String(selectedId);
-      await loadUploads(selectedId);
-      await loadReport(selectedId);
-    } else {
-      setVocState((previous) => ({
-        ...previous,
-        projects,
-        selectedProjectId: null,
-      }));
+    const selectedId = resolveSelectableProjectId(projects, state.selectedProjectId);
+    const hasProjects = projects.length > 0;
+    select.innerHTML = hasProjects
+      ? projects.map((project) => `<option value="${project.id}">${project.name}</option>`).join("")
+      : `<option value="">${t("vocNoProjectsYet")}</option>`;
+    select.disabled = !hasProjects;
+    select.value = selectedId === null ? "" : String(selectedId);
+    setVocState((previous) => ({
+      ...previous,
+      projects,
+      selectedProjectId: selectedId,
+      uploads: selectedId === null ? [] : previous.uploads,
+      selectedUploadId: selectedId === null ? null : previous.selectedUploadId,
+      reportId: selectedId === null ? null : previous.reportId,
+    }));
+
+    if (selectedId === null) {
+      renderStatus("voc-upload-meta", t("noUploadsYet"));
+      renderStatus("voc-report-meta", t("noReportYet"));
+      syncReportView("");
+      return;
     }
+
+    await loadUploads(selectedId);
+    await loadReport(selectedId);
   }
 
   async function createProject() {
@@ -405,6 +421,17 @@ export function createVocController({ request, requestForm, runTask }) {
     syncReportView(report.content || "");
     setReportMode("preview");
     renderStatus("voc-analysis-meta", t("analysisCompleted"));
+  }
+
+  function clearAnalysisResult() {
+    setVocState((previous) => ({
+      ...previous,
+      reportId: null,
+    }));
+    syncReportView("");
+    setReportMode("preview");
+    renderStatus("voc-analysis-meta", t("analysisCleared"));
+    renderStatus("voc-report-meta", t("noReportYet"));
   }
 
   async function loadReport(projectId) {
@@ -549,16 +576,17 @@ export function createVocController({ request, requestForm, runTask }) {
     if (projectSelect instanceof HTMLSelectElement) {
       projectSelect.addEventListener("change", () => {
         const projectId = Number(projectSelect.value);
-        if (!Number.isNaN(projectId)) {
-          setVocState((previous) => ({
-            ...previous,
-            selectedProjectId: projectId,
-          }));
-          void runTask(async () => {
-            await loadUploads(projectId);
-            await loadReport(projectId);
-          });
+        if (Number.isNaN(projectId)) {
+          return;
         }
+        setVocState((previous) => ({
+          ...previous,
+          selectedProjectId: projectId,
+        }));
+        void runTask(async () => {
+          await loadUploads(projectId);
+          await loadReport(projectId);
+        });
       });
     }
 
@@ -595,6 +623,20 @@ export function createVocController({ request, requestForm, runTask }) {
         void runTask(async () => {
           await startAnalysis();
         }, t("analysisCompleted"));
+      });
+    }
+    const rerunAnalyzeButton = getElement("voc-rerun-analyze-btn");
+    if (rerunAnalyzeButton instanceof HTMLButtonElement) {
+      rerunAnalyzeButton.addEventListener("click", () => {
+        void runTask(async () => {
+          await startAnalysis();
+        }, t("analysisRerunCompleted"));
+      });
+    }
+    const clearAnalysisButton = getElement("voc-clear-analysis-btn");
+    if (clearAnalysisButton instanceof HTMLButtonElement) {
+      clearAnalysisButton.addEventListener("click", () => {
+        clearAnalysisResult();
       });
     }
 

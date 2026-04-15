@@ -1,7 +1,14 @@
 import { request, requestForm } from "./api-client.js";
 import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js";
 import { createQueueController } from "./queue.js";
-import { getProjectIdFromRoute, navigateToProject, syncProjectRoute } from "./router-state.js";
+import {
+  clearVideoQueryParam,
+  getProjectIdFromRoute,
+  getVideoIdFromRouteSearch,
+  navigateToProject,
+  navigateToProjectVideo,
+  syncProjectRoute,
+} from "./router-state.js";
 import { getState, setState } from "./state.js";
 import {
   debounce,
@@ -16,7 +23,12 @@ import { createVideoDetailController } from "./video-detail.js";
 import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js";
 import { createVocController } from "./voc.js";
+import { createAllVideosSettingsController } from "./all-videos-settings.js";
 import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js";
+
+const appVideoSettingsActions = {
+  openHighlight: /** @type {null | ((videoId: number) => void)} */ (null),
+};
 
 let messageTimer = null;
 
@@ -25,11 +37,16 @@ function clearMessage() {
   if (!messageEl) {
     return;
   }
+  if (messageTimer) {
+    window.clearTimeout(messageTimer);
+    messageTimer = null;
+  }
+  messageEl.replaceChildren();
   messageEl.classList.add("is-hidden");
   messageEl.classList.remove("error", "success");
 }
 
-function showMessage(message, type = "info") {
+function showMessage(message, type = "info", options = null) {
   const messageEl = getElement("app-message");
   if (!messageEl) {
     window.alert(message);
@@ -40,15 +57,75 @@ function showMessage(message, type = "info") {
     window.clearTimeout(messageTimer);
   }
 
+  messageEl.replaceChildren();
   messageEl.classList.remove("is-hidden", "error", "success");
   if (type === "error" || type === "success") {
     messageEl.classList.add(type);
   }
-  messageEl.textContent = message;
 
+  const actionList = [];
+  if (options?.actions && Array.isArray(options.actions)) {
+    for (const entry of options.actions) {
+      if (entry && typeof entry.onAction === "function" && typeof entry.label === "string") {
+        actionList.push(entry);
+      }
+    }
+  } else if (options && typeof options.onAction === "function" && typeof options.actionLabel === "string") {
+    actionList.push({ label: options.actionLabel, onAction: options.onAction });
+  }
+  const hasAction = actionList.length > 0;
+  if (hasAction) {
+    const body = document.createElement("div");
+    body.className = "app-message-body";
+    const text = document.createElement("span");
+    text.className = "app-message-text";
+    text.textContent = message;
+    const actionsEl = document.createElement("div");
+    actionsEl.className = "app-message-actions";
+    for (const entry of actionList) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-secondary btn-sm";
+      btn.textContent = entry.label;
+      const run = entry.onAction;
+      btn.addEventListener("click", () => {
+        run();
+      });
+      actionsEl.appendChild(btn);
+    }
+    body.appendChild(text);
+    body.appendChild(actionsEl);
+    messageEl.appendChild(body);
+  } else {
+    messageEl.textContent = message;
+  }
+
+  const dismissMs = options?.dismissMs ?? (hasAction ? 14000 : 3600);
   messageTimer = window.setTimeout(() => {
     messageEl.classList.add("is-hidden");
-  }, 3600);
+  }, dismissMs);
+}
+
+function getVideoConflictPayload(error) {
+  if (!(error instanceof Error)) {
+    return null;
+  }
+  const raw = "videoConflict" in error ? error.videoConflict : null;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  const conflict = raw;
+  const code = "code" in conflict ? conflict.code : null;
+  const profileId = "existing_monitor_profile_id" in conflict ? conflict.existing_monitor_profile_id : null;
+  const videoId = "existing_video_id" in conflict ? conflict.existing_video_id : null;
+  if (
+    code === "VIDEO_PROJECT_CONFLICT" &&
+    typeof profileId === "number" &&
+    typeof videoId === "number"
+  ) {
+    return { existing_monitor_profile_id: profileId, existing_video_id: videoId };
+  }
+  return null;
 }
 
 async function runTask(task, successMessage = "") {
@@ -60,7 +137,29 @@ async function runTask(task, successMessage = "") {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : t("requestFailed");
-    showMessage(message, "error");
+    const conflict = getVideoConflictPayload(error);
+    if (conflict) {
+      const actions = [
+        {
+          label: t("openVideoInProject"),
+          onAction: () => {
+            navigateToProjectVideo(conflict.existing_monitor_profile_id, conflict.existing_video_id);
+          },
+        },
+      ];
+      if (appVideoSettingsActions.openHighlight) {
+        const open = appVideoSettingsActions.openHighlight;
+        actions.push({
+          label: t("viewInAllVideos"),
+          onAction: () => {
+            open(conflict.existing_video_id);
+          },
+        });
+      }
+      showMessage(message, "error", { actions });
+    } else {
+      showMessage(message, "error");
+    }
   }
 }
 
@@ -392,6 +491,20 @@ async function bootstrap() {
     onAnyVideoAction: clearNewVideoLabelsFromAnyAction,
   });
 
+  const allVideosSettingsController = createAllVideosSettingsController({
+    request,
+    runTask,
+    setActiveSection,
+    syncProjectRoute,
+    onVideosMutated: async () => {
+      await queueController.refreshVideos();
+      await videoDetailController.renderVideoDetail();
+    },
+  });
+  appVideoSettingsActions.openHighlight = (videoId) => {
+    allVideosSettingsController.openSettingsAndHighlight(videoId);
+  };
+
   async function loadProfiles() {
     const profiles = await request("/monitor-profiles");
     const routeProjectId = getProjectIdFromRoute();
@@ -612,6 +725,7 @@ async function bootstrap() {
   knowledgeSettingsController.bindKnowledgeSettingsControls();
   vocController.bindVocControls();
   queueController.bindQueueInteractions();
+  allVideosSettingsController.bindAllVideosSettings();
   bindDashboardInteractions({
     onOpenProject: (profileId) => {
       const card = document.querySelector(`[data-project-id="${profileId}"]`);
@@ -671,6 +785,16 @@ async function bootstrap() {
 
   await loadProfiles();
   await queueController.refreshVideos();
+
+  const pendingVideoId = getVideoIdFromRouteSearch();
+  if (pendingVideoId !== null) {
+    const stateAfterLoad = getState();
+    if (stateAfterLoad.videos.some((v) => v.id === pendingVideoId)) {
+      queueController.selectVideo(pendingVideoId);
+      clearVideoQueryParam();
+    }
+  }
+
   await loadAlerts();
   await agentSettingsController.loadSettings();
   await knowledgeSettingsController.loadSettings();

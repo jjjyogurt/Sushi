@@ -28,6 +28,7 @@ from app.services.exceptions import (
     TranscriptProviderError,
     TranscriptUnavailableError,
 )
+from app.services.exceptions import VideoProjectConflictError
 from app.services.triage_service import TriageService
 
 router = APIRouter(prefix="/videos", tags=["videos"])
@@ -74,6 +75,16 @@ def add_manual_video(payload: ManualVideoCreateRequest, db: Session = Depends(ge
         )
         responses = map_videos_with_context(service, [candidate])
         return responses[0]
+    except VideoProjectConflictError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(error),
+                "code": "VIDEO_PROJECT_CONFLICT",
+                "existing_video_id": error.existing_video_id,
+                "existing_monitor_profile_id": error.existing_monitor_profile_id,
+            },
+        ) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

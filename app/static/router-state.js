@@ -23,3 +23,25 @@ export function syncProjectRoute(projectId) {
   }
   window.history.replaceState({}, "", target);
 }
+
+export function getVideoIdFromRouteSearch() {
+  const params = new URLSearchParams(window.location.search);
+  const id = Number(params.get("video"));
+  return Number.isNaN(id) ? null : id;
+}
+
+export function clearVideoQueryParam() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("video")) {
+    return;
+  }
+  url.searchParams.delete("video");
+  window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+}
+
+export function navigateToProjectVideo(projectId, videoId) {
+  if (!projectId || !videoId) {
+    return;
+  }
+  window.location.assign(`/projects/${projectId}?video=${videoId}`);
+}

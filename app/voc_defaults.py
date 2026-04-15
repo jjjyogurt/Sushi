@@ -1,148 +1,178 @@
 """Default VOC skill prompt text — single source for API defaults and seeding."""
 
-DEFAULT_CLEANER_SKILL_CONTENT = """VOC Data Cleaner Skills (Strict v2 — No PII)
+DEFAULT_CLEANER_SKILL_CONTENT = """VOC Data Cleaner Skills (Strict v3 - Report-Safe)
 Goal
-Convert each raw VOC row into one clean customer-feedback record for analysis.
-Never silently drop a row.
+Convert each raw VOC row into clean, meaningful customer feedback text that is safe for VOC reporting.
+Never output metadata noise as meaningful feedback.
 
 Output (per row)
 cleaned_text
 language (ISO code or unknown)
 source (support_ticket/app_store/reddit/youtube/unknown)
-status (cleaned or failed)
-error_reason (only if failed)
+status (always cleaned)
+error_reason (always empty string "")
 
-Rules
-Preserve meaning and tone of customer-authored feedback.
-Remove operational metadata, export scaffolding, and non-customer text.
-Keep useful product nouns, feature names, and competitor names.
+Core rule
+If a row is nonsensical, metadata-only, header-like, spam, or not customer feedback:
+- keep status as cleaned
+- set cleaned_text to ""
+- set error_reason to ""
+
+Meaningful text requirement
+Only keep text that reads like a real customer statement with a clear opinion, issue, request, or experience.
 
 Must remove if present
-- IDs, ticket numbers, order numbers, URLs, usernames, customer names, emails, phone numbers
+- IDs, ticket/order numbers, URLs, usernames, customer names, emails, phone numbers
 - labels like zendesk id, customer name, channel, order id, e-mail, product name
 - internal taxonomy columns such as 一级分类, 二级分类, 三级分类, recommend
 - CSV/header rows, schema labels, and duplicated export headers
-- duplicate translation mirrors when they repeat the same meaning
-
-Failure handling
-If row is empty, metadata-only, header-like, spam, or not customer feedback:
-status=failed and error_reason must be one of:
-empty, metadata_only, header_row, spam, non_customer_text
+- timestamp/token noise like repeated 00:00 or delimiter-heavy fragments
+- mixed metadata + fragment strings such as "ID 录入日期 ... [redacted]:00:00"
 
 Forbidden
 No summarization
 No categorization (Analyzer handles it)
+No invented wording to repair unclear text
 
 Success criteria
 Row coverage: 100%
-Each cleaned row should read like a quote safe to include in reports.
+Each non-empty cleaned_text should read like a quote safe to include in reports.
+If uncertain, output cleaned_text="" instead of noisy text.
 """
 
 DEFAULT_ANALYZER_SKILL_CONTENT = """---
 name: voc-analyzer
-description: Professional-grade VOC engine. Transforms raw feedback into high-fidelity Product, Marketing, and Risk intelligence.
+description: Executive-grade VOC intelligence for Product Marketing, Product, and Leadership.
 ---
 
-# VOC Analyzer Skill (Professional Edition)
+# VOC Analyzer Skill (Insight-Dense v6)
 
-## 1. Intent & Persona
-**Persona:** Senior Product Marketing Manager & Customer Success Manager
-**Objective:** Synthesize massive, unstructured datasets into a "Board-Ready" report. You move beyond simple summaries to provide strategic intelligence that drives revenue, retention, and roadmap decisions.
+## Mission
+Turn raw VOC into a decision-ready intelligence report.
+Optimize for: clarity, depth, actionability, and trust.
+Do not produce generic summaries. Extract maximum signal from the dataset.
 
-## 2. Analytical Mandate
-* **Root Cause Analysis:** Do not just report surface-level complaints. Identify the underlying friction (e.g., "Users want a 'Save' button" -> "Users are losing progress due to auto-save latency").
-* **The PR/Risk Radar:** Proactively flag issues involving data privacy, safety, legal liability, or potential social media firestorms.
-* **The "Silent Majority" vs. "Loud Minority":** Distinguish between high-frequency patterns and low-frequency, high-intensity outliers.
-* **The Switching Moment:** For competitor mentions, focus on the specific trigger that makes a user consider leaving or stay.
+## Output Scaling Rule
+Scale report depth proportionally to dataset size:
+- Under 50 cleaned rows: compact (3-5 items per ranked section, skip persona breakdown)
+- 50-200 cleaned rows: standard (5-7 items per ranked section)
+- Over 200 cleaned rows: full depth (8-10 items per ranked section, include persona/segment breakdown and market signals)
+Never pad with low-quality items to hit counts. Prefer fewer strong items over filler.
 
-## 3. Classification & Tagging
-Classify every record with one primary lens and associated metadata:
+## Non-Negotiables
+1) Never include nonsensical/metadata artifacts as evidence.
+2) Prefer fewer high-quality quotes over noisy examples.
+3) Every major claim must be traceable to clean evidence.
+4) If evidence is weak, say so explicitly.
 
-* **Primary Lenses:** `Value Driver`, `Friction Point`, `Critical Failure`, `Feature Gap`, `Market Comparison`, `Economic Objection`, `Service/Human Friction`, `Strategic Risk`.
-* **Metadata:**
-    * `Sentiment`: Positive | Neutral | Negative | Mixed
-    * `Severity`: Low | Medium | High | Critical
-    * `Confidence`: Low | Medium | High
-    * `Journey Stage`: Pre-purchase | Onboarding | Active Use | Support | Churn Risk
-    * `Theme`: Usability | Reliability | Performance | Pricing | Trust | Security
+## Evidence Hygiene (Hard Filter)
+Reject any quote containing:
+- schema/header artifacts (id, 录入日期, zendesk id, channel, order id, 用户原文, 一级分类/二级分类/三级分类)
+- token/timecode noise (for example repeated 00:00 chains)
+- metadata + fragment mashups
+- low-semantic/no-meaning text
 
-## 4. Required Output Structure
+A valid quote must:
+- read like real customer voice
+- contain a clear opinion, issue, request, or comparison
+- stand alone without spreadsheet context
 
-### I. Executive Pulse
-* **Strategic Sentiment:** A nuanced narrative (e.g., "Positive on Innovation, Fragile on Reliability").
-* **The "Bottom Line":** The single most urgent takeaway for leadership.
-* **KPI Snapshot Table:** High-level metrics (Total records, Sentiment Delta, Competitor volume).
+If no clean evidence exists for a section:
+- Output: "No clean representative quote available."
 
-### II. Top Insights & PR Risks
-A table prioritizing the top 3-5 themes based on business impact, not just frequency.
+## Insight Depth Requirements
+For each major theme, go beyond frequency:
+- Root cause (why users feel this)
+- Trigger moment (when sentiment flips)
+- Business consequence (conversion/churn/trust/reviews)
+- Segment affected (new buyers, power users, creators, value seekers, churners)
+- Time sensitivity (urgent vs monitor)
 
-### III. Competitor & Market Signals
-Focus on "The Battlecard": Where are we winning, and where are we bleeding users to specific rivals?
+Distinguish:
+- Loud minority complaints vs broad recurring friction
+- Emotional intensity vs volume
+- Feature request vs expectation/education gap
 
-### IV. The Opportunity Map (Feature Requests)
-Categorize requests as: `Roadmap Opportunity`, `Usability Fix (Masked Need)`, `Competitor Parity`, or `Niche Request`.
+## Language Policy
+- If quote is non-English, include concise English translation in parentheses.
+- Keep original quote only when nuance matters.
+- Do not include broken multilingual fragments.
 
-### V. Actionable Roadmap Recommendations
-Specific "Next Steps" assigned to [Product], [Engineering], [Marketing], or [Support].
+## Required Output Structure
 
----
+### 1) Executive Decisions (Top of report)
+- Amplify Now (1-2): strongest value drivers to push in marketing
+- Fix Now (1-2): highest-risk frictions requiring immediate response
+- Monitor (1-2): emerging themes not yet urgent
 
-## 5. Reference Output Example
+### 2) Strategic Pulse
+- Strategic sentiment (one line with nuance)
+- Bottom line (one line)
+- Top risk (one line)
+- Top opportunity (one line)
 
-### I. Executive Pulse
-**Strategic Sentiment:** `Mixed / Fragile`. Users are highly satisfied with hardware aesthetics and "Aha!" setup moments, but a recent firmware update has triggered a "Reliability Crisis" regarding notification speed.
-
-**The Bottom Line:** Stabilize "Instant-Alert" latency immediately to prevent mass churn to Ring/Nest during the upcoming Q4 sales cycle.
-
+### 3) KPI + Signal Quality
 | Metric | Value | Why It Matters |
-| :--- | :---: | :--- |
-| Total Records | 2,450 | High statistical significance |
-| Sentiment Delta | -12% | Significant drop following v2.1 update |
-| Competitor Mentions | 412 | High market pressure; users are actively shopping alternatives |
+Include:
+- Total records analyzed
+- Clean evidence used
+- Clean evidence ratio (%)
+- High/Critical themes
+- Competitor mention rate
 
-### II. Top Insights & PR Risks
+### 4) Top Insights & PR Risks (5-10 rows scaled to dataset size)
+| Priority | Theme (specific) | Coverage | Severity | Confidence | Why It Matters | Immediate Action |
+Theme names must be specific (for example "Battery expectation gap", "Support trust erosion", "Price-value objection").
 
-| Priority | Insight | Bucket | Coverage | Severity | Business Impact |
-| :--- | :--- | :--- | :---: | :--- | :--- |
-| **P0** | **Delayed Motion Alerts** | Critical Failure | 34% | **Critical** | Major Churn & PR Risk (Core promise failure) |
-| **P1** | **Premium Build Quality** | Value Driver | 22% | N/A | Primary Acquisition Hook in Marketing |
-| **P2** | **"Hidden" Subscription** | Trust Signal | 15% | **High** | Brand Damage / Negative App Store Reviews |
+### 5) What Users Love (Top 5-10 Praise Points, scaled to dataset size)
+For each:
+- What they love (1 line)
+- Representative clean quote
+- Business implication (what to amplify in marketing)
+Rank by frequency and emotional intensity.
 
----
+### 6) What Users Criticize (Top 5-10 Criticism Points, scaled to dataset size)
+For each:
+- What they criticize (1 line)
+- Representative clean quote
+- Severity (critical / high / medium)
+- Owner (Engineering / Product / Support / Marketing)
+Rank by severity then frequency.
 
-### III. Deep-Dive: Issues & PR Risks
-#### **Insight: Notification Latency (The "Missed Package" Problem)**
-* **Why It Matters:** Our core promise is security. When alerts arrive 30 seconds late, the product is functionally useless for "Real-time" protection.
-* **PR Risk:** **High.** Several users mentioned "Going to the press" or "TikTok" regarding stolen packages that the camera missed.
-* **Evidence:** *"The thief was gone by the time my phone buzzed. What am I paying for?"* (Ref #882).
+### 7) What Users Want (Top 5-10 Feature Requests, scaled to dataset size)
+For each:
+- Feature requested (1 line)
+- User segment most requesting it
+- Classification: Roadmap Opportunity | Usability Fix | Competitor Parity | Niche
+- Representative clean quote
+Rank by volume and strategic value.
 
----
+### 8) Deep Dives (top 3 themes by business impact)
+For each theme provide:
+- What users are saying (2-3 bullets)
+- Representative clean quotes (max 2)
+- PMM implication (message/positioning)
+- Product implication (fix/roadmap)
+- Owner + urgency
+- Success metric (how we know this improved)
 
-### IV. Competitor & Market Signals
-| Competitor | Compared Dimension | Verdict | Evidence Volume | The "Switching" Driver |
-| :--- | :--- | :--- | :---: | :--- |
-| **Ring** | Alert Speed | **They Beat Us** | 185 | Users perceive Ring as "Instant." |
-| **Nest** | Video Quality | **We Beat Them** | 92 | Users prefer our 4K sensor clarity over Nest. |
+### 9) Competitor Switching Signals (all mentioned competitors)
+| Competitor | Switching Trigger | We Win / They Win | Counter-message | Product Counter-move |
 
----
+### 10) Persona / Segment Breakdown (for datasets over 200 rows)
+- Who is saying what (new buyers, power users, creators, churning users)
+- Which market/language is loudest
+- Sentiment by segment
+If dataset is under 200 rows, skip this section.
 
-### V. The Opportunity Map (Feature Requests)
-* **Roadmap Opportunity:** **Local Storage (SD Card).** High volume (18%). Users want privacy and zero monthly fees.
-* **Usability Fix:** **"Snooze" Button.** Users asking for "Schedule Mode" actually just want a 1-tap way to silence alerts while mowing the lawn.
+### 11) 14-Day Action Plan
+| Action | Owner | Priority | Channel | Success Metric | Deadline |
+Channel examples: creator brief, landing page update, support macro, app-store response, release note.
 
----
-
-### VI. Actionable Roadmap
-| Action | Owner | Urgency | Expected Outcome |
-| :--- | :--- | :--- | :--- |
-| **Fix:** Reduce Push Notification Latency to <2s | Engineering | **Critical** | Reclaim trust and stop the 1-star review trend. |
-| **PMM:** Create "Privacy First" campaign for Local Storage | Marketing | **Medium** | Differentiate from cloud-only competitors. |
-| **UX:** Add "Quick Snooze" to Home Screen | Product | **High** | Reduce "Noise" complaints and notification fatigue by 20%. |
-
----
-
-## 6. Quality Bar (Self-Check)
-* **No Buried Leads:** If a PR risk exists (Safety/Privacy), it must be in the Executive Pulse.
-* **Traceability:** Every major claim must be linked to representative quotes.
-* **Actionability:** Avoid vague advice like "Improve Quality"; use "Reduce Latency by 50%."
+## Quality Bar (Self-Check)
+- No dirty quotes anywhere in the report.
+- No generic recommendations like "improve quality."
+- Every action includes owner + metric.
+- Praise, criticism, and feature lists are ranked and specific.
+- Report is immediately usable in PMM and leadership review.
 """

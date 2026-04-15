@@ -1,6 +1,9 @@
 import { escapeHtml, getElement } from "./ui-utils.js";
 import { t } from "./i18n.js";
 
+const CHAT_USER_ID = "marketing-owner";
+const RETRY_CHAT_BUTTON_ID = "retry-chat-btn";
+
 function normalizeAnalysisErrorMessage(rawMessage) {
   const message = String(rawMessage || "").trim();
   if (!message) {
@@ -119,7 +122,22 @@ function pointListMarkup(points, emptyLabel) {
   }
   return `
     <ul class="point-list">
-      ${points.map((point) => `<li>${escapeHtml(String(point))}</li>`).join("")}
+      ${points
+        .map((item) => {
+          if (item && typeof item === "object") {
+            const pointText = String(item.point || "").trim();
+            const quoteText = String(item.quote || "").trim();
+            const fallbackText = String(item.text || "").trim();
+            const resolved = pointText || fallbackText || quoteText;
+            if (!resolved) {
+              return "";
+            }
+            return `<li>${escapeHtml(resolved)}</li>`;
+          }
+          const fallback = String(item || "").trim();
+          return fallback ? `<li>${escapeHtml(fallback)}</li>` : "";
+        })
+        .join("")}
     </ul>
   `;
 }
@@ -160,7 +178,27 @@ function concisePointListMarkup(points) {
   }
   return `
     <ul class="point-list">
-      ${points.map((point) => `<li>${escapeHtml(String(point))}</li>`).join("")}
+      ${points
+        .map((item) => {
+          if (item && typeof item === "object") {
+            const pointText = String(item.point || "").trim();
+            const quoteText = String(item.quote || "").trim();
+            const fallbackText = String(item.text || "").trim();
+            const resolvedPoint = pointText || fallbackText || quoteText;
+            if (!resolvedPoint) {
+              return "";
+            }
+            return `
+              <li>
+                <div>${escapeHtml(resolvedPoint)}</div>
+                ${quoteText ? `<div class="meta">"${escapeHtml(quoteText)}"</div>` : ""}
+              </li>
+            `;
+          }
+          const fallback = String(item || "").trim();
+          return fallback ? `<li>${escapeHtml(fallback)}</li>` : "";
+        })
+        .join("")}
     </ul>
   `;
 }
@@ -189,27 +227,53 @@ function commentsSentimentMarkup(analysis) {
   `;
 }
 
-function renderChatEntries(messages) {
-  if (!messages || messages.length === 0) {
-    return `<div class="meta">${escapeHtml(t("noChatHistoryYet"))}</div>`;
+function renderChatEntries(messages, { pendingQuestion = "", isSending = false, inlineError = "" } = {}) {
+  const baseMessages = Array.isArray(messages) ? messages : [];
+  const pendingText = String(pendingQuestion || "").trim();
+  const entries = [...baseMessages];
+  if (pendingText) {
+    entries.push({ role: "user", content: pendingText, isPending: true });
+    if (isSending) {
+      entries.push({ role: "assistant", content: t("chatAssistantThinking"), isPending: true });
+    }
   }
 
-  return messages
-    .map((message) => {
-      const citationText =
-        Array.isArray(message.citations) && message.citations.length > 0
-          ? ` (citations: ${message.citations.map((item) => item.timestamp).join(", ")})`
-          : "";
-      const role = escapeHtml(message.role);
-      const roleClass = role === "assistant" ? "assistant" : "user";
-      return `
-        <div class="chat-entry ${roleClass}">
-          <div class="chat-entry-label">${role}</div>
-          <div class="chat-entry-bubble">${escapeHtml(message.content)}${escapeHtml(citationText)}</div>
-        </div>
-      `;
-    })
-    .join("");
+  const entriesMarkup =
+    entries.length === 0
+      ? `<div class="meta">${escapeHtml(t("noChatHistoryYet"))}</div>`
+      : entries
+          .map((message) => {
+            const citationText =
+              Array.isArray(message.citations) && message.citations.length > 0
+                ? ` (citations: ${message.citations.map((item) => item.timestamp).join(", ")})`
+                : "";
+            const role = String(message.role || "user");
+            const roleClass = role === "assistant" ? "assistant" : "user";
+            const pendingClass = message.isPending ? " is-pending" : "";
+            return `
+              <div class="chat-entry ${roleClass}${pendingClass}">
+                <div class="chat-entry-label">${escapeHtml(role)}</div>
+                <div class="chat-entry-bubble">${escapeHtml(String(message.content || ""))}${escapeHtml(
+                  citationText
+                )}</div>
+              </div>
+            `;
+          })
+          .join("");
+
+  const errorText = String(inlineError || "").trim();
+  const inlineErrorMarkup = errorText
+    ? `
+      <div class="chat-inline-error">
+        <span>${escapeHtml(errorText)}</span>
+        <button id="${RETRY_CHAT_BUTTON_ID}" class="btn btn-secondary btn-sm" type="button">${escapeHtml(
+          t("retry")
+        )}</button>
+      </div>
+    `
+    : "";
+
+  return `${entriesMarkup}${inlineErrorMarkup}`;
 }
 
 function analysisStatusLabel(analysis) {
@@ -343,8 +407,17 @@ export function createVideoDetailController({
 }) {
   let analysisCache = {};
   let chatCache = {};
+  let chatDraftByVideoId = {};
+  let chatPendingQuestionByVideoId = {};
+  let chatInlineErrorByVideoId = {};
+  let chatSendingByVideoId = {};
   let rerunStateByVideoId = {};
   let detailAbortController = null;
+
+  function withoutVideoKey(record, videoId) {
+    const { [videoId]: _removed, ...remaining } = record;
+    return remaining;
+  }
 
   function getSelectedVideo() {
     const state = getState();
@@ -356,10 +429,18 @@ export function createVideoDetailController({
       ([key]) => !key.startsWith(`${videoId}:`)
     );
     const remainingAnalysis = Object.fromEntries(analysisEntries);
-    const { [videoId]: _chat, ...remainingChat } = chatCache;
+    const remainingChat = withoutVideoKey(chatCache, videoId);
+    const remainingDraft = withoutVideoKey(chatDraftByVideoId, videoId);
+    const remainingPendingQuestion = withoutVideoKey(chatPendingQuestionByVideoId, videoId);
+    const remainingInlineError = withoutVideoKey(chatInlineErrorByVideoId, videoId);
+    const remainingSending = withoutVideoKey(chatSendingByVideoId, videoId);
     const { [videoId]: _rerun, ...remainingRerun } = rerunStateByVideoId;
     analysisCache = remainingAnalysis;
     chatCache = remainingChat;
+    chatDraftByVideoId = remainingDraft;
+    chatPendingQuestionByVideoId = remainingPendingQuestion;
+    chatInlineErrorByVideoId = remainingInlineError;
+    chatSendingByVideoId = remainingSending;
     rerunStateByVideoId = remainingRerun;
   }
 
@@ -402,7 +483,7 @@ export function createVideoDetailController({
     if (!forceRefresh && chatCache[videoId]) {
       return chatCache[videoId];
     }
-    const messages = await request(`/videos/${videoId}/chat?user_id=marketing-owner`);
+    const messages = await request(`/videos/${videoId}/chat?user_id=${encodeURIComponent(CHAT_USER_ID)}`);
     chatCache = {
       ...chatCache,
       [videoId]: messages,
@@ -410,19 +491,43 @@ export function createVideoDetailController({
     return messages;
   }
 
-  async function renderChat(videoId) {
+  function setChatComposerState(videoId) {
+    const questionInput = getElement("chat-question");
+    const sendChatButton = getElement("send-chat-btn");
+    const isSending = Boolean(chatSendingByVideoId[videoId]);
+
+    if (questionInput) {
+      questionInput.disabled = isSending;
+    }
+    if (sendChatButton) {
+      sendChatButton.disabled = isSending;
+      sendChatButton.textContent = isSending ? t("sending") : t("send");
+    }
+  }
+
+  async function renderChat(videoId, { forceRefresh = false, skipFetch = false } = {}) {
     const chatWindow = getElement("chat-window");
     if (!chatWindow) {
       return;
     }
     try {
-      const messages = await fetchChat(videoId);
-      chatWindow.innerHTML = renderChatEntries(messages);
+      const messages = skipFetch ? chatCache[videoId] || [] : await fetchChat(videoId, forceRefresh);
+      chatWindow.innerHTML = renderChatEntries(messages, {
+        pendingQuestion: chatPendingQuestionByVideoId[videoId],
+        isSending: Boolean(chatSendingByVideoId[videoId]),
+        inlineError: chatInlineErrorByVideoId[videoId],
+      });
       chatWindow.scrollTop = chatWindow.scrollHeight;
     } catch (error) {
       const message = error instanceof Error ? error.message : t("failedToLoadChat");
-      chatWindow.innerHTML = `<div class="meta" style="color: var(--danger);">${escapeHtml(message)}</div>`;
+      chatWindow.innerHTML = renderChatEntries(chatCache[videoId] || [], {
+        pendingQuestion: chatPendingQuestionByVideoId[videoId],
+        isSending: Boolean(chatSendingByVideoId[videoId]),
+        inlineError: message,
+      });
+      chatWindow.scrollTop = chatWindow.scrollHeight;
     }
+    setChatComposerState(videoId);
   }
 
   function bindDetailActions(videoId) {
@@ -504,28 +609,107 @@ export function createVideoDetailController({
     }
 
     const sendChatButton = getElement("send-chat-btn");
-    if (sendChatButton) {
-      sendChatButton.onclick = () =>
-        runTask(async () => {
-          onAnyVideoAction?.();
-          const questionInput = getElement("chat-question");
-          if (!questionInput) {
-            return;
-          }
-          const question = questionInput.value.trim();
-          if (!question) {
-            throw new Error(t("typeQuestionBeforeSending"));
-          }
-          await request(`/videos/${videoId}/chat`, {
-            method: "POST",
-            body: JSON.stringify({ question, user_id: "marketing-owner" }),
-          });
-          questionInput.value = "";
-          const { [videoId]: _removed, ...remainingChats } = chatCache;
-          chatCache = remainingChats;
-          await renderChat(videoId);
+    const questionInput = getElement("chat-question");
+    const bindRetryButton = () => {
+      const retryButton = getElement(RETRY_CHAT_BUTTON_ID);
+      if (!retryButton) {
+        return;
+      }
+      retryButton.onclick = () => {
+        const pendingQuestion = String(chatDraftByVideoId[videoId] || "").trim();
+        void submitChatQuestion(pendingQuestion);
+      };
+    };
+    const submitChatQuestion = async (retryQuestion = "") => {
+      if (chatSendingByVideoId[videoId]) {
+        return;
+      }
+      const input = getElement("chat-question");
+      const rawQuestion = String(retryQuestion || (input ? input.value : ""));
+      const question = rawQuestion.trim();
+      if (!question) {
+        chatInlineErrorByVideoId = {
+          ...chatInlineErrorByVideoId,
+          [videoId]: t("typeQuestionBeforeSending"),
+        };
+        await renderChat(videoId, { skipFetch: true });
+        bindRetryButton();
+        if (input) {
+          input.focus();
+        }
+        return;
+      }
+
+      onAnyVideoAction?.();
+      chatSendingByVideoId = {
+        ...chatSendingByVideoId,
+        [videoId]: true,
+      };
+      chatPendingQuestionByVideoId = {
+        ...chatPendingQuestionByVideoId,
+        [videoId]: question,
+      };
+      chatDraftByVideoId = withoutVideoKey(chatDraftByVideoId, videoId);
+      chatInlineErrorByVideoId = withoutVideoKey(chatInlineErrorByVideoId, videoId);
+      if (input) {
+        input.value = "";
+      }
+      await renderChat(videoId, { skipFetch: true });
+      bindRetryButton();
+
+      try {
+        await request(`/videos/${videoId}/chat`, {
+          method: "POST",
+          body: JSON.stringify({ question, user_id: CHAT_USER_ID }),
         });
+        chatSendingByVideoId = withoutVideoKey(chatSendingByVideoId, videoId);
+        chatPendingQuestionByVideoId = withoutVideoKey(chatPendingQuestionByVideoId, videoId);
+        chatInlineErrorByVideoId = withoutVideoKey(chatInlineErrorByVideoId, videoId);
+        chatDraftByVideoId = withoutVideoKey(chatDraftByVideoId, videoId);
+        chatCache = withoutVideoKey(chatCache, videoId);
+        await renderChat(videoId, { forceRefresh: true });
+        bindRetryButton();
+        const refreshedInput = getElement("chat-question");
+        if (refreshedInput) {
+          refreshedInput.focus();
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : t("failedToLoadChat");
+        chatSendingByVideoId = withoutVideoKey(chatSendingByVideoId, videoId);
+        chatPendingQuestionByVideoId = withoutVideoKey(chatPendingQuestionByVideoId, videoId);
+        chatDraftByVideoId = {
+          ...chatDraftByVideoId,
+          [videoId]: question,
+        };
+        chatInlineErrorByVideoId = {
+          ...chatInlineErrorByVideoId,
+          [videoId]: message,
+        };
+        await renderChat(videoId, { skipFetch: true });
+        bindRetryButton();
+        const restoredInput = getElement("chat-question");
+        if (restoredInput) {
+          restoredInput.value = question;
+          restoredInput.focus();
+        }
+      }
+    };
+
+    if (sendChatButton) {
+      sendChatButton.onclick = () => {
+        void submitChatQuestion();
+      };
     }
+
+    if (questionInput) {
+      questionInput.onkeydown = (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          void submitChatQuestion();
+        }
+      };
+    }
+    bindRetryButton();
 
     const analysisLanguageEnButton = getElement("analysis-lang-en-btn");
     if (analysisLanguageEnButton) {
@@ -622,6 +806,10 @@ export function createVideoDetailController({
     resetCaches() {
       analysisCache = {};
       chatCache = {};
+      chatDraftByVideoId = {};
+      chatPendingQuestionByVideoId = {};
+      chatInlineErrorByVideoId = {};
+      chatSendingByVideoId = {};
       rerunStateByVideoId = {};
     },
   };

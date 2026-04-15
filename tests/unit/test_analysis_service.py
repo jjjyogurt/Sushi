@@ -2,7 +2,7 @@ from app.config import get_settings
 from app.models.analysis_result import AnalysisResult
 from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
 from app.services.analysis_service import AnalysisService
-from app.services.types import AnalysisOutput, TranscriptOutput
+from app.services.types import AnalysisOutput, CommentsAnalysisOutput, TranscriptOutput
 from app.utils.json_codec import decode_json, encode_json
 
 
@@ -31,12 +31,13 @@ class StubGeminiClient:
         self,
         *,
         title: str,
-        language: str,
+        source_language: str,
+        target_output_language: str,
         relevance_reason: str,
         transcript_text: str,
         knowledge_context: str = "",
     ):
-        _ = knowledge_context
+        _ = (knowledge_context, source_language, target_output_language)
         return AnalysisOutput(
             transcript_text=transcript_text,
             summary_text=f"{title} includes onboarding and reliability concerns.",
@@ -57,6 +58,23 @@ class StubGeminiClient:
             action_recommendation="Explain improved control tips and reliability roadmap to the influencer.",
         )
 
+    def analyze_comments(self, *, title: str, language: str, comments):
+        _ = (title, language, comments)
+        return CommentsAnalysisOutput(
+            summary="Comments are mixed with strong interest but clear concerns about reliability.",
+            highlights=[
+                {"point": "Compact design is appreciated.", "quote": "love how small this is"},
+                {"point": "Flight is quiet.", "quote": "so quiet in flight"},
+            ],
+            lowlights=[
+                {"point": "Reliability concerns remain.", "quote": "not sure it will last"},
+            ],
+        )
+
+    def translate_analysis_bundle(self, *, analysis_output, comments_output, target_output_language: str):
+        _ = target_output_language
+        return analysis_output, comments_output
+
 
 class StubFailingGeminiClient:
     def ensure_ready(self):
@@ -66,12 +84,13 @@ class StubFailingGeminiClient:
         self,
         *,
         title: str,
-        language: str,
+        source_language: str,
+        target_output_language: str,
         relevance_reason: str,
         transcript_text: str,
         knowledge_context: str = "",
     ):
-        _ = (title, language, relevance_reason, transcript_text, knowledge_context)
+        _ = (title, source_language, target_output_language, relevance_reason, transcript_text, knowledge_context)
         raise RuntimeError("provider exploded")
 
 
@@ -80,9 +99,10 @@ def test_skip_reanalysis_when_completed_and_same_version(db_session, discovered_
     original_version = settings.analysis_version
     settings.analysis_version = "unit-v1"
 
-    existing = AnalysisResult(
+    existing_en = AnalysisResult(
         video_candidate_id=discovered_video.id,
         analysis_version="unit-v1",
+        language="en",
         model_name="gemini-3",
         status=AnalysisStatus.COMPLETED,
         transcript_text="cached transcript",
@@ -94,14 +114,30 @@ def test_skip_reanalysis_when_completed_and_same_version(db_session, discovered_
         evidence_json=encode_json([{"timestamp": "00:10", "quote": "cached", "reason": "cache"}]),
         insights_json=encode_json(["cached"]),
     )
-    db_session.add(existing)
+    existing_zh = AnalysisResult(
+        video_candidate_id=discovered_video.id,
+        analysis_version="unit-v1",
+        language="zh-Hans",
+        model_name="gemini-3",
+        status=AnalysisStatus.COMPLETED,
+        transcript_text="cached transcript zh",
+        summary_text="cached summary zh",
+        translated_summary="cached summary zh",
+        sentiment=Sentiment.NEUTRAL,
+        risk_level=RiskLevel.MEDIUM,
+        confidence_score="0.88",
+        evidence_json=encode_json([{"timestamp": "00:10", "quote": "cached zh", "reason": "cache"}]),
+        insights_json=encode_json(["cached zh"]),
+    )
+    db_session.add(existing_en)
+    db_session.add(existing_zh)
     db_session.commit()
-    db_session.refresh(existing)
+    db_session.refresh(existing_en)
 
     service = AnalysisService(db_session)
     result = service.analyze_video(video_id=discovered_video.id, force_reanalyze=False)
 
-    assert result.id == existing.id
+    assert result.id == existing_en.id
     assert result.summary_text == "cached summary"
 
     settings.analysis_version = original_version
@@ -127,6 +163,9 @@ def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session,
     assert second.summary_headline.startswith("Reliability concerns")
     assert second.summary_body.startswith("Sentiment is neutral")
     assert second.business_impact.startswith("If repeated")
+    assert second.comment_summary_text.startswith("Comments are mixed")
+    assert decode_json(second.comment_highlights_json, [])[0]["point"] == "Compact design is appreciated."
+    assert decode_json(second.comment_lowlights_json, [])[0]["quote"] == "not sure it will last"
     parsed_insights_payload = decode_json(second.insights_json, {})
     assert parsed_insights_payload["praise_points"] == ["Setup was easy and fast."]
     assert parsed_insights_payload["action_recommendation"].startswith("Explain improved control tips")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -23,8 +24,11 @@ from app.repositories.voc_repository import (
     VocSettingsRepository,
     VocUploadRepository,
 )
+from app.services.gemini_client import GeminiClient
 from app.services.voc_policy import evaluate_publish_gate
 from app.voc_defaults import DEFAULT_ANALYZER_SKILL_CONTENT, DEFAULT_CLEANER_SKILL_CONTENT
+
+logger = logging.getLogger(__name__)
 
 
 class VocService:
@@ -93,6 +97,8 @@ class VocService:
         self.evidence = VocEvidenceRepository(session)
         self.reports = VocReportRepository(session)
         self.settings = VocSettingsRepository(session)
+        self.app_settings = get_settings()
+        self.gemini_client = GeminiClient(self.app_settings)
 
     def create_project(self, name: str, description: str):
         if not name.strip():
@@ -174,7 +180,13 @@ class VocService:
         )
         try:
             insights, buckets = self._analyze_rows(upload_id)
-            report_content = self._build_report(upload.total_rows, insights, buckets)
+            report_content = self._build_report_with_gemini(
+                upload_id=upload.id,
+                total_rows=upload.total_rows,
+                analyzer_prompt=analyzer_skill.content,
+                fallback_insights=insights,
+                fallback_buckets=buckets,
+            )
             report = self.reports.create(
                 project_id=upload.project_id,
                 upload_id=upload.id,
@@ -191,6 +203,51 @@ class VocService:
             self.uploads.set_error(upload, str(error))
             self.runs.update_progress(run, run.processed_rows, run.failed_rows, status="failed")
             raise
+
+    def _build_report_with_gemini(
+        self,
+        *,
+        upload_id: int,
+        total_rows: int,
+        analyzer_prompt: str,
+        fallback_insights: List[VocInsight],
+        fallback_buckets: Dict[str, List[VocRow]],
+    ) -> str:
+        cleaned_rows = self._collect_cleaned_rows_for_gemini(upload_id)
+        if not cleaned_rows:
+            return self._build_report(total_rows, fallback_insights, fallback_buckets)
+        try:
+            return self.gemini_client.generate_voc_report(
+                analyzer_prompt=analyzer_prompt,
+                cleaned_rows=cleaned_rows,
+                total_rows=total_rows,
+            )
+        except Exception as error:  # noqa: BLE001
+            logger.warning("voc analysis Gemini fallback to local report. error=%s", error)
+            return self._build_report(total_rows, fallback_insights, fallback_buckets)
+
+    def _collect_cleaned_rows_for_gemini(self, upload_id: int) -> List[Dict[str, str]]:
+        rows = self.rows.list_all_by_upload(upload_id)
+        payload_rows: List[Dict[str, str]] = []
+        for row in rows:
+            if row.status != "cleaned":
+                continue
+            try:
+                payload = json.loads(row.cleaned_content or "{}")
+            except json.JSONDecodeError:
+                continue
+            cleaned_text = str(payload.get("cleaned_text", "")).strip()
+            if not cleaned_text:
+                continue
+            payload_rows.append(
+                {
+                    "row_index": str(row.row_index),
+                    "cleaned_text": cleaned_text,
+                    "language": str(payload.get("language", "")).strip() or "unknown",
+                    "source": str(payload.get("source", "")).strip() or "unknown",
+                }
+            )
+        return payload_rows
 
     def get_report(self, project_id: int):
         self.get_project(project_id)

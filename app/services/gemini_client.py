@@ -93,6 +93,40 @@ class GeminiClient:
     def ensure_ready(self) -> None:
         self._ensure_runtime_ready()
 
+    def generate_voc_report(
+        self,
+        *,
+        analyzer_prompt: str,
+        cleaned_rows: List[dict],
+        total_rows: int,
+    ) -> str:
+        self._ensure_runtime_ready()
+        normalized_rows = [row for row in cleaned_rows if isinstance(row, dict)]
+        if not normalized_rows:
+            raise GeminiResponseError("VOC analyzer input is empty.")
+
+        max_rows = 1200
+        rows_for_prompt = normalized_rows[:max_rows]
+        payload = json.dumps(rows_for_prompt, ensure_ascii=True)
+        prompt = (
+            "You are generating a VOC report from cleaned customer feedback rows.\n"
+            "Follow the analyzer system prompt below strictly.\n"
+            "Return markdown only. Do not wrap the output in code fences.\n"
+            f"Total uploaded rows: {total_rows}\n"
+            f"Cleaned rows supplied to analyzer: {len(rows_for_prompt)}\n"
+            "Analyzer system prompt:\n"
+            f"{analyzer_prompt}\n"
+            "Cleaned rows JSON:\n"
+            f"{payload}\n"
+        )
+        raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=prompt)
+        normalized = raw.strip()
+        if normalized.startswith("```"):
+            normalized = self._extract_fenced_payload(normalized).strip()
+        if not normalized:
+            raise GeminiResponseError("Gemini VOC report output is empty.")
+        return normalized
+
     def chat_about_video(self, *, context: str, question: str, language: str) -> ChatOutput:
         self._ensure_runtime_ready()
         logger.info(
@@ -535,8 +569,8 @@ class GeminiClient:
         *,
         target_output_language: str,
         summary: str,
-        highlights: List[str],
-        lowlights: List[str],
+        highlights: List[dict],
+        lowlights: List[dict],
     ) -> dict:
         if target_output_language not in {"en", "zh-hans"}:
             return {}
@@ -557,8 +591,8 @@ class GeminiClient:
             parsed = self._parse_json_payload(raw=raw, context="comments language normalization")
             return {
                 "summary": str(parsed.get("summary", summary)).strip() or summary,
-                "highlights": self._normalize_point_list(parsed.get("highlights")) or highlights,
-                "lowlights": self._normalize_point_list(parsed.get("lowlights")) or lowlights,
+                "highlights": self._normalize_comment_points(parsed.get("highlights")) or highlights,
+                "lowlights": self._normalize_comment_points(parsed.get("lowlights")) or lowlights,
             }
         except Exception as error:  # noqa: BLE001
             logger.warning("comments language normalization failed: %s", error)
@@ -654,9 +688,29 @@ class GeminiClient:
     @staticmethod
     def _comments_from_parsed(*, parsed: dict) -> CommentsAnalysisOutput:
         summary = str(parsed.get("summary", "")).strip()
-        highlights = GeminiClient._normalize_point_list(parsed.get("highlights"))[:3]
-        lowlights = GeminiClient._normalize_point_list(parsed.get("lowlights"))[:3]
+        highlights = GeminiClient._normalize_comment_points(parsed.get("highlights"))
+        lowlights = GeminiClient._normalize_comment_points(parsed.get("lowlights"))
         return CommentsAnalysisOutput(summary=summary, highlights=highlights, lowlights=lowlights)
+
+    @staticmethod
+    def _normalize_comment_points(value: Any) -> List[dict]:
+        if not isinstance(value, list):
+            return []
+        normalized = []
+        for item in value:
+            if isinstance(item, dict):
+                point = str(item.get("point", "")).strip()
+                quote = str(item.get("quote", "")).strip()
+                if not point and quote:
+                    point = quote
+                if not point:
+                    continue
+                normalized = [*normalized, {"point": point, "quote": quote}]
+                continue
+            point_text = str(item).strip()
+            if point_text:
+                normalized = [*normalized, {"point": point_text, "quote": ""}]
+        return normalized[:3]
 
     @staticmethod
     def _normalize_citations(value: Any) -> List[dict]:
@@ -802,15 +856,21 @@ class GeminiClient:
     @staticmethod
     def _build_comments_sentiment_prompt(*, title: str, language: str, comments_bullets: str) -> str:
         return (
-            "You are summarizing user sentiment from YouTube comments for a product video.\n"
+            "You are a neutral analyst summarizing user sentiment from YouTube comments for a product video.\n"
             "Return strict JSON with keys: summary, highlights, lowlights.\n"
             "Rules:\n"
-            "- summary must be 2 to 3 concise sentences.\n"
-            "- highlights is a list of up to 3 positive points users mentioned.\n"
-            "- lowlights is a list of up to 3 negative points users mentioned.\n"
+            "- Be unbiased and fact-based. Reflect only what appears in comments.\n"
+            "- Do not advocate for or against the product. Do not use hype or loaded language.\n"
+            "- summary must be 2 to 3 concise sentences and should reflect both positive and negative signals proportionally.\n"
+            "- If evidence is mixed or limited, explicitly say uncertainty or mixed sentiment in summary.\n"
+            "- highlights is a list of up to 3 objects: {point, quote}.\n"
+            "- lowlights is a list of up to 3 objects: {point, quote}.\n"
+            "- point should be a concise takeaway in your own words.\n"
+            "- quote must be a short, verbatim snippet from a real user comment.\n"
             "- If no positive points are present, return highlights as [].\n"
             "- If no negative points are present, return lowlights as [].\n"
-            "- Do not invent claims that are not in the comments.\n"
+            "- Do not invent claims that are not in the comments. Do not infer causes not explicitly mentioned.\n"
+            "- Avoid duplicate points. Prioritize most repeated or strongly evidenced themes.\n"
             f"Preferred answer language: {language}\n"
             f"Video title: {title}\n"
             f"Comments:\n{comments_bullets}\n"

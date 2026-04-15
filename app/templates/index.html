@@ -63,8 +63,6 @@
           </div>
         </header>
 
-        <div id="app-message" class="app-message is-hidden" role="status" aria-live="polite"></div>
-
         <main class="content">
           <section id="dashboard" class="panel active">
             <div class="panel-header">
@@ -301,7 +299,7 @@
                     <h3>Select Project</h3>
                   </div>
                   <label>
-                    Project
+                    <span id="voc-project-label">Project</span>
                     <select id="voc-project-select"></select>
                   </label>
                 </section>
@@ -345,6 +343,8 @@
                   </div>
                   <div class="button-row">
                     <button id="voc-analyze-btn" class="btn btn-primary" type="button">Start Analysis</button>
+                    <button id="voc-rerun-analyze-btn" class="btn btn-secondary" type="button">Re-run Analysis</button>
+                    <button id="voc-clear-analysis-btn" class="btn btn-secondary" type="button">Clean Result</button>
                   </div>
                   <div id="voc-analysis-meta" class="meta"></div>
                 </section>
@@ -511,6 +511,32 @@
                 </select>
               </div>
             </section>
+            <details id="all-videos-details" class="pane settings-pane all-videos-details" style="margin-top: 20px;">
+              <summary class="all-videos-summary">
+                <span class="material-symbols-outlined all-videos-chevron" aria-hidden="true">expand_more</span>
+                <span id="all-videos-summary-label">All videos</span>
+                <span id="all-videos-meta" class="meta"></span>
+              </summary>
+              <div class="settings-body all-videos-body">
+                <p id="all-videos-help" class="meta" style="margin-bottom: 12px;">
+                  Every monitored video across all projects. Deleting a row removes it completely.
+                </p>
+                <div class="all-videos-table-wrap">
+                  <table class="all-videos-table">
+                    <thead>
+                      <tr>
+                        <th id="all-videos-col-project">Project</th>
+                        <th id="all-videos-col-video">Video</th>
+                        <th id="all-videos-col-channel">Channel</th>
+                        <th id="all-videos-col-link">Link</th>
+                        <th id="all-videos-col-actions">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="all-videos-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
             <section id="agent-settings-pane" class="pane settings-pane" style="margin-top: 20px;">
               <div class="pane-header">
                 <h3>Agent Settings</h3>
@@ -682,6 +708,8 @@
             </section>
           </section>
         </main>
+
+        <div id="app-message" class="app-message is-hidden" role="status" aria-live="polite"></div>
 
         <nav class="mobile-nav">
           <button class="nav-btn active" data-section="dashboard" type="button">Dashboard</button>

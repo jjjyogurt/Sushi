@@ -32,3 +32,18 @@ class TranscriptUnavailableError(TranscriptError):
 
 class TranscriptProviderError(TranscriptError):
     """Raised when transcript provider returns an unexpected failure."""
+
+
+class VideoProjectConflictError(ValueError):
+    """Raised when a YouTube video is already owned by a different monitor profile."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        existing_video_id: int,
+        existing_monitor_profile_id: int,
+    ):
+        super().__init__(message)
+        self.existing_video_id = existing_video_id
+        self.existing_monitor_profile_id = existing_monitor_profile_id

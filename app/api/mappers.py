@@ -10,6 +10,26 @@ from app.schemas.video import VideoResponse
 from app.utils.json_codec import decode_json
 
 
+def normalize_comment_points(raw_points):
+    if not isinstance(raw_points, list):
+        return []
+    normalized = []
+    for item in raw_points:
+        if isinstance(item, dict):
+            point = str(item.get("point", "")).strip()
+            quote = str(item.get("quote", "")).strip()
+            if not point and quote:
+                point = quote
+            if not point:
+                continue
+            normalized = [*normalized, {"point": point, "quote": quote}]
+            continue
+        point_text = str(item).strip()
+        if point_text:
+            normalized = [*normalized, {"point": point_text, "quote": ""}]
+    return normalized[:3]
+
+
 def map_monitor_response(model: MonitorProfile) -> MonitorProfileResponse:
     return MonitorProfileResponse(
         id=model.id,
@@ -76,16 +96,8 @@ def map_analysis_response(model: AnalysisResult) -> AnalysisResponse:
 
     raw_comment_highlights = decode_json(model.comment_highlights_json, [])
     raw_comment_lowlights = decode_json(model.comment_lowlights_json, [])
-    comment_highlights = (
-        [item for item in [str(value).strip() for value in raw_comment_highlights] if item][:3]
-        if isinstance(raw_comment_highlights, list)
-        else []
-    )
-    comment_lowlights = (
-        [item for item in [str(value).strip() for value in raw_comment_lowlights] if item][:3]
-        if isinstance(raw_comment_lowlights, list)
-        else []
-    )
+    comment_highlights = normalize_comment_points(raw_comment_highlights)
+    comment_lowlights = normalize_comment_points(raw_comment_lowlights)
 
     return AnalysisResponse(
         id=model.id,

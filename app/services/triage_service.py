@@ -7,6 +7,7 @@ from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.video_repository import VideoRepository
+from app.services.exceptions import VideoProjectConflictError
 from app.services.relevance_service import RelevanceService
 from app.services.types import DiscoveredVideo
 from app.services.youtube_discovery_service import YouTubeDiscoveryService
@@ -49,7 +50,11 @@ class TriageService:
                 "A video can only belong to one project."
             )
             if raise_on_conflict:
-                raise ValueError(error_message)
+                raise VideoProjectConflictError(
+                    error_message,
+                    existing_video_id=existing.id,
+                    existing_monitor_profile_id=existing.monitor_profile_id,
+                )
             return None
 
         return self.video_repository.upsert_candidate(

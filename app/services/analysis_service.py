@@ -484,8 +484,8 @@ class AnalysisService:
         lowlights = decode_json(result.comment_lowlights_json, [])
         return CommentsAnalysisOutput(
             summary=result.comment_summary_text,
-            highlights=[str(item).strip() for item in highlights if str(item).strip()] if isinstance(highlights, list) else [],
-            lowlights=[str(item).strip() for item in lowlights if str(item).strip()] if isinstance(lowlights, list) else [],
+            highlights=AnalysisService._normalize_comment_points(highlights),
+            lowlights=AnalysisService._normalize_comment_points(lowlights),
         )
 
     @staticmethod
@@ -504,6 +504,26 @@ class AnalysisService:
         target.confidence_score = source.confidence_score
         target.evidence_json = source.evidence_json
         target.insights_json = source.insights_json
+
+    @staticmethod
+    def _normalize_comment_points(raw_points):
+        if not isinstance(raw_points, list):
+            return []
+        normalized = []
+        for item in raw_points:
+            if isinstance(item, dict):
+                point = str(item.get("point", "")).strip()
+                quote = str(item.get("quote", "")).strip()
+                if not point and quote:
+                    point = quote
+                if not point:
+                    continue
+                normalized = [*normalized, {"point": point, "quote": quote}]
+                continue
+            fallback_point = str(item).strip()
+            if fallback_point:
+                normalized = [*normalized, {"point": fallback_point, "quote": ""}]
+        return normalized[:3]
 
     @staticmethod
     def _is_location_restricted_error(error: Exception) -> bool:
