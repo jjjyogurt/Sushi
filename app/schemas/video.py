@@ -22,6 +22,10 @@ class VideoApproveRequest(BaseModel):
     approved: bool
 
 
+class VideoAssigneeUpdateRequest(BaseModel):
+    assigned_user_id: Optional[str] = Field(default=None, max_length=80)
+
+
 class VideoSearchRequest(BaseModel):
     monitor_profile_id: int
     query: str = Field(min_length=2, max_length=160)
@@ -77,6 +81,8 @@ class VideoResponse(TimestampedResponse):
     queue_state: QueueState
     sentiment_label: Optional[Sentiment] = None
     latest_analysis_status: Optional[AnalysisStatus] = None
+    is_bookmarked: bool = False
+    assigned_user_id: Optional[str] = None
 
 
 class VideoListResponse(BaseModel):

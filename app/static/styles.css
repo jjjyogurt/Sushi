@@ -207,6 +207,19 @@ body {
   object-fit: cover;
 }
 
+.user-avatar-account {
+  width: auto;
+  min-width: 84px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #2d3435;
+}
+
 .form-grid {
   display: flex;
   flex-direction: column;
@@ -1544,13 +1557,11 @@ body {
 }
 
 .video-search-panel {
-  margin-bottom: 24px;
-  padding: 12px;
-  box-shadow: none;
+  margin-bottom: 16px;
 }
 
 .video-search-controls {
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .search-bar-row {
@@ -1573,6 +1584,10 @@ body {
   border-color: #2d3435;
   outline: none;
   box-shadow: none;
+}
+
+.search-bar-row .btn {
+  min-height: 40px;
 }
 
 /* Subtle Success Animation */
@@ -1694,7 +1709,7 @@ body {
 }
 
 .video-list-row .video-item {
-  padding-right: 44px;
+  padding-right: 78px;
 }
 
 .video-item-delete-btn {
@@ -1704,13 +1719,32 @@ body {
   opacity: 0.45;
 }
 
+.video-item-watch-btn {
+  position: absolute;
+  top: 8px;
+  right: 38px;
+  opacity: 0.55;
+}
+
+.video-item-watch-btn .material-symbols-outlined {
+  font-size: 1.05rem;
+  color: #6b7374;
+}
+
+.video-item-watch-btn.is-bookmarked .material-symbols-outlined {
+  color: #2d3435;
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20;
+}
+
 .video-item-delete-btn .material-symbols-outlined {
   font-size: 1.05rem;
   color: var(--danger);
 }
 
 .video-list-row:hover .video-item-delete-btn,
-.video-list-row.active .video-item-delete-btn {
+.video-list-row:hover .video-item-watch-btn,
+.video-list-row.active .video-item-delete-btn,
+.video-list-row.active .video-item-watch-btn {
   opacity: 1;
 }
 
@@ -1733,6 +1767,93 @@ body {
 
 .mobile-nav {
   display: none;
+}
+
+.watchlist-pane {
+  padding: 0;
+}
+
+.watchlist-row {
+  position: relative;
+}
+
+.watchlist-open-btn {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  text-align: left;
+  padding: 12px 44px 12px 12px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.watchlist-open-btn:hover {
+  background: #f6f8f8;
+}
+
+.watchlist-open-btn h4 {
+  margin: 0 0 4px;
+  font-size: 0.92rem;
+  color: #2d3435;
+}
+
+.watchlist-remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0.55;
+}
+
+.watchlist-remove-btn .material-symbols-outlined {
+  font-size: 1.05rem;
+  color: #6b7374;
+}
+
+.watchlist-row:hover .watchlist-remove-btn {
+  opacity: 1;
+}
+
+.watchlist-assignee {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.auth-gate {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 25, 26, 0.4);
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-gate.is-hidden {
+  display: none;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+  display: grid;
+  gap: 14px;
+}
+
+.auth-card h2 {
+  margin: 0;
+}
+
+.auth-card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 .voc-toolbar {
@@ -1980,7 +2101,7 @@ body {
 
   .mobile-nav {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 6px;
     position: fixed;
     bottom: 0;

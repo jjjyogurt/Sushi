@@ -1,5 +1,7 @@
 from app.models.audit_log import AuditLog
 from app.models.analysis_result import AnalysisResult
+from app.models.app_user import AppUser
+from app.models.auth_session import AuthSession
 from app.models.chat import ChatMessage, ChatSession
 from app.models.incident import Alert, Incident
 from app.models.knowledge_base import KnowledgeBase
@@ -18,12 +20,16 @@ from app.models.voc_template_version import VocTemplateVersion
 from app.models.voc_upload import VocUpload
 from app.models.video_candidate import VideoCandidate
 from app.models.video_comment import VideoComment
+from app.models.video_watchlist_entry import VideoWatchlistEntry
 
 __all__ = [
     "AuditLog",
     "MonitorProfile",
     "VideoCandidate",
     "VideoComment",
+    "AppUser",
+    "AuthSession",
+    "VideoWatchlistEntry",
     "VocProject",
     "VocUpload",
     "VocRow",

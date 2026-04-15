@@ -1,9 +1,10 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from app.repositories.analysis_repository import AnalysisRepository
+from app.repositories.app_user_repository import AppUserRepository
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.video_repository import VideoRepository
@@ -17,6 +18,7 @@ from app.utils.youtube import extract_video_id, fetch_oembed_metadata
 class TriageService:
     def __init__(self, session: Session):
         self.analysis_repository = AnalysisRepository(session)
+        self.app_user_repository = AppUserRepository(session)
         self.audit_repository = AuditRepository(session)
         self.monitor_repository = MonitorRepository(session)
         self.video_repository = VideoRepository(session)
@@ -119,12 +121,14 @@ class TriageService:
         queue_state=None,
         risk_level: str = None,
         sentiment: str = None,
+        title_query: str = None,
     ):
         return self.video_repository.list(
             monitor_profile_id=monitor_profile_id,
             queue_state=queue_state,
             risk_level=risk_level,
             sentiment=sentiment,
+            title_query=title_query,
         )
 
     def search_candidates(self, *, monitor_profile_id: int, query: str, max_results: int) -> List[dict]:
@@ -227,6 +231,32 @@ class TriageService:
             action="approve_video" if approved else "reject_video",
             resource_type="video_candidate",
             resource_id=str(video_id),
+        )
+        return candidate
+
+    def assign_video(self, *, video_id: int, assigned_user_id: Optional[str], actor: str):
+        normalized_assignee = (assigned_user_id or "").strip()
+        if normalized_assignee:
+            app_user = self.app_user_repository.get(normalized_assignee)
+            if app_user is None or not app_user.is_active:
+                raise ValueError("Assigned user not found.")
+        existing = self.video_repository.get_by_id(video_id)
+        if existing is None:
+            raise ValueError("Video candidate not found.")
+        previous_assignee = existing.assigned_user_id or ""
+        candidate = self.video_repository.assign_user(
+            video_id=video_id,
+            assigned_user_id=normalized_assignee or None,
+            actor=actor,
+        )
+        if candidate is None:
+            raise ValueError("Video candidate not found.")
+        self.audit_repository.record(
+            actor=actor,
+            action="assign_video",
+            resource_type="video_candidate",
+            resource_id=str(video_id),
+            details=f"from={previous_assignee or 'none'} to={normalized_assignee or 'none'}",
         )
         return candidate
 

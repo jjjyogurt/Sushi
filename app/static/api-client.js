@@ -23,6 +23,7 @@ export async function request(path, options = {}) {
   const computedHeaders = hasFormDataBody ? { ...headers } : { "Content-Type": "application/json", ...headers };
   const response = await fetch(path, {
     headers: computedHeaders,
+    credentials: "same-origin",
     ...rest,
   });
 
@@ -32,6 +33,13 @@ export async function request(path, options = {}) {
     throw new ApiError(messageFromDetail(rawDetail), { status: response.status, detail: rawDetail });
   }
 
+  if (response.status === 204) {
+    return {};
+  }
+  const responseType = response.headers.get("content-type") || "";
+  if (!responseType.includes("application/json")) {
+    return {};
+  }
   return response.json();
 }
 

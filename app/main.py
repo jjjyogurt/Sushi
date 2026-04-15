@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 
 import app.models  # noqa: F401
 from app.api.agent_settings_router import router as agent_settings_router
+from app.api.auth_router import router as auth_router
 from app.api.chat_router import router as chat_router
 from app.api.health_router import router as health_router
 from app.api.incident_router import router as incident_router
@@ -12,11 +13,14 @@ from app.api.knowledge_router import router as knowledge_router
 from app.api.monitor_router import router as monitor_router
 from app.api.video_router import router as video_router
 from app.api.voc_router import router as voc_router
+from app.api.watchlist_router import router as watchlist_router
 from app.db_migrations import (
     ensure_analysis_results_comment_columns,
     ensure_analysis_results_language_column_and_index,
     ensure_analysis_results_summary_columns,
+    ensure_default_app_users,
     ensure_monitor_profiles_key_products_column,
+    ensure_video_candidate_assignment_columns,
     ensure_video_comments_table,
 )
 from app.db import engine
@@ -33,6 +37,8 @@ ensure_analysis_results_summary_columns(engine)
 ensure_analysis_results_language_column_and_index(engine)
 ensure_analysis_results_comment_columns(engine)
 ensure_video_comments_table(engine)
+ensure_video_candidate_assignment_columns(engine)
+ensure_default_app_users(engine)
 
 
 @app.on_event("startup")
@@ -43,6 +49,8 @@ def on_startup() -> None:
     ensure_analysis_results_language_column_and_index(engine)
     ensure_analysis_results_comment_columns(engine)
     ensure_video_comments_table(engine)
+    ensure_video_candidate_assignment_columns(engine)
+    ensure_default_app_users(engine)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -60,7 +68,9 @@ app.include_router(video_router)
 app.include_router(chat_router)
 app.include_router(incident_router)
 app.include_router(health_router)
+app.include_router(auth_router)
 app.include_router(agent_settings_router)
 app.include_router(knowledge_router)
 app.include_router(voc_router)
+app.include_router(watchlist_router)
 

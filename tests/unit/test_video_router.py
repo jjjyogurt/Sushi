@@ -197,6 +197,37 @@ def test_list_videos_supports_risk_and_sentiment_filters(client, api_db_session,
     assert [item["youtube_video_id"] for item in sentiment_items] == ["router-filter-match"]
 
 
+def test_list_videos_supports_title_filter(client, api_db_session, api_monitor_profile):
+    repository = VideoRepository(api_db_session)
+    repository.upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="router-title-match",
+        video_url="https://youtu.be/router-title-match",
+        title="HoverAir X1 Pro Review",
+        channel_name="CreatorMatch",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.6,
+        relevance_reason="seed",
+    )
+    repository.upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="router-title-miss",
+        video_url="https://youtu.be/router-title-miss",
+        title="Potensic Atom Comparison",
+        channel_name="CreatorMiss",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+
+    response = client.get("/videos?monitor_profile_id={}&title=hoverair%20x1".format(api_monitor_profile.id))
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [item["youtube_video_id"] for item in items] == ["router-title-match"]
+
+
 def test_search_and_bulk_add_endpoints(client, api_monitor_profile):
     settings = get_settings()
     original = settings.enable_mock_discovery

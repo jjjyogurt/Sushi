@@ -1,6 +1,6 @@
 import { ApiError } from "./api-client.js";
 import { syncProjectRoute } from "./router-state.js";
-import { escapeHtml, formatLanguageLabel, getElement } from "./ui-utils.js";
+import { debounce, escapeHtml, formatLanguageLabel, getElement } from "./ui-utils.js";
 import { t } from "./i18n.js";
 
 const MAX_MANUAL_VIDEO_URLS = 100;
@@ -20,13 +20,6 @@ function sentimentBadge(sentimentLabel) {
   }
   const css = sentimentLabel === "negative" ? "negative" : sentimentLabel === "positive" ? "positive" : "";
   return `<span class="badge ${css}">${escapeHtml(sentimentLabel)}</span>`;
-}
-
-function videoStatusLabel(candidate) {
-  if (candidate.can_add) {
-    return `<span class="badge positive">${escapeHtml(t("addable"))}</span>`;
-  }
-  return `<span class="badge neutral">${escapeHtml(candidate.block_reason || t("unavailable"))}</span>`;
 }
 
 function parseManualVideoUrls(rawValue) {
@@ -67,6 +60,14 @@ function updateManualUrlInputRows(inputElement) {
   inputElement.style.overflowY = urlCount > MAX_VISIBLE_MANUAL_URL_ROWS ? "auto" : "hidden";
 }
 
+function getKeywordSearchValue() {
+  const searchInput = getElement("keyword-search-input");
+  if (!(searchInput instanceof HTMLInputElement || searchInput instanceof HTMLTextAreaElement)) {
+    return "";
+  }
+  return searchInput.value.trim();
+}
+
 export function createQueueController({
   getState,
   setState,
@@ -75,6 +76,7 @@ export function createQueueController({
   videoDetailController,
   onProfileSelectionChange,
   onAnyVideoAction,
+  onWatchlistMutated,
 }) {
   function renderProfileSelect() {
     const profileSelect = getElement("profile-select");
@@ -98,6 +100,12 @@ export function createQueueController({
     const projectMeta = isGlobalScope && video.monitor_profile_name ? ` • ${escapeHtml(video.monitor_profile_name)}` : "";
     const sentimentMarkup = sentimentBadge(video.sentiment_label);
     const newBadgeMarkup = isNew ? `<span class="badge new-video-badge">${escapeHtml(t("new"))}</span>` : "";
+    const assigneeText = String(video.assigned_user_id || "").trim();
+    const assigneeMarkup = assigneeText
+      ? `<span class="meta watchlist-assignee">${escapeHtml(t("assignee"))}: ${escapeHtml(assigneeText)}</span>`
+      : "";
+    const watchTitle = video.is_bookmarked ? t("removeFromWatchlist") : t("addToWatchlist");
+    const watchIcon = video.is_bookmarked ? "bookmark" : "bookmark_add";
     return `
       <div class="video-list-row ${isActive ? "active" : ""}">
         <button class="video-item ${isActive ? "active" : ""}" data-video-id="${video.id}" type="button">
@@ -106,11 +114,21 @@ export function createQueueController({
             ${newBadgeMarkup}
             ${sentimentMarkup}
             <span class="meta">${escapeHtml(video.channel_name)}${projectMeta}</span>
+            ${assigneeMarkup}
           </div>
           <h4>${escapeHtml(video.title)}</h4>
           <div class="meta">
             ${escapeHtml(formatLanguageLabel(video.language))}
           </div>
+        </button>
+        <button
+          class="icon-btn video-item-watch-btn ${video.is_bookmarked ? "is-bookmarked" : ""}"
+          type="button"
+          data-watchlist-video-id="${video.id}"
+          aria-label="${escapeHtml(watchTitle)}"
+          title="${escapeHtml(watchTitle)}"
+        >
+          <span class="material-symbols-outlined">${watchIcon}</span>
         </button>
         <button
           class="icon-btn video-item-delete-btn"
@@ -180,50 +198,14 @@ export function createQueueController({
     if (!candidateList) {
       return;
     }
-    const state = getState();
-
-    if (state.searchCandidates.length === 0) {
-      candidateList.innerHTML = "";
-      return;
-    }
-
-    candidateList.innerHTML = state.searchCandidates
-      .map((candidate) => {
-        const addLabel = candidate.can_add ? t("add") : t("added");
-        return `
-          <div class="candidate-row ${candidate.can_add ? "" : "is-disabled"}">
-            <div class="candidate-body">
-              <div class="candidate-title">${escapeHtml(candidate.title)}</div>
-              <div class="meta">${escapeHtml(candidate.channel_name)} • ${escapeHtml(
-          formatLanguageLabel(candidate.language)
-        )}</div>
-              <div class="candidate-status-row">
-                ${videoStatusLabel(candidate)}
-                <div class="candidate-status-actions">
-                  <a href="${escapeHtml(candidate.video_url)}" target="_blank" rel="noreferrer">${escapeHtml(
-                    t("preview")
-                  )} ↗</a>
-                  <button
-                    class="btn btn-secondary btn-sm"
-                    type="button"
-                    data-candidate-add-id="${escapeHtml(candidate.youtube_video_id)}"
-                    ${candidate.can_add ? "" : "disabled"}
-                  >
-                    ${addLabel}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      })
-      .join("");
+    candidateList.innerHTML = "";
   }
 
   async function refreshVideos() {
     const state = getState();
     const riskFilter = (getElement("risk-filter")?.value || "").trim();
     const sentimentFilter = (getElement("sentiment-filter")?.value || "").trim();
+    const titleFilter = getKeywordSearchValue();
     const query = new URLSearchParams();
     if (state.selectedProfileId) {
       query.set("monitor_profile_id", String(state.selectedProfileId));
@@ -233,6 +215,9 @@ export function createQueueController({
     }
     if (sentimentFilter) {
       query.set("sentiment", sentimentFilter);
+    }
+    if (titleFilter) {
+      query.set("title", titleFilter);
     }
 
     const data = await request(`/videos?${query.toString()}`);
@@ -352,34 +337,12 @@ export function createQueueController({
     }
   }
 
-  async function searchCandidatesByKeyword() {
-    const state = getState();
-    if (!state.selectedProfileId) {
-      throw new Error(t("errorSelectProjectFirst"));
-    }
-    const searchInput = getElement("keyword-search-input");
-    if (!searchInput) {
-      return;
-    }
-    const query = searchInput.value.trim();
-    if (!query) {
-      throw new Error(t("errorTypeSearchKeywords"));
-    }
-
-    const payload = await request("/videos/search", {
-      method: "POST",
-      body: JSON.stringify({
-        monitor_profile_id: state.selectedProfileId,
-        query,
-        max_results: 20,
-      }),
-    });
-
+  async function searchVideosByKeyword() {
     setState((previous) => ({
       ...previous,
-      searchCandidates: Array.isArray(payload.items) ? payload.items : [],
+      searchCandidates: [],
     }));
-    renderSearchCandidates();
+    await refreshVideos();
   }
 
   function candidateToPayload(candidate) {
@@ -515,6 +478,37 @@ export function createQueueController({
     await refreshVideos();
   }
 
+  async function toggleWatchlist(videoId) {
+    const state = getState();
+    const targetVideo = state.videos.find((video) => video.id === videoId);
+    if (!targetVideo) {
+      return;
+    }
+    const isBookmarked = Boolean(targetVideo.is_bookmarked);
+    const endpoint = `/watchlist/videos/${videoId}`;
+    if (isBookmarked) {
+      await request(endpoint, { method: "DELETE" });
+    } else {
+      await request(endpoint, { method: "POST" });
+    }
+    setState((previous) => ({
+      ...previous,
+      videos: previous.videos.map((video) =>
+        video.id === videoId
+          ? {
+              ...video,
+              is_bookmarked: !isBookmarked,
+            }
+          : video
+      ),
+    }));
+    renderVideos();
+    await onWatchlistMutated?.();
+    if (getState().selectedVideoId === videoId) {
+      await videoDetailController.renderVideoDetail();
+    }
+  }
+
   function selectVideo(videoId) {
     setState((previous) => ({
       ...previous,
@@ -540,6 +534,16 @@ export function createQueueController({
             void runTask(async () => {
               await deleteVideo(deleteVideoId);
             }, t("videoDeleted"));
+          }
+          return;
+        }
+        const watchlistButton = target.closest("[data-watchlist-video-id]");
+        if (watchlistButton instanceof HTMLElement) {
+          const watchlistVideoId = Number(watchlistButton.dataset.watchlistVideoId);
+          if (!Number.isNaN(watchlistVideoId)) {
+            void runTask(async () => {
+              await toggleWatchlist(watchlistVideoId);
+            }, t(watchlistButton.classList.contains("is-bookmarked") ? "removedFromWatchlist" : "addedToWatchlist"));
           }
           return;
         }
@@ -631,18 +635,26 @@ export function createQueueController({
     if (keywordSearchButton) {
       keywordSearchButton.addEventListener("click", () => {
         void runTask(async () => {
-          await searchCandidatesByKeyword();
+          await searchVideosByKeyword();
         }, t("searchCompleted"));
       });
     }
 
     const keywordSearchInput = getElement("keyword-search-input");
     if (keywordSearchInput) {
+      const debouncedSearch = debounce(() => {
+        void runTask(async () => {
+          await searchVideosByKeyword();
+        });
+      }, 280);
+      keywordSearchInput.addEventListener("input", () => {
+        debouncedSearch();
+      });
       keywordSearchInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           event.preventDefault();
           void runTask(async () => {
-            await searchCandidatesByKeyword();
+            await searchVideosByKeyword();
           }, t("searchCompleted"));
         }
       });

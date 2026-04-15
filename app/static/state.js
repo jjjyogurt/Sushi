@@ -6,6 +6,8 @@ function initialState() {
     editingProjectId: null,
     videos: [],
     selectedVideoId: null,
+    currentUser: null,
+    appUsers: [],
     tokenInputs: {
       markets: [],
       languages: [],

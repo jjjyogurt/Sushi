@@ -181,3 +181,38 @@
 - Changes: Updated `app/static/video-detail.js` with optimistic user/assistant chat entries, sending/disabled composer state, Enter-to-send, inline error + retry, and unified chat `user_id`; added i18n and chat error styling.
 - Check: `python3 -m pytest tests/unit/test_analysis_service.py tests/unit/test_api_mappers.py tests/unit/test_voc_service.py` (9 passed); ReadLints clean for touched static files.
 - Next: Hard refresh UI and verify chat send flow visually (input clears, “Sending...” appears, reply renders, retry works on failure).
+
+## 2026-04-15 11:48
+
+- Task: Build account auth, Watch list, and assignee workflow across API + UI.
+- Changes: Added auth/session + watchlist models/routes/services, assignee patch endpoint, queue/detail bookmark controls, Watch list panel, login gate, i18n, and styling updates.
+- Check: `python3 -m pytest tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py` (10 passed); ReadLints clean.
+- Next: Optional follow-up: resolve existing `tests/unit/test_gemini_client.py` failures on this branch.
+
+## 2026-04-15 14:06
+
+- Task: Remove Watch list text from detail bookmark action button.
+- Changes: Updated `app/static/video-detail.js` bookmark toggle to icon-only using `btn-icon-only`, with accessible `aria-label` and tooltip preserved.
+- Check: ReadLints on edited file (no issues).
+- Next: Confirm in browser if sidebar Watch list label should also be icon-only.
+
+## 2026-04-15 14:35
+
+- Task: Fix project search to match existing video list titles and clean the search UI.
+- Changes: Added `title` filter plumbing (`video_router` -> `triage_service` -> `video_repository` normalized title contains), rewired queue search to refresh `/videos` with title query, removed candidate strip markup, and tightened search bar spacing.
+- Check: `python3 -m pytest -p no:cacheprovider tests/unit/test_video_repository.py tests/unit/test_video_router.py` (15 passed); ReadLints clean.
+- Next: Browser smoke-test keyword typing/search button in Project page for both project and global queue scopes.
+
+## 2026-04-15 16:06
+
+- Task: Add Garry Tan-style GSTACK QA skill for founder-mode product review.
+- Changes: Created `.cursor/skills/gstack-qa/SKILL.md` with trigger terms, GSTACK framework, 10-star planning ladder, and reusable output template.
+- Check: `ReadLints` on `.cursor/skills/gstack-qa/SKILL.md` (no issues).
+- Next: Invoke with prompts like "run gstack qa on this feature" for strategic critique before implementation.
+
+## 2026-04-15 16:16
+
+- Task: Update alpha QA plan and run release-readiness testing.
+- Changes: Expanded `.cursor` alpha QA plan with full P0/P1/P2 case catalog, release gates, and kill criteria; executed core and full unit suites.
+- Check: `python3 -m pytest tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_gemini_client.py`; `python3 -m pytest tests/unit` (5 failures in `test_gemini_client.py`).
+- Next: Align `GeminiClient.analyze_video` call contract with tests/analysis flow and rerun alpha gate.

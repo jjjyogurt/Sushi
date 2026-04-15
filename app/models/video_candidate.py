@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import DateTime, Enum, Float, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,6 +28,9 @@ class VideoCandidate(TimestampMixin, Base):
     relevance_score: Mapped[float] = mapped_column(Float, default=0.0)
     relevance_reason: Mapped[str] = mapped_column(Text, default="")
     queue_state: Mapped[QueueState] = mapped_column(Enum(QueueState), default=QueueState.DISCOVERED, nullable=False)
+    assigned_user_id: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    assigned_by: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    assigned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     monitor_profile = relationship("MonitorProfile")
 

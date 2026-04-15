@@ -3,6 +3,7 @@ from typing import List, Optional
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from app.models.video_watchlist_entry import VideoWatchlistEntry
 from app.models.enums import QueueState
 from app.models.video_candidate import VideoCandidate
 from app.utils.text import normalize_title, title_fingerprint
@@ -81,9 +82,26 @@ class VideoRepository:
         candidate = self.get_by_id(video_id)
         if candidate is None:
             return False
+        self.session.query(VideoWatchlistEntry).filter(
+            VideoWatchlistEntry.video_candidate_id == video_id
+        ).delete(synchronize_session=False)
         self.session.delete(candidate)
         self.session.commit()
         return True
+
+    def assign_user(self, *, video_id: int, assigned_user_id: Optional[str], actor: str) -> Optional[VideoCandidate]:
+        from datetime import datetime, timezone
+
+        candidate = self.get_by_id(video_id)
+        if candidate is None:
+            return None
+        normalized_user = (assigned_user_id or "").strip()
+        candidate.assigned_user_id = normalized_user
+        candidate.assigned_by = actor if normalized_user else ""
+        candidate.assigned_at = datetime.now(timezone.utc) if normalized_user else None
+        self.session.commit()
+        self.session.refresh(candidate)
+        return candidate
 
     def list(
         self,
@@ -92,6 +110,7 @@ class VideoRepository:
         queue_state: Optional[QueueState] = None,
         risk_level: Optional[str] = None,
         sentiment: Optional[str] = None,
+        title_query: Optional[str] = None,
     ) -> List[VideoCandidate]:
         from app.models.analysis_result import AnalysisResult
         from sqlalchemy import and_, func
@@ -130,6 +149,10 @@ class VideoRepository:
             query = query.filter(VideoCandidate.monitor_profile_id == monitor_profile_id)
         if queue_state is not None:
             query = query.filter(VideoCandidate.queue_state == queue_state)
+        if title_query:
+            normalized_query = normalize_title(title_query)
+            if normalized_query:
+                query = query.filter(VideoCandidate.normalized_title.contains(normalized_query))
 
         return query.order_by(desc(VideoCandidate.published_at)).all()
 

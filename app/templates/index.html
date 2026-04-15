@@ -28,6 +28,10 @@
             <span class="material-symbols-outlined icon">voice_chat</span>
             VOC
           </button>
+          <button class="nav-btn" data-section="watchlist" type="button">
+            <span class="material-symbols-outlined icon">bookmarks</span>
+            Watch list
+          </button>
           <button class="nav-btn" data-section="alerts" type="button">
             <span class="material-symbols-outlined icon">notifications_active</span>
             Alerts
@@ -57,9 +61,12 @@
             </label>
             <button class="icon-btn"><span class="material-symbols-outlined">notifications</span></button>
             <button class="icon-btn"><span class="material-symbols-outlined">help</span></button>
-            <div class="user-avatar">
-              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTpApU0B2nfiIoaPCWy-3sHi2-I977nDmge-siHswizCLIWwTPvZ-jpxX8NKcx7vf5Z_uPdGHTWP2S5L2V2RkKOaYhJal5RKgaUUvVf-hN_ADM_oPiF7WGa_RWkd8HJCDQKLafMr7bv-nUrZMPl6aj6WQKp2tOyDJlyQYRayTzMiSu0c7aiGdtzyw1khE9okPmFn9wLsA1Mrg8svZL9GR-uwo_1MgeZYYSvdTMnQjHYSRfp7gSPi3csOa4XBjh9f2QgdI4OA7HiY8o" alt="User" />
+            <div class="user-avatar user-avatar-account">
+              <span id="topbar-user-label">-</span>
             </div>
+            <button id="topbar-logout-btn" class="icon-btn" type="button" aria-label="Switch account">
+              <span class="material-symbols-outlined">logout</span>
+            </button>
           </div>
         </header>
 
@@ -413,7 +420,7 @@
               </div>
             </div>
 
-            <div class="video-search-panel pane">
+            <div class="video-search-panel">
               <div class="video-search-controls">
                 <div class="search-bar-row">
                   <input
@@ -425,7 +432,6 @@
                   <button id="search-keyword-btn" class="btn btn-secondary" type="button">Search</button>
                 </div>
               </div>
-              <div id="search-candidate-list" class="search-candidate-list"></div>
             </div>
 
             <div class="queue-layout">
@@ -478,6 +484,25 @@
             </div>
           </section>
 
+          <section id="watchlist" class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Watch list</h2>
+                <p>Quick access to videos you are actively monitoring.</p>
+              </div>
+              <button id="watchlist-refresh-btn" class="btn btn-secondary" type="button">Refresh</button>
+            </div>
+            <section class="pane watchlist-pane">
+              <div class="pane-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <h3>Bookmarked Videos</h3>
+                  <span id="watchlist-count" class="meta">0</span>
+                </div>
+              </div>
+              <div id="watchlist-list" class="video-list"></div>
+            </section>
+          </section>
+
           <section id="alerts" class="panel">
             <div class="panel-header">
               <div>
@@ -509,6 +534,17 @@
                   <option value="en">English</option>
                   <option value="zh">Chinese (Simplified)</option>
                 </select>
+              </div>
+            </section>
+            <section id="account-settings-pane" class="pane settings-pane" style="margin-top: 20px;">
+              <div class="pane-header">
+                <h3>Account</h3>
+                <span id="account-settings-meta" class="meta">Not signed in.</span>
+              </div>
+              <div class="settings-body">
+                <div class="button-row">
+                  <button id="settings-logout-btn" class="btn btn-secondary" type="button">Switch Account</button>
+                </div>
               </div>
             </section>
             <details id="all-videos-details" class="pane settings-pane all-videos-details" style="margin-top: 20px;">
@@ -715,9 +751,30 @@
           <button class="nav-btn active" data-section="dashboard" type="button">Dashboard</button>
           <button class="nav-btn" data-section="queue" type="button">Queue</button>
           <button class="nav-btn" data-section="voc" type="button">VOC</button>
+          <button class="nav-btn" data-section="watchlist" type="button">Watch list</button>
           <button class="nav-btn" data-section="alerts" type="button">Alerts</button>
           <button class="nav-btn" data-section="settings" type="button">Settings</button>
         </nav>
+      </div>
+    </div>
+    <div id="auth-gate" class="auth-gate is-hidden">
+      <div class="auth-card">
+        <h2>Sign in</h2>
+        <p>Use your Sushi account to continue.</p>
+        <form id="auth-login-form" class="form-grid">
+          <label>
+            Account
+            <select id="auth-user-select"></select>
+          </label>
+          <label>
+            Password
+            <input id="auth-password" type="password" value="1234" required />
+          </label>
+          <div class="button-row">
+            <button id="auth-login-submit" class="btn btn-primary" type="submit">Sign in</button>
+          </div>
+          <div id="auth-error" class="meta" style="color: var(--danger);"></div>
+        </form>
       </div>
     </div>
     <script type="module" src="/static/main.js"></script>

@@ -4,13 +4,16 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.api.auth_dependencies import get_current_user, get_optional_current_user
 from app.api.mappers import map_analysis_response, map_video_response
 from app.db import get_db_session
+from app.models.app_user import AppUser
 from app.models.enums import QueueState
 from app.schemas.analysis import AnalysisRequest, AnalysisResponse
 from app.schemas.video import (
     ManualVideoCreateRequest,
     VideoApproveRequest,
+    VideoAssigneeUpdateRequest,
     VideoBulkAddRequest,
     VideoBulkAddResponse,
     VideoDiscoveryRequest,
@@ -30,21 +33,31 @@ from app.services.exceptions import (
 )
 from app.services.exceptions import VideoProjectConflictError
 from app.services.triage_service import TriageService
+from app.repositories.watchlist_repository import WatchlistRepository
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 logger = logging.getLogger(__name__)
 
 
-def map_videos_with_context(service: TriageService, videos):
+def map_videos_with_context(service: TriageService, videos, *, current_user_id: Optional[str] = None):
     profile_names = service.get_monitor_profile_names_for_videos(videos)
     sentiment_labels = service.get_sentiment_labels_for_videos(videos)
     analysis_statuses = service.get_analysis_statuses_for_videos(videos)
+    bookmarked_video_ids = set()
+    if current_user_id:
+        video_ids = [video.id for video in videos]
+        watchlist_repository = WatchlistRepository(service.video_repository.session)
+        bookmarked_video_ids = watchlist_repository.list_bookmarked_video_ids(
+            user_id=current_user_id,
+            video_ids=video_ids,
+        )
     return [
         map_video_response(
             item,
             monitor_profile_name=profile_names.get(item.monitor_profile_id),
             sentiment_label=sentiment_labels.get(item.id),
             latest_analysis_status=analysis_statuses.get(item.id),
+            is_bookmarked=item.id in bookmarked_video_ids,
         )
         for item in videos
     ]
@@ -95,6 +108,8 @@ def list_videos(
     queue_state: Optional[QueueState] = Query(default=None),
     risk_level: Optional[str] = None,
     sentiment: Optional[str] = None,
+    title: Optional[str] = Query(default=None, max_length=255),
+    current_user: Optional[AppUser] = Depends(get_optional_current_user),
     db: Session = Depends(get_db_session),
 ):
     service = TriageService(db)
@@ -103,8 +118,13 @@ def list_videos(
         queue_state=queue_state,
         risk_level=risk_level,
         sentiment=sentiment,
+        title_query=title,
     )
-    responses = map_videos_with_context(service, videos)
+    responses = map_videos_with_context(
+        service,
+        videos,
+        current_user_id=current_user.id if current_user else None,
+    )
     return VideoListResponse(
         items=responses,
         total=len(responses),
@@ -150,6 +170,26 @@ def approve_video(video_id: int, payload: VideoApproveRequest, db: Session = Dep
         return responses[0]
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.patch("/{video_id}/assignee")
+def update_video_assignee(
+    video_id: int,
+    payload: VideoAssigneeUpdateRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
+    service = TriageService(db)
+    try:
+        candidate = service.assign_video(
+            video_id=video_id,
+            assigned_user_id=payload.assigned_user_id,
+            actor=current_user.id,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    responses = map_videos_with_context(service, [candidate], current_user_id=current_user.id)
+    return responses[0]
 
 
 @router.delete("/{video_id}")

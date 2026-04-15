@@ -1,6 +1,10 @@
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
+from app.services.security import hash_password
+
+
+DEFAULT_APP_USERS = tuple(f"Sushi_{index}" for index in range(1, 16))
 
 def ensure_monitor_profiles_key_products_column(engine: Engine) -> None:
     inspector = inspect(engine)
@@ -111,3 +115,50 @@ def ensure_video_comments_table(engine: Engine) -> None:
         connection.execute(text("CREATE INDEX ix_video_comments_video_candidate_id ON video_comments (video_candidate_id)"))
         connection.execute(text("CREATE INDEX ix_video_comments_published_at ON video_comments (published_at)"))
         connection.execute(text("CREATE INDEX ix_video_comments_parent_comment_id ON video_comments (parent_comment_id)"))
+
+
+def ensure_video_candidate_assignment_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("video_candidates")}
+
+    statements = []
+    if "assigned_user_id" not in columns:
+        statements = [*statements, "ALTER TABLE video_candidates ADD COLUMN assigned_user_id VARCHAR(80) NOT NULL DEFAULT ''"]
+    if "assigned_by" not in columns:
+        statements = [*statements, "ALTER TABLE video_candidates ADD COLUMN assigned_by VARCHAR(80) NOT NULL DEFAULT ''"]
+    if "assigned_at" not in columns:
+        statements = [*statements, "ALTER TABLE video_candidates ADD COLUMN assigned_at DATETIME NULL"]
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+def ensure_default_app_users(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if "app_users" not in inspector.get_table_names():
+        return
+
+    with engine.begin() as connection:
+        existing_rows = connection.execute(text("SELECT id FROM app_users")).fetchall()
+        existing_ids = {str(row[0]) for row in existing_rows}
+        for user_id in DEFAULT_APP_USERS:
+            if user_id in existing_ids:
+                continue
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO app_users (id, display_name, password_hash, must_change_password, is_active)
+                    VALUES (:id, :display_name, :password_hash, :must_change_password, :is_active)
+                    """
+                ),
+                {
+                    "id": user_id,
+                    "display_name": user_id,
+                    "password_hash": hash_password("1234"),
+                    "must_change_password": True,
+                    "is_active": True,
+                },
+            )

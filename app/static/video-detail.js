@@ -1,7 +1,6 @@
 import { escapeHtml, getElement } from "./ui-utils.js";
 import { t } from "./i18n.js";
 
-const CHAT_USER_ID = "marketing-owner";
 const RETRY_CHAT_BUTTON_ID = "retry-chat-btn";
 
 function normalizeAnalysisErrorMessage(rawMessage) {
@@ -304,7 +303,33 @@ function selectedAnalysisLanguageForVideo(state, videoId) {
   return normalizeAnalysisLanguage(byVideo[videoId]);
 }
 
-function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded, isRerunning, analysisLanguage }) {
+function currentUserIdFromState(state) {
+  const currentUserId = state?.currentUser?.user_id;
+  return String(currentUserId || "").trim() || "marketing-user";
+}
+
+function assigneeOptionsMarkup({ appUsers, assignedUserId }) {
+  const normalizedAssigned = String(assignedUserId || "").trim();
+  const options = [
+    `<option value="">${escapeHtml(t("unassigned"))}</option>`,
+    ...appUsers.map((user) => {
+      const userId = String(user.user_id || "").trim();
+      const selected = userId && userId === normalizedAssigned ? " selected" : "";
+      return `<option value="${escapeHtml(userId)}"${selected}>${escapeHtml(String(user.display_name || userId))}</option>`;
+    }),
+  ];
+  return options.join("");
+}
+
+function videoDetailMarkup({
+  video,
+  analysis,
+  analysisError,
+  transcriptExpanded,
+  isRerunning,
+  analysisLanguage,
+  appUsers,
+}) {
   const riskLevel = analysis ? String(analysis.risk_level || "").toUpperCase() : "-";
   const normalizedRisk = analysis ? String(analysis.risk_level || "").toLowerCase() : "";
   const riskClass = normalizedRisk ? `risk-level risk-level-${normalizedRisk}` : "risk-level";
@@ -334,6 +359,17 @@ function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded,
           t("rerunning")
         ) : analysis ? escapeHtml(t("rerunAnalysis")) : escapeHtml(t("runAnalysis"))}</button>
         <button id="escalate-btn" class="btn btn-danger" type="button">${escapeHtml(t("escalate"))}</button>
+        <button
+          id="toggle-bookmark-btn"
+          class="btn btn-secondary btn-icon-only"
+          type="button"
+          aria-label="${escapeHtml(video.is_bookmarked ? t("removeFromWatchlist") : t("addToWatchlist"))}"
+          title="${escapeHtml(video.is_bookmarked ? t("removeFromWatchlist") : t("addToWatchlist"))}"
+        >
+          <span class="material-symbols-outlined">${
+            video.is_bookmarked ? "bookmark" : "bookmark_add"
+          }</span>
+        </button>
         <button id="delete-video-btn" class="btn btn-secondary" type="button">${escapeHtml(t("delete"))}</button>
         <div class="analysis-language-toggle" role="group" aria-label="Analysis language">
           <button
@@ -372,6 +408,12 @@ function videoDetailMarkup({ video, analysis, analysisError, transcriptExpanded,
             <div><strong class="${riskClass}">${escapeHtml(riskLevel)}</strong></div>
           </div>
         </div>
+        <div class="detail-block">
+          <h5>${escapeHtml(t("assignee"))}</h5>
+          <select id="assignee-select">
+            ${assigneeOptionsMarkup({ appUsers, assignedUserId: video.assigned_user_id })}
+          </select>
+        </div>
         ${influencerSignalMarkup(analysis)}
         ${commentsSentimentMarkup(analysis)}
         ${actionRecommendationMarkup(analysis)}
@@ -404,6 +446,7 @@ export function createVideoDetailController({
   onVideosChanged,
   onAlertsChanged,
   onAnyVideoAction,
+  onWatchlistMutated,
 }) {
   let analysisCache = {};
   let chatCache = {};
@@ -483,7 +526,8 @@ export function createVideoDetailController({
     if (!forceRefresh && chatCache[videoId]) {
       return chatCache[videoId];
     }
-    const messages = await request(`/videos/${videoId}/chat?user_id=${encodeURIComponent(CHAT_USER_ID)}`);
+    const userId = currentUserIdFromState(getState());
+    const messages = await request(`/videos/${videoId}/chat?user_id=${encodeURIComponent(userId)}`);
     chatCache = {
       ...chatCache,
       [videoId]: messages,
@@ -589,12 +633,43 @@ export function createVideoDetailController({
       escalateButton.onclick = () =>
         runTask(async () => {
           onAnyVideoAction?.();
+          const userId = currentUserIdFromState(getState());
           await request(`/videos/${videoId}/escalate`, {
             method: "POST",
-            body: JSON.stringify({ owner: "marketing-owner", notes: "Escalated from dashboard" }),
+            body: JSON.stringify({ owner: userId, notes: "Escalated from dashboard" }),
           });
           await onAlertsChanged();
         }, t("escalatedAndAlertGenerated"));
+    }
+
+    const toggleBookmarkButton = getElement("toggle-bookmark-btn");
+    if (toggleBookmarkButton) {
+      toggleBookmarkButton.onclick = () =>
+        runTask(async () => {
+          const selectedVideo = getSelectedVideo();
+          if (!selectedVideo) {
+            return;
+          }
+          const isBookmarked = Boolean(selectedVideo.is_bookmarked);
+          if (isBookmarked) {
+            await request(`/watchlist/videos/${videoId}`, { method: "DELETE" });
+          } else {
+            await request(`/watchlist/videos/${videoId}`, { method: "POST" });
+          }
+          setState((previous) => ({
+            ...previous,
+            videos: previous.videos.map((video) =>
+              video.id === videoId
+                ? {
+                    ...video,
+                    is_bookmarked: !isBookmarked,
+                  }
+                : video
+            ),
+          }));
+          await onWatchlistMutated?.();
+          await renderVideoDetail();
+        }, t(getSelectedVideo()?.is_bookmarked ? "removedFromWatchlist" : "addedToWatchlist"));
     }
 
     const deleteButton = getElement("delete-video-btn");
@@ -658,9 +733,10 @@ export function createVideoDetailController({
       bindRetryButton();
 
       try {
+        const userId = currentUserIdFromState(getState());
         await request(`/videos/${videoId}/chat`, {
           method: "POST",
-          body: JSON.stringify({ question, user_id: CHAT_USER_ID }),
+          body: JSON.stringify({ question, user_id: userId }),
         });
         chatSendingByVideoId = withoutVideoKey(chatSendingByVideoId, videoId);
         chatPendingQuestionByVideoId = withoutVideoKey(chatPendingQuestionByVideoId, videoId);
@@ -740,6 +816,33 @@ export function createVideoDetailController({
         void renderVideoDetail();
       };
     }
+
+    const assigneeSelect = getElement("assignee-select");
+    if (assigneeSelect instanceof HTMLSelectElement) {
+      assigneeSelect.onchange = () => {
+        const nextAssigneeId = assigneeSelect.value.trim();
+        void runTask(async () => {
+          const payload = await request(`/videos/${videoId}/assignee`, {
+            method: "PATCH",
+            body: JSON.stringify({ assigned_user_id: nextAssigneeId || null }),
+          });
+          setState((previous) => ({
+            ...previous,
+            videos: previous.videos.map((video) =>
+              video.id === videoId
+                ? {
+                    ...video,
+                    assigned_user_id: payload.assigned_user_id || "",
+                  }
+                : video
+            ),
+          }));
+          await onVideosChanged();
+          await onWatchlistMutated?.();
+          await renderVideoDetail();
+        }, t("saveChanges"));
+      };
+    }
   }
 
   async function renderVideoDetail() {
@@ -794,6 +897,7 @@ export function createVideoDetailController({
       transcriptExpanded: state.transcriptExpanded,
       isRerunning: Boolean(rerunStateByVideoId[selectedVideo.id]),
       analysisLanguage,
+      appUsers: Array.isArray(state.appUsers) ? state.appUsers : [],
     });
     bindDetailActions(selectedVideo.id);
     await renderChat(selectedVideo.id);

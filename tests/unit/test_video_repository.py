@@ -116,6 +116,35 @@ def test_list_without_profile_filter_returns_all_projects(db_session, monitor_pr
     assert {item.monitor_profile_id for item in all_items} == {monitor_profile.id, second_profile.id}
 
 
+def test_list_filters_by_title_query_case_insensitive(db_session, monitor_profile):
+    repository = VideoRepository(db_session)
+    repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="title-match-1",
+        video_url="https://youtu.be/title-match-1",
+        title="HoverAir X1 Pro Full Review",
+        channel_name="CreatorOne",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+    repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="title-miss-1",
+        video_url="https://youtu.be/title-miss-1",
+        title="DJI Neo Flight Tips",
+        channel_name="CreatorTwo",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+
+    filtered = repository.list(monitor_profile_id=monitor_profile.id, title_query="  hoverair x1 pro ")
+    assert [item.youtube_video_id for item in filtered] == ["title-match-1"]
+
+
 def test_upsert_keeps_original_project_owner_for_same_video_id(db_session, monitor_profile):
     second_profile = create_profile(db_session, "Second Owner")
     repository = VideoRepository(db_session)

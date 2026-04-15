@@ -1,4 +1,5 @@
-import { request, requestForm } from "./api-client.js";
+import { ApiError, request, requestForm } from "./api-client.js";
+import { createAuthController } from "./auth.js";
 import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js";
 import { createQueueController } from "./queue.js";
 import {
@@ -24,6 +25,7 @@ import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js";
 import { createVocController } from "./voc.js";
 import { createAllVideosSettingsController } from "./all-videos-settings.js";
+import { createWatchlistController } from "./watchlist.js";
 import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js";
 
 const appVideoSettingsActions = {
@@ -136,6 +138,13 @@ async function runTask(task, successMessage = "") {
       showMessage(successMessage, "success");
     }
   } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      showMessage(t("authSessionInvalid"), "error", { dismissMs: 2400 });
+      window.setTimeout(() => {
+        window.location.assign("/");
+      }, 420);
+      return;
+    }
     const message = error instanceof Error ? error.message : t("requestFailed");
     const conflict = getVideoConflictPayload(error);
     if (conflict) {
@@ -370,7 +379,7 @@ function bindAlertsControls() {
   });
 }
 
-function bindNav() {
+function bindNav(onSectionChange = () => {}) {
   const buttons = Array.from(document.querySelectorAll(".nav-btn[data-section]"));
   buttons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -382,6 +391,7 @@ function bindNav() {
         syncProjectRoute(null);
       }
       setActiveSection(sectionId);
+      onSectionChange(sectionId);
     });
   });
 }
@@ -401,7 +411,14 @@ function bindProjectBackButton() {
 
 async function bootstrap() {
   initI18n();
+  const authController = createAuthController({
+    request,
+    setState,
+  });
+  await authController.ensureAuthenticated();
+  authController.bindLogoutButtons();
   let queueController = null;
+  let watchlistController = null;
   function clearNewVideoLabelsFromAnyAction() {
     const state = getState();
     if (state.newVideoIds.length === 0) {
@@ -441,6 +458,11 @@ async function bootstrap() {
     },
     onAlertsChanged: loadAlerts,
     onAnyVideoAction: clearNewVideoLabelsFromAnyAction,
+    onWatchlistMutated: async () => {
+      if (watchlistController) {
+        await watchlistController.refresh();
+      }
+    },
   });
 
   function rerenderProfileArea() {
@@ -469,6 +491,17 @@ async function bootstrap() {
 
   async function rerenderLocalizedUi() {
     applyStaticTranslations();
+    const currentUser = getState().currentUser;
+    const topbarLabel = getElement("topbar-user-label");
+    if (topbarLabel) {
+      topbarLabel.textContent = currentUser?.display_name || t("accountNotSignedIn");
+    }
+    const accountMeta = getElement("account-settings-meta");
+    if (accountMeta) {
+      accountMeta.textContent = currentUser
+        ? t("accountSignedInAs", { user: currentUser.display_name })
+        : t("accountNotSignedIn");
+    }
     const createPanel = getElement("create-profile-container");
     const isCreatePanelVisible = Boolean(createPanel && !createPanel.classList.contains("is-hidden"));
     setCreatePanelVisible(isCreatePanelVisible);
@@ -478,6 +511,9 @@ async function bootstrap() {
     await videoDetailController.renderVideoDetail();
     rerenderProfileArea();
     await loadAlerts();
+    if (document.querySelector("#watchlist.panel.active")) {
+      await watchlistController?.refresh();
+    }
     await knowledgeSettingsController.loadSettings();
   }
 
@@ -489,6 +525,31 @@ async function bootstrap() {
     videoDetailController,
     onProfileSelectionChange: rerenderProfileArea,
     onAnyVideoAction: clearNewVideoLabelsFromAnyAction,
+    onWatchlistMutated: async () => {
+      if (watchlistController) {
+        await watchlistController.refresh();
+      }
+    },
+  });
+
+  watchlistController = createWatchlistController({
+    request,
+    runTask,
+    onOpenVideo: (projectId, videoId) => {
+      void (async () => {
+        setState((previous) => ({
+          ...previous,
+          selectedProfileId: projectId,
+          selectedVideoId: videoId,
+          transcriptExpanded: false,
+        }));
+        syncProjectRoute(projectId);
+        queueController.renderProfileSelect();
+        await queueController.refreshVideos();
+        queueController.selectVideo(videoId);
+        setActiveSection("queue");
+      })();
+    },
   });
 
   const allVideosSettingsController = createAllVideosSettingsController({
@@ -712,7 +773,13 @@ async function bootstrap() {
     });
   }
 
-  bindNav();
+  bindNav((sectionId) => {
+    if (sectionId === "watchlist") {
+      void runTask(async () => {
+        await watchlistController?.refresh();
+      });
+    }
+  });
   bindDashboardControls();
   bindTokenInputs();
   bindAlertsControls();
@@ -725,6 +792,7 @@ async function bootstrap() {
   knowledgeSettingsController.bindKnowledgeSettingsControls();
   vocController.bindVocControls();
   queueController.bindQueueInteractions();
+  watchlistController.bindWatchlistControls();
   allVideosSettingsController.bindAllVideosSettings();
   bindDashboardInteractions({
     onOpenProject: (profileId) => {
@@ -785,6 +853,7 @@ async function bootstrap() {
 
   await loadProfiles();
   await queueController.refreshVideos();
+  await watchlistController.refresh();
 
   const pendingVideoId = getVideoIdFromRouteSearch();
   if (pendingVideoId !== null) {
