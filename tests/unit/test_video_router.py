@@ -16,6 +16,7 @@ from app.models.monitor_profile import MonitorProfile
 from app.repositories.video_repository import VideoRepository
 from app.services.analysis_service import AnalysisService
 from app.services.exceptions import GeminiConfigurationError, TranscriptBlockedError
+from app.services.triage_service import TriageService
 from app.utils.json_codec import encode_json
 
 
@@ -398,3 +399,46 @@ def test_get_latest_analysis_supports_structured_insights_payload(client, api_db
     assert payload["summary_headline"] == "High-signal structured headline"
     assert payload["summary_body"].startswith("Core sentiment is negative")
     assert payload["business_impact"].startswith("This can degrade trust")
+
+
+def test_discover_rejects_invalid_publish_window(client, api_monitor_profile):
+    response = client.post(
+        "/videos/discover",
+        json={
+            "monitor_profile_id": api_monitor_profile.id,
+            "max_results": 20,
+            "published_after": "2026-05-02T00:00:00Z",
+            "published_before": "2026-05-01T00:00:00Z",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_discover_forwards_publish_window_to_service(client, api_monitor_profile, monkeypatch):
+    calls = []
+
+    def fake_discover(self, *, monitor_profile_id, max_results, published_after=None, published_before=None):
+        calls.append(
+            {
+                "monitor_profile_id": monitor_profile_id,
+                "max_results": max_results,
+                "published_after": published_after,
+                "published_before": published_before,
+            }
+        )
+        return []
+
+    monkeypatch.setattr(TriageService, "discover_for_profile", fake_discover)
+
+    response = client.post(
+        "/videos/discover",
+        json={
+            "monitor_profile_id": api_monitor_profile.id,
+            "max_results": 20,
+            "published_after": "2026-01-01T00:00:00Z",
+            "published_before": "2026-06-01T00:00:00Z",
+        },
+    )
+    assert response.status_code == 200
+    assert calls[0]["published_after"] == datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    assert calls[0]["published_before"] == datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc)

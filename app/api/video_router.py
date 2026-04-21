@@ -70,6 +70,8 @@ def discover_videos(payload: VideoDiscoveryRequest, db: Session = Depends(get_db
         videos = service.discover_for_profile(
             monitor_profile_id=payload.monitor_profile_id,
             max_results=payload.max_results,
+            published_after=payload.published_after,
+            published_before=payload.published_before,
         )
         responses = map_videos_with_context(service, videos)
         return VideoListResponse(items=responses, total=len(responses))

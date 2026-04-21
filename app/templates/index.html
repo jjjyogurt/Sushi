@@ -402,6 +402,31 @@
                 <span id="queue-project-label">Select Project</span>
                 <select id="profile-select"></select>
               </label>
+              <div class="discover-publish-controls">
+                <label>
+                  <span id="discover-publish-range-label">Published within</span>
+                  <select id="discover-publish-preset" aria-label="Discover videos published within">
+                    <option value="">Any time</option>
+                    <option value="24h">Last 24 hours</option>
+                    <option value="7d">Last 7 days</option>
+                    <option value="30d">Last 30 days</option>
+                    <option value="90d">Last 90 days</option>
+                    <option value="custom">Custom range</option>
+                  </select>
+                </label>
+                <div id="discover-publish-custom-wrap" class="discover-publish-custom-wrap is-hidden">
+                  <div class="discover-publish-custom-row">
+                    <label class="discover-publish-datetime-label">
+                      <span id="discover-publish-custom-start-label">Start (local)</span>
+                      <input id="discover-publish-after" type="datetime-local" step="60" autocomplete="off" />
+                    </label>
+                    <label class="discover-publish-datetime-label">
+                      <span id="discover-publish-custom-end-label">End (local)</span>
+                      <input id="discover-publish-before" type="datetime-local" step="60" autocomplete="off" />
+                    </label>
+                  </div>
+                </div>
+              </div>
               <button id="discover-btn-inline" class="btn btn-primary" type="button">Discover Videos</button>
               <div class="url-add-group-wrap">
                 <label>Add Video URLs</label>

@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from uuid import uuid5, NAMESPACE_DNS
 
 import httpx
@@ -126,6 +126,38 @@ MARKET_NAME_BY_REGION: Dict[str, str] = {
 YOUTUBE_SEARCH_ENDPOINT = "https://www.googleapis.com/youtube/v3/search"
 
 
+def _coerce_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _format_youtube_search_datetime(value: datetime) -> str:
+    return _coerce_utc(value).isoformat().replace("+00:00", "Z")
+
+
+def filter_discovered_videos_by_publish_window(
+    videos: List[DiscoveredVideo],
+    *,
+    published_after: Optional[datetime] = None,
+    published_before: Optional[datetime] = None,
+) -> List[DiscoveredVideo]:
+    """Keep videos in the half-open window [published_after, published_before) in UTC."""
+    if published_after is None and published_before is None:
+        return list(videos)
+    after_ts = _coerce_utc(published_after) if published_after is not None else None
+    before_ts = _coerce_utc(published_before) if published_before is not None else None
+    result: List[DiscoveredVideo] = []
+    for item in videos:
+        ts = _coerce_utc(item.published_at)
+        if after_ts is not None and ts < after_ts:
+            continue
+        if before_ts is not None and ts >= before_ts:
+            continue
+        result.append(item)
+    return result
+
+
 class YouTubeDiscoveryService:
     """YouTube search with explicit per-market query specs (from Gemini + user keywords)."""
 
@@ -154,20 +186,41 @@ class YouTubeDiscoveryService:
             query_specs = self._fallback_query_specs(keywords=filtered_keywords, languages=languages, markets=markets)
             if not query_specs:
                 query_specs = [("product", "en", "")]
-            return self.discover_live_with_specs(query_specs=query_specs, max_results=max_results)
+            return self.discover_live_with_specs(
+                query_specs=query_specs,
+                max_results=max_results,
+            )
 
         seed_videos = self._seed_videos(keywords=filtered_keywords, languages=languages, markets=markets)
         return seed_videos[:max_results]
 
-    def discover_live_with_specs(self, *, query_specs: List[DiscoveryQuerySpec], max_results: int) -> List[DiscoveredVideo]:
+    def discover_live_with_specs(
+        self,
+        *,
+        query_specs: List[DiscoveryQuerySpec],
+        max_results: int,
+        published_after: Optional[datetime] = None,
+        published_before: Optional[datetime] = None,
+    ) -> List[DiscoveredVideo]:
         specs = list(query_specs)
         if not specs:
             specs = [("product", "en", "")]
         if not self.settings.enable_mock_discovery:
             api_key = self.settings.youtube_data_api_key.strip()
             if api_key:
-                return self._discover_with_data_api(query_specs=specs, api_key=api_key, max_results=max_results)
-            return self._discover_with_yt_dlp(query_specs=specs, max_results=max_results)
+                return self._discover_with_data_api(
+                    query_specs=specs,
+                    api_key=api_key,
+                    max_results=max_results,
+                    published_after=published_after,
+                    published_before=published_before,
+                )
+            return self._discover_with_yt_dlp(
+                query_specs=specs,
+                max_results=max_results,
+                published_after=published_after,
+                published_before=published_before,
+            )
         return []
 
     def mock_seed_for_profile(self, *, profile: MonitorProfile, max_results: int) -> List[DiscoveredVideo]:
@@ -206,7 +259,13 @@ class YouTubeDiscoveryService:
         return specs
 
     def _discover_with_data_api(
-        self, *, query_specs: List[Tuple[str, str, str]], api_key: str, max_results: int
+        self,
+        *,
+        query_specs: List[Tuple[str, str, str]],
+        api_key: str,
+        max_results: int,
+        published_after: Optional[datetime] = None,
+        published_before: Optional[datetime] = None,
     ) -> List[DiscoveredVideo]:
         discovered_by_id: Dict[str, DiscoveredVideo] = {}
         query_count = max(1, len(query_specs))
@@ -228,6 +287,10 @@ class YouTubeDiscoveryService:
                 params["relevanceLanguage"] = language_code
             if region_code:
                 params["regionCode"] = region_code
+            if published_after is not None:
+                params["publishedAfter"] = _format_youtube_search_datetime(published_after)
+            if published_before is not None:
+                params["publishedBefore"] = _format_youtube_search_datetime(published_before)
             try:
                 response = httpx.get(YOUTUBE_SEARCH_ENDPOINT, params=params, timeout=timeout_seconds)
             except (httpx.TimeoutException, httpx.TransportError):
@@ -259,10 +322,20 @@ class YouTubeDiscoveryService:
                     published_at=published_at,
                     description=str(snippet.get("description") or title).strip() or title,
                 )
-        return list(discovered_by_id.values())[:max_results]
+        trimmed = filter_discovered_videos_by_publish_window(
+            list(discovered_by_id.values()),
+            published_after=published_after,
+            published_before=published_before,
+        )
+        return trimmed[:max_results]
 
     def _discover_with_yt_dlp(
-        self, *, query_specs: List[Tuple[str, str, str]], max_results: int
+        self,
+        *,
+        query_specs: List[Tuple[str, str, str]],
+        max_results: int,
+        published_after: Optional[datetime] = None,
+        published_before: Optional[datetime] = None,
     ) -> List[DiscoveredVideo]:
         try:
             import yt_dlp
@@ -317,7 +390,12 @@ class YouTubeDiscoveryService:
         except Exception:  # noqa: BLE001
             return []
 
-        return list(discovered_by_id.values())[:max_results]
+        trimmed = filter_discovered_videos_by_publish_window(
+            list(discovered_by_id.values()),
+            published_after=published_after,
+            published_before=published_before,
+        )
+        return trimmed[:max_results]
 
     @staticmethod
     def _parse_iso8601_datetime(raw_value: object):

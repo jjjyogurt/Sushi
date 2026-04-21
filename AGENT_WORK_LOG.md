@@ -1,5 +1,26 @@
 # Agent Work Log
 
+## 2026-04-21 17:35
+
+- Task: Queue discover controls — grow custom time panel downward instead of flex-end “push up”.
+- Changes: `.queue-controls` `align-items: flex-start`; Discover button `margin-top` to line up with field row; custom wrap panel + short reveal animation (`prefers-reduced-motion` safe).
+- Check: Not run (CSS only).
+- Next: Visual QA at 1080/860 breakpoints.
+
+## 2026-04-21 17:10
+
+- Task: Discover publish window — add custom local datetime range UI (start/end) alongside presets.
+- Changes: Wrapped preset in `discover-publish-controls`, `datetime-local` inputs + visibility toggle in `queue.js`, CSS, i18n + static bindings for custom option and labels.
+- Check: Not run (UI/JS only).
+- Next: E2E or manual pass for locale switching and narrow layouts.
+
+## 2026-04-21 16:45
+
+- Task: Video discover optional publish time window + show published time in queue list and detail.
+- Changes: Extended `VideoDiscoveryRequest` / triage / YouTube Data API + yt-dlp filtering; queue preset select and `formatVideoPublishedAt`; tests in `test_video_discovery_schema`, `test_youtube_discovery_service`, `test_triage_service`, `test_video_router`.
+- Check: `pytest tests/unit/test_video_discovery_schema.py tests/unit/test_youtube_discovery_service.py tests/unit/test_triage_service.py tests/unit/test_video_router.py` (31 passed).
+- Next: Optional custom date range UI; persist last-used preset if desired.
+
 ## 2026-04-21
 
 - Task: Add Cursor agent skill `architect` for system design and ADRs.

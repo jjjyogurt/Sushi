@@ -1432,7 +1432,7 @@ body {
   display: flex;
   gap: 16px;
   margin-bottom: 24px;
-  align-items: flex-end;
+  align-items: flex-start;
   width: 100%;
 }
 
@@ -1440,10 +1440,99 @@ body {
   flex: 0 0 200px;
 }
 
+.discover-publish-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 min(280px, 100%);
+  min-width: 0;
+}
+
+.discover-publish-controls > label {
+  flex: unset;
+  width: 100%;
+}
+
+.discover-publish-custom-wrap:not(.is-hidden) {
+  margin-top: 2px;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  animation: discover-custom-reveal 0.22s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discover-publish-custom-wrap:not(.is-hidden) {
+    animation: none;
+  }
+}
+
+@keyframes discover-custom-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.discover-publish-custom-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: flex-start;
+}
+
+.discover-publish-datetime-label {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 140px;
+  min-width: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.discover-publish-datetime-label input {
+  width: 100%;
+  min-width: 0;
+}
+
 .queue-controls #discover-btn-inline {
+  /* Align primary action with control row under uppercase field labels */
+  margin-top: calc(0.72rem + 6px + 2px);
   margin-bottom: 0;
   height: 40px;
   white-space: nowrap;
+}
+
+@keyframes discover-btn-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgb(45 52 53 / 0%);
+  }
+  50% {
+    opacity: 0.9;
+    box-shadow: 0 0 0 3px rgb(45 52 53 / 8%);
+  }
+}
+
+.btn.is-discovering {
+  cursor: wait;
+  animation: discover-btn-pulse 1.35s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.is-discovering {
+    animation: none;
+    opacity: 0.88;
+  }
 }
 
 .url-add-group-wrap {

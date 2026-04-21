@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.config import get_settings
 from app.models.monitor_profile import MonitorProfile
@@ -23,6 +23,26 @@ def create_profile(db_session, name: str):
     db_session.commit()
     db_session.refresh(profile)
     return profile
+
+
+def test_discover_respects_publish_window_with_mock_seed(db_session, monitor_profile):
+    settings = get_settings()
+    original = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
+    service = TriageService(db_session)
+    now = datetime.now(timezone.utc)
+    after = now - timedelta(hours=3)
+    before = now + timedelta(minutes=2)
+    try:
+        results = service.discover_for_profile(
+            monitor_profile_id=monitor_profile.id,
+            max_results=20,
+            published_after=after,
+            published_before=before,
+        )
+        assert len(results) == 1
+    finally:
+        settings.enable_mock_discovery = original
 
 
 def test_discovery_persists_candidates(db_session, monitor_profile):

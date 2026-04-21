@@ -1,15 +1,51 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.enums import AnalysisStatus, QueueState, Sentiment
 from app.schemas.common import TimestampedResponse
+
+DISCOVERY_PUBLISH_WINDOW_MAX_DAYS = 366
 
 
 class VideoDiscoveryRequest(BaseModel):
     monitor_profile_id: int
     max_results: int = Field(default=20, ge=1, le=100)
+    published_after: Optional[datetime] = Field(
+        default=None,
+        description="Include videos with published_at >= this instant (UTC).",
+    )
+    published_before: Optional[datetime] = Field(
+        default=None,
+        description="Include videos with published_at < this instant (UTC).",
+    )
+
+    @staticmethod
+    def _to_utc_aware(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    @model_validator(mode="after")
+    def validate_publish_window(self):
+        after = self.published_after
+        before = self.published_before
+        if after is not None:
+            object.__setattr__(self, "published_after", self._to_utc_aware(after))
+        if before is not None:
+            object.__setattr__(self, "published_before", self._to_utc_aware(before))
+        after = self.published_after
+        before = self.published_before
+        if after is not None and before is not None:
+            if after >= before:
+                raise ValueError("published_after must be earlier than published_before.")
+            span = before - after
+            if span > timedelta(days=DISCOVERY_PUBLISH_WINDOW_MAX_DAYS):
+                raise ValueError(
+                    f"Publish window must not exceed {DISCOVERY_PUBLISH_WINDOW_MAX_DAYS} days.",
+                )
+        return self
 
 
 class ManualVideoCreateRequest(BaseModel):

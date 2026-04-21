@@ -265,3 +265,17 @@ export function debounce(callback, delayMs) {
     timeoutId = window.setTimeout(() => callback(...args), delayMs);
   };
 }
+
+/** Format API ISO datetime for video publish time in the current locale. */
+export function formatVideoPublishedAt(isoString) {
+  const raw = String(isoString || "").trim();
+  if (!raw) {
+    return "";
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  const locale = getLocale() === "zh" ? "zh-CN" : undefined;
+  return parsed.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+}

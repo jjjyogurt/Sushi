@@ -1,4 +1,4 @@
-import { escapeHtml, getElement } from "./ui-utils.js";
+import { escapeHtml, formatVideoPublishedAt, getElement } from "./ui-utils.js";
 import { t } from "./i18n.js";
 
 const RETRY_CHAT_BUTTON_ID = "retry-chat-btn";
@@ -339,6 +339,10 @@ function videoDetailMarkup({
         videoId
       )}" title="${escapeHtml(video.title)}" loading="lazy" allowfullscreen></iframe>`
     : "";
+  const publishedDisplay = formatVideoPublishedAt(video.published_at);
+  const publishedMarkup = publishedDisplay
+    ? `<div class="meta video-detail-published">${escapeHtml(t("publishedAt"))}: ${escapeHtml(publishedDisplay)}</div>`
+    : "";
 
   return `
     <div class="video-detail-body">
@@ -350,6 +354,7 @@ function videoDetailMarkup({
         <div class="analysis-status">${escapeHtml(t("analysisStatus"))}: <strong>${escapeHtml(
     analysisStatusLabel(analysis)
   )}</strong> | ${escapeHtml(analysisLanguageLabel(analysisLanguage))}</div>
+        ${publishedMarkup}
       </div>
 
       ${embedMarkup}

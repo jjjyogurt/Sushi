@@ -15,7 +15,10 @@ from app.services.exceptions import VideoProjectConflictError
 from app.services.gemini_client import GeminiClient
 from app.services.relevance_service import RelevanceService
 from app.services.types import DiscoveredVideo
-from app.services.youtube_discovery_service import YouTubeDiscoveryService
+from app.services.youtube_discovery_service import (
+    YouTubeDiscoveryService,
+    filter_discovered_videos_by_publish_window,
+)
 from app.utils.text import normalize_title
 from app.utils.youtube import extract_video_id, fetch_oembed_metadata
 
@@ -152,7 +155,14 @@ class TriageService:
         video_ids = [video.id for video in videos]
         return self.analysis_repository.get_latest_status_by_video_ids(video_ids)
 
-    def discover_for_profile(self, *, monitor_profile_id: int, max_results: int):
+    def discover_for_profile(
+        self,
+        *,
+        monitor_profile_id: int,
+        max_results: int,
+        published_after: Optional[datetime] = None,
+        published_before: Optional[datetime] = None,
+    ):
         profile = self._require_profile(monitor_profile_id)
 
         keywords = self._monitoring_keywords(profile)
@@ -168,7 +178,14 @@ class TriageService:
             discovered = self.discovery_service.discover_live_with_specs(
                 query_specs=plan.query_specs,
                 max_results=max_results,
+                published_after=published_after,
+                published_before=published_before,
             )
+        discovered = filter_discovered_videos_by_publish_window(
+            discovered,
+            published_after=published_after,
+            published_before=published_before,
+        )
         filtered_discovered = [
             item for item in discovered if self._title_matches_keywords(title=item.title, keywords=expanded_keywords)
         ]

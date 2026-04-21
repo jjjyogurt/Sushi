@@ -1,6 +1,6 @@
 import { ApiError } from "./api-client.js";
 import { syncProjectRoute } from "./router-state.js";
-import { debounce, escapeHtml, formatLanguageLabel, getElement } from "./ui-utils.js";
+import { debounce, escapeHtml, formatLanguageLabel, formatVideoPublishedAt, getElement } from "./ui-utils.js";
 import { t } from "./i18n.js";
 
 const MAX_MANUAL_VIDEO_URLS = 100;
@@ -68,6 +68,69 @@ function getKeywordSearchValue() {
   return searchInput.value.trim();
 }
 
+const DISCOVER_CUSTOM_MAX_SPAN_MS = 366 * 24 * 60 * 60 * 1000;
+
+function setDiscoverPublishCustomVisible(isVisible) {
+  const wrap = getElement("discover-publish-custom-wrap");
+  if (wrap instanceof HTMLElement) {
+    wrap.classList.toggle("is-hidden", !isVisible);
+  }
+}
+
+function discoverPublishWindowPayload() {
+  const select = getElement("discover-publish-preset");
+  if (!(select instanceof HTMLSelectElement)) {
+    return {};
+  }
+  const preset = select.value.trim();
+  if (!preset) {
+    return {};
+  }
+  if (preset === "custom") {
+    const afterInput = getElement("discover-publish-after");
+    const beforeInput = getElement("discover-publish-before");
+    if (!(afterInput instanceof HTMLInputElement) || !(beforeInput instanceof HTMLInputElement)) {
+      throw new Error(t("errorDiscoverCustomBothRequired"));
+    }
+    const afterRaw = afterInput.value.trim();
+    const beforeRaw = beforeInput.value.trim();
+    if (!afterRaw || !beforeRaw) {
+      throw new Error(t("errorDiscoverCustomBothRequired"));
+    }
+    const afterMs = new Date(afterRaw).getTime();
+    const beforeMs = new Date(beforeRaw).getTime();
+    if (Number.isNaN(afterMs) || Number.isNaN(beforeMs)) {
+      throw new Error(t("errorDiscoverCustomBothRequired"));
+    }
+    if (afterMs >= beforeMs) {
+      throw new Error(t("errorDiscoverCustomOrder"));
+    }
+    if (beforeMs - afterMs > DISCOVER_CUSTOM_MAX_SPAN_MS) {
+      throw new Error(t("errorDiscoverCustomMaxSpan"));
+    }
+    return {
+      published_after: new Date(afterMs).toISOString(),
+      published_before: new Date(beforeMs).toISOString(),
+    };
+  }
+  const rangesMs = {
+    "24h": 24 * 60 * 60 * 1000,
+    "7d": 7 * 24 * 60 * 60 * 1000,
+    "30d": 30 * 24 * 60 * 60 * 1000,
+    "90d": 90 * 24 * 60 * 60 * 1000,
+  };
+  const windowMs = rangesMs[preset];
+  if (windowMs === undefined) {
+    return {};
+  }
+  const now = Date.now();
+  const skewMs = 60 * 1000;
+  return {
+    published_after: new Date(now - windowMs).toISOString(),
+    published_before: new Date(now + skewMs).toISOString(),
+  };
+}
+
 export function createQueueController({
   getState,
   setState,
@@ -106,6 +169,16 @@ export function createQueueController({
       : "";
     const watchTitle = video.is_bookmarked ? t("removeFromWatchlist") : t("addToWatchlist");
     const watchIcon = video.is_bookmarked ? "bookmark" : "bookmark_add";
+    const analysisStatusText = String(video.latest_analysis_status || "").trim();
+    const analysisStatusLine = `${escapeHtml(t("analysisStatus"))}: <strong>${escapeHtml(
+      analysisStatusText || t("notStarted")
+    )}</strong>`;
+    const publishedLabel = escapeHtml(t("publishedAt"));
+    const publishedFormatted = formatVideoPublishedAt(video.published_at);
+    const publishedLine = publishedFormatted
+      ? `<div class="meta video-row-published">${publishedLabel}: ${escapeHtml(publishedFormatted)}</div>`
+      : "";
+
     return `
       <div class="video-list-row ${isActive ? "active" : ""}">
         <button class="video-item ${isActive ? "active" : ""}" data-video-id="${video.id}" type="button">
@@ -117,6 +190,8 @@ export function createQueueController({
             ${assigneeMarkup}
           </div>
           <h4>${escapeHtml(video.title)}</h4>
+          <div class="meta video-row-analysis">${analysisStatusLine}</div>
+          ${publishedLine}
           <div class="meta">
             ${escapeHtml(formatLanguageLabel(video.language))}
           </div>
@@ -253,12 +328,33 @@ export function createQueueController({
       body: JSON.stringify({
         monitor_profile_id: state.selectedProfileId,
         max_results: 20,
+        ...discoverPublishWindowPayload(),
       }),
     });
     videoDetailController.resetCaches();
     const nextVideos = await refreshVideos();
     markNewlyAddedVideos(previousVideoIds, nextVideos);
     renderVideos();
+  }
+
+  function bindDiscoverVideoButton(button) {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    button.addEventListener("click", () => {
+      button.classList.add("is-discovering");
+      button.setAttribute("aria-busy", "true");
+      button.disabled = true;
+      button.textContent = t("discoveringVideos");
+      void runTask(async () => {
+        await discoverVideos();
+      }, t("discoveryCompleted")).finally(() => {
+        button.classList.remove("is-discovering");
+        button.removeAttribute("aria-busy");
+        button.disabled = false;
+        button.textContent = t("discoverVideos");
+      });
+    });
   }
 
   async function addManualVideo() {
@@ -589,20 +685,21 @@ export function createQueueController({
 
     const discoverButton = getElement("discover-btn");
     if (discoverButton) {
-      discoverButton.addEventListener("click", () => {
-        void runTask(async () => {
-          await discoverVideos();
-        }, t("discoveryCompleted"));
-      });
+      bindDiscoverVideoButton(discoverButton);
+    }
+
+    const discoverPublishPreset = getElement("discover-publish-preset");
+    if (discoverPublishPreset instanceof HTMLSelectElement) {
+      const syncCustomVisibility = () => {
+        setDiscoverPublishCustomVisible(discoverPublishPreset.value === "custom");
+      };
+      syncCustomVisibility();
+      discoverPublishPreset.addEventListener("change", syncCustomVisibility);
     }
 
     const discoverButtonInline = getElement("discover-btn-inline");
     if (discoverButtonInline) {
-      discoverButtonInline.addEventListener("click", () => {
-        void runTask(async () => {
-          await discoverVideos();
-        }, t("discoveryCompleted"));
-      });
+      bindDiscoverVideoButton(discoverButtonInline);
     }
 
     const runAllAnalysisButton = getElement("run-all-analysis-btn");
