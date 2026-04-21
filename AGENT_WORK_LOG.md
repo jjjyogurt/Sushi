@@ -1,5 +1,12 @@
 # Agent Work Log
 
+## 2026-04-21
+
+- Task: Add Cursor agent skill `architect` for system design and ADRs.
+- Changes: Created `.cursor/skills/architect/SKILL.md` with review process, principles, patterns, ADR template, checklist, and red flags; aligned frontmatter with project skills; grounded guidance with Read/Grep/Glob.
+- Check: Not run (markdown-only).
+- Next: Mention the skill in team onboarding or rules if you want it applied by default.
+
 ## 2026-04-10 13:59
 
 - Task: Enable bulk URL paste on Project page and add `New` video label behavior.
