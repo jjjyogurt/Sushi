@@ -4,6 +4,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.api.auth_dependencies import SESSION_COOKIE_NAME, get_current_user
+from app.config import get_settings
 from app.db import get_db_session
 from app.models.app_user import AppUser
 from app.schemas.auth import AuthLoginRequest, AuthSessionResponse, AuthUserResponse
@@ -22,6 +23,7 @@ def map_auth_user_response(user: AppUser) -> AuthUserResponse:
 
 @router.post("/login", response_model=AuthSessionResponse)
 def login(payload: AuthLoginRequest, response: Response, db: Session = Depends(get_db_session)):
+    settings = get_settings()
     service = AuthService(db)
     user = service.authenticate(user_id=payload.user_id, password=payload.password)
     if user is None:
@@ -32,7 +34,8 @@ def login(payload: AuthLoginRequest, response: Response, db: Session = Depends(g
         value=session_token,
         max_age=service.cookie_max_age_seconds(),
         httponly=True,
-        samesite="lax",
+        secure=True,
+        samesite="none",
     )
     return AuthSessionResponse(user=map_auth_user_response(user))
 
@@ -43,10 +46,17 @@ def logout(
     session_token: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     db: Session = Depends(get_db_session),
 ):
+    settings = get_settings()
     service = AuthService(db)
     if session_token:
         service.clear_session(session_token)
-    response.delete_cookie(SESSION_COOKIE_NAME)
+    response.delete_cookie(
+        SESSION_COOKIE_NAME,
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="none",
+    )
     return {"status": "success"}
 
 
@@ -57,5 +67,11 @@ def me(current_user: AppUser = Depends(get_current_user)):
 
 @router.get("/users", response_model=List[AuthUserResponse])
 def list_users(db: Session = Depends(get_db_session)):
+    settings = get_settings()
+    if not settings.public_user_list_allowed():
+        raise HTTPException(
+            status_code=403,
+            detail="User directory listing is disabled for this deployment.",
+        )
     service = AuthService(db)
     return [map_auth_user_response(user) for user in service.list_users()]
