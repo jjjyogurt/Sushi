@@ -1,4 +1,6 @@
 from functools import lru_cache
+from typing import Optional
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -6,6 +8,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "Influencer Video Intelligence"
     database_url: str = Field(default="sqlite:///./sushi.db", alias="DATABASE_URL")
+    environment: str = Field(default="development", alias="ENVIRONMENT")
+    secure_cookies: bool = Field(default=False, alias="SECURE_COOKIES")
+    auth_allow_user_enumeration: Optional[bool] = Field(default=None, alias="AUTH_ALLOW_USER_ENUMERATION")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_model_analysis: str = Field(default="gemini-3-flash", alias="GEMINI_MODEL_ANALYSIS")
     gemini_model_chat: str = Field(default="gemini-3-flash", alias="GEMINI_MODEL_CHAT")
@@ -41,6 +46,14 @@ class Settings(BaseSettings):
     voc_confidence_high: float = Field(default=0.8, alias="VOC_CONFIDENCE_HIGH")
     voc_confidence_medium: float = Field(default=0.6, alias="VOC_CONFIDENCE_MEDIUM")
     model_config = SettingsConfigDict(env_file=".env", populate_by_name=True, extra="ignore")
+
+    def use_secure_cookies(self) -> bool:
+        return self.secure_cookies or self.environment.lower() == "production"
+
+    def public_user_list_allowed(self) -> bool:
+        if self.auth_allow_user_enumeration is not None:
+            return self.auth_allow_user_enumeration
+        return self.environment.lower() != "production"
 
 
 @lru_cache

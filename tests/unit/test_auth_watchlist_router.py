@@ -1,10 +1,12 @@
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.config import get_settings
 from app.db import get_db_session
 from app.main import app
 from app.models.app_user import AppUser
@@ -66,7 +68,24 @@ def _login(client: TestClient, user_id: str, password: str = "1234"):
     return response
 
 
-def test_auth_login_me_logout_flow():
+def _mock_settings_for_tests(monkeypatch):
+    """Mock settings to use non-secure cookies for testing."""
+    mock_settings = MagicMock()
+    mock_settings.environment = "development"
+    mock_settings.secure_cookies = False
+    mock_settings.use_secure_cookies = lambda: False
+    mock_settings.gemini_api_key = ""
+    mock_settings.youtube_data_api_key = ""
+    mock_settings.enable_mock_discovery = True
+    mock_settings.youtube_comments_timeout_seconds = 30.0
+    mock_settings.youtube_transcript_timeout_seconds = 30.0
+    mock_settings.public_user_list_allowed = lambda: True
+    monkeypatch.setattr("app.config.get_settings", lambda: mock_settings)
+    monkeypatch.setattr("app.api.auth_router.get_settings", lambda: mock_settings)
+    return mock_settings
+
+
+def test_auth_login_me_logout_flow(monkeypatch):
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -81,6 +100,8 @@ def test_auth_login_me_logout_flow():
         yield session
 
     app.dependency_overrides[get_db_session] = override_db
+    _mock_settings_for_tests(monkeypatch)
+
     try:
         with TestClient(app) as client:
             _login(client, "Sushi_1")
@@ -98,7 +119,7 @@ def test_auth_login_me_logout_flow():
         session.close()
 
 
-def test_watchlist_isolation_across_accounts():
+def test_watchlist_isolation_across_accounts(monkeypatch):
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -116,6 +137,8 @@ def test_watchlist_isolation_across_accounts():
         yield session
 
     app.dependency_overrides[get_db_session] = override_db
+    _mock_settings_for_tests(monkeypatch)
+
     try:
         with TestClient(app) as client:
             unauthorized = client.get("/watchlist")
@@ -145,7 +168,7 @@ def test_watchlist_isolation_across_accounts():
         session.close()
 
 
-def test_assign_video_requires_valid_assignee():
+def test_assign_video_requires_valid_assignee(monkeypatch):
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -163,6 +186,8 @@ def test_assign_video_requires_valid_assignee():
         yield session
 
     app.dependency_overrides[get_db_session] = override_db
+    _mock_settings_for_tests(monkeypatch)
+
     try:
         with TestClient(app) as client:
             _login(client, "Sushi_1")

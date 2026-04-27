@@ -1,5 +1,53 @@
 # Agent Work Log
 
+## 2026-04-24 15:00
+
+- Task: Deploy Sushi app to Cloud Run + Firebase; create Cloud SQL instance, database, user; enable APIs; build container; configure env vars and IAM.
+- Changes: Cloud infrastructure deployed (see DEPLOY_LOG.md); AGENT_WORK_LOG.md updated.
+- Check: Cloud Run service created but running placeholder image due to SQLite→PostgreSQL SQL compatibility issue in app code.
+- Next: Fix SQLite-specific `datetime()` SQL syntax in app to be PostgreSQL-compatible, then rebuild and redeploy.
+
+## 2026-04-24 16:15
+
+- Task: Implement PostgreSQL SQL compatibility fix; modify `cleanup_orphan_video_data()` to detect database dialect and use appropriate timestamp comparison syntax.
+- Changes: `app/db_migrations.py` - added dialect detection with `connection.dialect.name` and conditional SQL generation for SQLite (`datetime()`) vs PostgreSQL (direct comparison); submitted Cloud Build; deployed new revision to Cloud Run.
+- Check: `python3 -m pytest tests/unit/` — 93 passed; Cloud Run revision `sushi-backend-00006-pfk` deployed; startup logs show "Application startup complete" and "Uvicorn running on http://0.0.0.0:8080"; database connection successful.
+- Next: Debug separate Jinja2 template caching error causing 500 errors on HTTP requests, or investigate if it's a library version compatibility issue.
+
+## 2026-04-23 17:10
+
+- Task: Deploy prep items 1–8 and 15: Postgres driver, env/cookies, auth user list lock + manual login, Docker, Firebase Hosting → Cloud Run rewrites.
+- Changes: `requirements.txt`, `app/config.py`, `app/db.py`, `app/api/auth_router.py`, `Dockerfile`, `.dockerignore`, `.env.example`, `firebase.json`, `public/index.html` removed, `index.html` / `auth.js`, `tests/unit/test_auth_list_users.py`.
+- Check: `python3 -m pytest tests/unit/` — 93 passed.
+- Next: Deploy Cloud Run service id `sushi-backend` in `asia-southeast1`, set `DATABASE_URL` + attach Cloud SQL; `firebase deploy --only hosting`.
+
+## 2026-04-21 19:35
+
+- Task: Remove inline "Any time" link when custom date range is set; rely on native `<select>` for Any time / presets; clear date inputs when leaving custom.
+- Changes: `index.html` / `queue.js` / `styles.css` / `i18n` static binding cleanup; removed mousedown `preventDefault` on preset.
+- Check: Not run.
+- Next: Re-edit custom via another preset then Custom if needed.
+
+## 2026-04-21 19:10
+
+- Task: Discover time dimension — date-only (no hours): `type="date"`, local calendar bounds for custom + presets; UI labels; `formatVideoPublishedAt` / new `formatLocalDateYmd` in `ui-utils`.
+- Check: Not run (JS/HTML).
+- Next: QA DST boundaries for non-UTC locales.
+
+## 2026-04-21 18:40
+
+- Task: Replace custom time summary strip with short label on `<select>` custom option; mousedown re-opens editors; inline link resets to Any time.
+- Changes: `index.html` preset row + `id` on custom option; `queue.js` `syncDiscoverPresetCustomOptionLabel`, `clearDiscoverPublishToAnytime`, mousedown handler; removed summary strip CSS; i18n static for inline reset; removed summary strings / custom option static overwrite.
+- Check: Not run (UI/JS).
+- Next: QA mousedown vs keyboard-only users.
+
+## 2026-04-21 18:05
+
+- Task: Collapse custom discover time inputs when start/end are valid; show summary chip to re-open.
+- Changes: `#discover-publish-custom-summary` in `index.html`; `parseCustomPublishRangeFromDom` + `refreshDiscoverPublishCustomUi` in `queue.js`; styles; i18n strings.
+- Check: Not run (JS/HTML/CSS).
+- Next: Optional `input` debounce if browsers omit `change` until blur.
+
 ## 2026-04-21 17:35
 
 - Task: Queue discover controls — grow custom time panel downward instead of flex-end “push up”.
@@ -314,3 +362,17 @@
 - Changes: Added `DiscoveryKeywordService` + `GeminiClient.plan_youtube_discovery_queries`; `TriageService` builds plans (Gemini or keyword join fallback), calls `discover_live_with_specs` with `relevanceLanguage`/`regionCode`; removed hardcoded review/hint maps from `YouTubeDiscoveryService`; added `test_discovery_keyword_service.py` and JP/DE API tests.
 - Check: `python3 -m pytest tests/unit/ -q` (81 passed).
 - Next: Tune Gemini prompt if quota or off-topic queries appear; consider caching plans per profile hash.
+
+## 2026-04-27 17:45
+
+- Task: Fix failing auth tests and add missing discovery pipeline tests.
+- Changes: Fixed auth router to use settings-based cookie security (`secure=settings.use_secure_cookies()`); fixed auth tests to mock settings for non-secure cookies; added 5 YouTube API edge case tests (empty results, errors, malformed, partial data, timeout); added 7 Gemini keyword fallback tests; added 4 video analysis 404/validation tests.
+- Check: `python3 -m pytest tests/unit/` — 109 passed (was 90 passing, 3 failing).
+- Next: Address the actual video discovery pipeline issue where "Discovery completed" shows 0 videos (possible API key or YouTube API quota issue).
+
+## 2026-04-27 18:05
+
+- Task: Add comprehensive logging to video discovery pipeline to diagnose "0 videos" issue.
+- Changes: Added logging to `youtube_discovery_service.py` (10+ log points for API requests, responses, errors, timeouts, transport errors, JSON parse errors); added logging to `discovery_keyword_service.py` (Gemini vs fallback decision logging); added logging to `triage_service.py` (full discovery flow tracing including filters); fixed silent exception handling that was swallowing network errors.
+- Check: `python3 -m pytest tests/unit/` — 109 passed.
+- Next: Deploy and check Cloud Run logs to identify exact failure point in discovery pipeline.

@@ -320,3 +320,190 @@ def test_discover_live_runs_multi_queries_and_dedupes_yt_dlp(monkeypatch):
 
     assert [item.youtube_video_id for item in discovered] == ["video-one", "video-two"]
     assert len(queries_seen) >= 2
+
+
+def test_discover_live_handles_empty_api_results(monkeypatch):
+    """Test that discovery returns empty list when YouTube API returns no items."""
+
+    class EmptyResponse:
+        status_code = 200
+        def json(self):
+            return {"items": []}
+
+    def fake_get(*args, **kwargs):
+        return EmptyResponse()
+
+    monkeypatch.setattr("httpx.get", fake_get)
+    service = YouTubeDiscoveryService()
+    original_api_key = service.settings.youtube_data_api_key
+    service.settings.youtube_data_api_key = "test-key"
+
+    result = service.discover_live_with_specs(
+        query_specs=[("hoverair", "en", "US")],
+        max_results=10,
+    )
+
+    service.settings.youtube_data_api_key = original_api_key
+    assert result == []
+
+
+def test_discover_live_handles_api_errors(monkeypatch):
+    """Test that discovery gracefully handles YouTube API errors."""
+    call_count = {"value": 0}
+
+    class ErrorResponse:
+        status_code = 403
+        text = '{"error": {"message": "API key expired"}}'
+        def json(self):
+            return {"error": {"message": "API key expired"}}
+
+    def fake_get(*args, **kwargs):
+        call_count["value"] += 1
+        return ErrorResponse()
+
+    monkeypatch.setattr("httpx.get", fake_get)
+    service = YouTubeDiscoveryService()
+    original_api_key = service.settings.youtube_data_api_key
+    service.settings.youtube_data_api_key = "invalid-key"
+
+    result = service.discover_live_with_specs(
+        query_specs=[("hoverair", "en", "US")],
+        max_results=10,
+    )
+
+    service.settings.youtube_data_api_key = original_api_key
+    assert result == []
+    assert call_count["value"] >= 1
+
+
+def test_discover_live_handles_malformed_api_response(monkeypatch):
+    """Test that discovery handles malformed API responses gracefully."""
+
+    class MalformedResponse:
+        status_code = 200
+        def json(self):
+            return {"items": "not a list"}  # Malformed: items should be a list
+
+    def fake_get(*args, **kwargs):
+        return MalformedResponse()
+
+    monkeypatch.setattr("httpx.get", fake_get)
+    service = YouTubeDiscoveryService()
+    original_api_key = service.settings.youtube_data_api_key
+    service.settings.youtube_data_api_key = "test-key"
+
+    result = service.discover_live_with_specs(
+        query_specs=[("hoverair", "en", "US")],
+        max_results=10,
+    )
+
+    service.settings.youtube_data_api_key = original_api_key
+    assert result == []
+
+
+def test_discover_live_handles_partial_video_data(monkeypatch):
+    """Test that discovery skips videos with missing required fields."""
+
+    class PartialDataResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "items": [
+                    {
+                        "id": {"videoId": "valid-video"},
+                        "snippet": {
+                            "title": "Valid Video",
+                            "channelTitle": "Creator",
+                            "publishedAt": "2026-04-15T00:00:00Z",
+                        },
+                    },
+                    {
+                        "id": {"videoId": ""},  # Missing video ID
+                        "snippet": {
+                            "title": "Invalid Video",
+                            "channelTitle": "Creator",
+                            "publishedAt": "2026-04-15T00:00:00Z",
+                        },
+                    },
+                    {
+                        "id": {"videoId": "missing-title"},
+                        "snippet": {
+                            "title": "",  # Missing title
+                            "channelTitle": "Creator",
+                            "publishedAt": "2026-04-15T00:00:00Z",
+                        },
+                    },
+                    {
+                        # Missing id entirely
+                        "snippet": {
+                            "title": "No ID Video",
+                            "channelTitle": "Creator",
+                            "publishedAt": "2026-04-15T00:00:00Z",
+                        },
+                    },
+                ]
+            }
+
+    def fake_get(*args, **kwargs):
+        return PartialDataResponse()
+
+    monkeypatch.setattr("httpx.get", fake_get)
+    service = YouTubeDiscoveryService()
+    original_api_key = service.settings.youtube_data_api_key
+    service.settings.youtube_data_api_key = "test-key"
+
+    result = service.discover_live_with_specs(
+        query_specs=[("hoverair", "en", "US")],
+        max_results=10,
+    )
+
+    service.settings.youtube_data_api_key = original_api_key
+    assert len(result) == 1
+    assert result[0].youtube_video_id == "valid-video"
+
+
+def test_discover_live_continues_on_timeout(monkeypatch):
+    """Test that discovery continues with other queries when one times out."""
+    call_count = {"value": 0}
+
+    class SuccessResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "items": [
+                    {
+                        "id": {"videoId": "success-video"},
+                        "snippet": {
+                            "title": "Success Video",
+                            "channelTitle": "Creator",
+                            "publishedAt": "2026-04-15T00:00:00Z",
+                        },
+                    }
+                ]
+            }
+
+    import httpx
+
+    def fake_get(*args, **kwargs):
+        call_count["value"] += 1
+        if call_count["value"] == 1:
+            raise httpx.TimeoutException("Request timed out")
+        return SuccessResponse()
+
+    monkeypatch.setattr("httpx.get", fake_get)
+    service = YouTubeDiscoveryService()
+    original_api_key = service.settings.youtube_data_api_key
+    service.settings.youtube_data_api_key = "test-key"
+
+    result = service.discover_live_with_specs(
+        query_specs=[
+            ("query one", "en", "US"),
+            ("query two", "en", "GB"),
+        ],
+        max_results=10,
+    )
+
+    service.settings.youtube_data_api_key = original_api_key
+    assert len(result) == 1
+    assert result[0].youtube_video_id == "success-video"
+    assert call_count["value"] == 2

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import uuid5, NAMESPACE_DNS
@@ -9,6 +10,8 @@ from app.models.monitor_profile import MonitorProfile
 from app.repositories.monitor_repository import MonitorRepository
 from app.services.discovery_types import DiscoveryQuerySpec
 from app.services.types import DiscoveredVideo
+
+logger = logging.getLogger(__name__)
 
 LANGUAGE_NORMALIZATION_MAP: Dict[str, str] = {
     "en": "en",
@@ -205,9 +208,19 @@ class YouTubeDiscoveryService:
         specs = list(query_specs)
         if not specs:
             specs = [("product", "en", "")]
+            logger.warning("Discover live: no specs provided, using default")
+
+        logger.info(
+            "Discover live START: specs=%d mock=%s api_key_set=%s",
+            len(specs),
+            self.settings.enable_mock_discovery,
+            bool(self.settings.youtube_data_api_key.strip())
+        )
+
         if not self.settings.enable_mock_discovery:
             api_key = self.settings.youtube_data_api_key.strip()
             if api_key:
+                logger.info("Discover live: using YouTube Data API")
                 return self._discover_with_data_api(
                     query_specs=specs,
                     api_key=api_key,
@@ -215,12 +228,14 @@ class YouTubeDiscoveryService:
                     published_after=published_after,
                     published_before=published_before,
                 )
+            logger.info("Discover live: no API key, using yt-dlp fallback")
             return self._discover_with_yt_dlp(
                 query_specs=specs,
                 max_results=max_results,
                 published_after=published_after,
                 published_before=published_before,
             )
+        logger.info("Discover live: mock discovery enabled, returning empty")
         return []
 
     def mock_seed_for_profile(self, *, profile: MonitorProfile, max_results: int) -> List[DiscoveredVideo]:
@@ -275,6 +290,11 @@ class YouTubeDiscoveryService:
             per_query_limit = max(2, min(10, (max_results // query_count) + 2))
         timeout_seconds = max(3.0, min(30.0, float(self.settings.youtube_comments_timeout_seconds)))
 
+        logger.info(
+            "YouTube discovery START: queries=%d max_results=%d timeout=%.1fs",
+            len(query_specs), max_results, timeout_seconds
+        )
+
         for query, language_code, region_code in query_specs:
             params = {
                 "part": "snippet",
@@ -291,16 +311,63 @@ class YouTubeDiscoveryService:
                 params["publishedAfter"] = _format_youtube_search_datetime(published_after)
             if published_before is not None:
                 params["publishedBefore"] = _format_youtube_search_datetime(published_before)
+
+            logger.debug(
+                "YouTube API request: query='%s' lang=%s region=%s",
+                query[:50], language_code, region_code
+            )
+
             try:
                 response = httpx.get(YOUTUBE_SEARCH_ENDPOINT, params=params, timeout=timeout_seconds)
-            except (httpx.TimeoutException, httpx.TransportError):
+            except httpx.TimeoutException as e:
+                logger.error(
+                    "YouTube API TIMEOUT: query='%s' lang=%s region=%s timeout=%.1fs error=%s",
+                    query[:50], language_code, region_code, timeout_seconds, str(e)
+                )
                 continue
+            except httpx.TransportError as e:
+                logger.error(
+                    "YouTube API TRANSPORT ERROR: query='%s' lang=%s region=%s error=%s type=%s",
+                    query[:50], language_code, region_code, str(e), type(e).__name__
+                )
+                continue
+            except Exception as e:
+                logger.exception(
+                    "YouTube API UNEXPECTED ERROR: query='%s' lang=%s region=%s",
+                    query[:50], language_code, region_code
+                )
+                continue
+
             if response.status_code >= 400:
+                logger.warning(
+                    "YouTube API ERROR RESPONSE: status=%s query='%s' lang=%s region=%s body=%.200s",
+                    response.status_code, query[:50], language_code, region_code, response.text
+                )
                 continue
-            payload = response.json()
+
+            try:
+                payload = response.json()
+            except Exception as e:
+                logger.error(
+                    "YouTube API JSON PARSE ERROR: query='%s' status=%s error=%s body=%.200s",
+                    query[:50], response.status_code, str(e), response.text
+                )
+                continue
+
             items = payload.get("items") if isinstance(payload, dict) else []
             if not isinstance(items, list):
+                logger.warning(
+                    "YouTube API INVALID ITEMS: query='%s' items_type=%s",
+                    query[:50], type(items).__name__
+                )
                 continue
+
+            logger.info(
+                "YouTube API SUCCESS: query='%s' lang=%s region=%s items=%d",
+                query[:50], language_code, region_code, len(items)
+            )
+
+            valid_count = 0
             for item in items:
                 if not isinstance(item, dict):
                     continue
@@ -322,11 +389,24 @@ class YouTubeDiscoveryService:
                     published_at=published_at,
                     description=str(snippet.get("description") or title).strip() or title,
                 )
+                valid_count += 1
+
+            logger.debug(
+                "YouTube API valid videos from query: query='%s' valid=%d total_unique=%d",
+                query[:50], valid_count, len(discovered_by_id)
+            )
+
         trimmed = filter_discovered_videos_by_publish_window(
             list(discovered_by_id.values()),
             published_after=published_after,
             published_before=published_before,
         )
+
+        logger.info(
+            "YouTube discovery COMPLETE: raw=%d after_window=%d max_results=%d",
+            len(discovered_by_id), len(trimmed), max_results
+        )
+
         return trimmed[:max_results]
 
     def _discover_with_yt_dlp(
@@ -339,8 +419,11 @@ class YouTubeDiscoveryService:
     ) -> List[DiscoveredVideo]:
         try:
             import yt_dlp
-        except ImportError:
+        except ImportError as e:
+            logger.error("yt-dlp import failed: %s", e)
             return []
+
+        logger.info("yt-dlp discovery START: queries=%d max_results=%d", len(query_specs), max_results)
 
         ydl_opts = {
             "quiet": True,
@@ -355,14 +438,20 @@ class YouTubeDiscoveryService:
         else:
             per_query_limit = max(2, (max_results // query_count) + 2)
         discovered_by_id: Dict[str, DiscoveredVideo] = {}
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 for query, language_code, _region_code in query_specs:
+                    logger.debug("yt-dlp query: '%s' limit=%d", query[:50], per_query_limit)
                     try:
                         payload = ydl.extract_info(f"ytsearch{per_query_limit}:{query}", download=False)
-                    except Exception:  # noqa: BLE001
+                    except Exception as e:  # noqa: BLE001
+                        logger.warning("yt-dlp query failed: query='%s' error=%s", query[:50], e)
                         continue
+
                     results = payload.get("entries", []) if payload else []
+                    logger.debug("yt-dlp results: query='%s' entries=%d", query[:50], len(results))
+
                     for item in results:
                         video_id = item.get("id")
                         title = item.get("title")
@@ -387,13 +476,19 @@ class YouTubeDiscoveryService:
                             published_at=published_at,
                             description=description or title,
                         )
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
+            logger.exception("yt-dlp discovery failed: %s", e)
             return []
 
         trimmed = filter_discovered_videos_by_publish_window(
             list(discovered_by_id.values()),
             published_after=published_after,
             published_before=published_before,
+        )
+
+        logger.info(
+            "yt-dlp discovery COMPLETE: raw=%d after_window=%d final=%d",
+            len(discovered_by_id), len(trimmed), min(len(trimmed), max_results)
         )
         return trimmed[:max_results]
 

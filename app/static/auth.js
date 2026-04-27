@@ -39,15 +39,48 @@ export function createAuthController({ request, setState }) {
   }
 
   async function loadUsers() {
-    const payload = await request("/auth/users");
-    users = Array.isArray(payload) ? payload : [];
+    const selectWrap = getElement("auth-user-select-wrap");
+    const idWrap = getElement("auth-user-id-wrap");
     const select = getElement("auth-user-select");
-    if (!(select instanceof HTMLSelectElement)) {
-      return;
+    const idInput = getElement("auth-user-id");
+    try {
+      const payload = await request("/auth/users");
+      users = Array.isArray(payload) ? payload : [];
+      if (idWrap) {
+        idWrap.classList.add("is-hidden");
+      }
+      if (selectWrap) {
+        selectWrap.classList.remove("is-hidden");
+      }
+      if (idInput instanceof HTMLInputElement) {
+        idInput.value = "";
+      }
+      if (!(select instanceof HTMLSelectElement)) {
+        return;
+      }
+      select.innerHTML = users
+        .map((user) => `<option value="${user.user_id}">${user.display_name}</option>`)
+        .join("");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) {
+        users = [];
+        if (selectWrap) {
+          selectWrap.classList.add("is-hidden");
+        }
+        if (idWrap) {
+          idWrap.classList.remove("is-hidden");
+        }
+        if (select instanceof HTMLSelectElement) {
+          select.innerHTML = "";
+        }
+        if (idInput instanceof HTMLInputElement) {
+          idInput.value = "";
+          idInput.focus();
+        }
+        return;
+      }
+      throw error;
     }
-    select.innerHTML = users
-      .map((user) => `<option value="${user.user_id}">${user.display_name}</option>`)
-      .join("");
   }
 
   function setCurrentUser(user) {
@@ -62,9 +95,29 @@ export function createAuthController({ request, setState }) {
 
   async function submitLogin() {
     const userSelect = getElement("auth-user-select");
+    const idWrap = getElement("auth-user-id-wrap");
+    const userIdInput = getElement("auth-user-id");
     const passwordInput = getElement("auth-password");
     const submitButton = getElement("auth-login-submit");
-    if (!(userSelect instanceof HTMLSelectElement) || !(passwordInput instanceof HTMLInputElement)) {
+    const usingManualId = idWrap instanceof HTMLElement && !idWrap.classList.contains("is-hidden");
+    if (!(passwordInput instanceof HTMLInputElement)) {
+      return;
+    }
+    if (!usingManualId && !(userSelect instanceof HTMLSelectElement)) {
+      return;
+    }
+    if (usingManualId && !(userIdInput instanceof HTMLInputElement)) {
+      return;
+    }
+    const userId = usingManualId
+      ? userIdInput instanceof HTMLInputElement
+        ? userIdInput.value.trim()
+        : ""
+      : userSelect instanceof HTMLSelectElement
+        ? userSelect.value
+        : "";
+    if (!userId) {
+      setAuthError(t("loginFailed"));
       return;
     }
     if (submitButton instanceof HTMLButtonElement) {
@@ -75,7 +128,7 @@ export function createAuthController({ request, setState }) {
       const payload = await request("/auth/login", {
         method: "POST",
         body: JSON.stringify({
-          user_id: userSelect.value,
+          user_id: userId,
           password: passwordInput.value,
         }),
       });

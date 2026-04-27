@@ -145,14 +145,23 @@ def cleanup_orphan_video_data(engine: Engine) -> None:
     video_candidate_columns = {column["name"] for column in inspector.get_columns("video_candidates")}
     monitor_profile_columns = {column["name"] for column in inspector.get_columns("monitor_profiles")}
     supports_stale_timestamp_check = "created_at" in video_candidate_columns and "created_at" in monitor_profile_columns
-    stale_condition = " OR datetime(vc.created_at) < datetime(mp.created_at)" if supports_stale_timestamp_check else ""
-    stale_or_orphan_video_subquery = (
-        "SELECT vc.id FROM video_candidates vc "
-        "LEFT JOIN monitor_profiles mp ON mp.id = vc.monitor_profile_id "
-        f"WHERE mp.id IS NULL{stale_condition}"
-    )
 
     with engine.begin() as connection:
+        dialect_name = connection.dialect.name
+        if supports_stale_timestamp_check:
+            if dialect_name == "sqlite":
+                stale_condition = " OR datetime(vc.created_at) < datetime(mp.created_at)"
+            else:
+                # PostgreSQL and other databases: direct timestamp comparison
+                stale_condition = " OR vc.created_at < mp.created_at"
+        else:
+            stale_condition = ""
+
+        stale_or_orphan_video_subquery = (
+            "SELECT vc.id FROM video_candidates vc "
+            "LEFT JOIN monitor_profiles mp ON mp.id = vc.monitor_profile_id "
+            f"WHERE mp.id IS NULL{stale_condition}"
+        )
         if "alerts" in table_names and "incidents" in table_names:
             connection.execute(
                 text(

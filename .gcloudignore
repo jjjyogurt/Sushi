@@ -1,0 +1,12 @@
+.gcloudignore
+.git
+.gitignore
+.obsidian*
+.obsidian-cli.sock
+node_modules/
+*.pyc
+__pycache__/
+.env
+.venv/
+venv/
+.DS_Store

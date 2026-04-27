@@ -1,7 +1,14 @@
 import { ApiError } from "./api-client.js";
 import { syncProjectRoute } from "./router-state.js";
-import { debounce, escapeHtml, formatLanguageLabel, formatVideoPublishedAt, getElement } from "./ui-utils.js";
-import { t } from "./i18n.js";
+import {
+  debounce,
+  escapeHtml,
+  formatLanguageLabel,
+  formatLocalDateYmd,
+  formatVideoPublishedAt,
+  getElement,
+} from "./ui-utils.js";
+import { onLocaleChange, t } from "./i18n.js";
 
 const MAX_MANUAL_VIDEO_URLS = 100;
 const MAX_VISIBLE_MANUAL_URL_ROWS = 5;
@@ -68,13 +75,64 @@ function getKeywordSearchValue() {
   return searchInput.value.trim();
 }
 
-const DISCOVER_CUSTOM_MAX_SPAN_MS = 366 * 24 * 60 * 60 * 1000;
+const DISCOVER_CUSTOM_MAX_CALENDAR_DAYS = 366;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-function setDiscoverPublishCustomVisible(isVisible) {
-  const wrap = getElement("discover-publish-custom-wrap");
-  if (wrap instanceof HTMLElement) {
-    wrap.classList.toggle("is-hidden", !isVisible);
+function parseYmdParts(ymd) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || "").trim());
+  if (!match) {
+    return null;
   }
+  return { y: Number(match[1]), mo: Number(match[2]) - 1, d: Number(match[3]) };
+}
+
+function localStartOfYmdMs(ymd) {
+  const parts = parseYmdParts(ymd);
+  if (!parts) {
+    return NaN;
+  }
+  return new Date(parts.y, parts.mo, parts.d, 0, 0, 0, 0).getTime();
+}
+
+/** Start of the calendar day after `ymd` (local), used as exclusive `publishedBefore`. */
+function localStartOfDayAfterYmdMs(ymd) {
+  const parts = parseYmdParts(ymd);
+  if (!parts) {
+    return NaN;
+  }
+  return new Date(parts.y, parts.mo, parts.d + 1, 0, 0, 0, 0).getTime();
+}
+
+function localStartOfTodayMs() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+}
+
+/** @returns {{ valid: true, afterMs: number, beforeExclusiveMs: number } | { valid: false, reason?: string }} */
+function parseCustomPublishRangeFromDom() {
+  const afterInput = getElement("discover-publish-after");
+  const beforeInput = getElement("discover-publish-before");
+  if (!(afterInput instanceof HTMLInputElement) || !(beforeInput instanceof HTMLInputElement)) {
+    return { valid: false, reason: "incomplete" };
+  }
+  const afterRaw = afterInput.value.trim();
+  const beforeRaw = beforeInput.value.trim();
+  if (!afterRaw || !beforeRaw) {
+    return { valid: false, reason: "incomplete" };
+  }
+  const afterMs = localStartOfYmdMs(afterRaw);
+  const beforeExclusiveMs = localStartOfDayAfterYmdMs(beforeRaw);
+  if (Number.isNaN(afterMs) || Number.isNaN(beforeExclusiveMs)) {
+    return { valid: false, reason: "incomplete" };
+  }
+  if (afterMs >= beforeExclusiveMs) {
+    return { valid: false, reason: "order" };
+  }
+  const spanDays = (beforeExclusiveMs - afterMs) / DAY_MS;
+  if (spanDays > DISCOVER_CUSTOM_MAX_CALENDAR_DAYS) {
+    return { valid: false, reason: "span" };
+  }
+  return { valid: true, afterMs, beforeExclusiveMs };
 }
 
 function discoverPublishWindowPayload() {
@@ -87,47 +145,36 @@ function discoverPublishWindowPayload() {
     return {};
   }
   if (preset === "custom") {
-    const afterInput = getElement("discover-publish-after");
-    const beforeInput = getElement("discover-publish-before");
-    if (!(afterInput instanceof HTMLInputElement) || !(beforeInput instanceof HTMLInputElement)) {
+    const parsed = parseCustomPublishRangeFromDom();
+    if (!parsed.valid) {
+      if (parsed.reason === "order") {
+        throw new Error(t("errorDiscoverCustomOrder"));
+      }
+      if (parsed.reason === "span") {
+        throw new Error(t("errorDiscoverCustomMaxSpan"));
+      }
       throw new Error(t("errorDiscoverCustomBothRequired"));
-    }
-    const afterRaw = afterInput.value.trim();
-    const beforeRaw = beforeInput.value.trim();
-    if (!afterRaw || !beforeRaw) {
-      throw new Error(t("errorDiscoverCustomBothRequired"));
-    }
-    const afterMs = new Date(afterRaw).getTime();
-    const beforeMs = new Date(beforeRaw).getTime();
-    if (Number.isNaN(afterMs) || Number.isNaN(beforeMs)) {
-      throw new Error(t("errorDiscoverCustomBothRequired"));
-    }
-    if (afterMs >= beforeMs) {
-      throw new Error(t("errorDiscoverCustomOrder"));
-    }
-    if (beforeMs - afterMs > DISCOVER_CUSTOM_MAX_SPAN_MS) {
-      throw new Error(t("errorDiscoverCustomMaxSpan"));
     }
     return {
-      published_after: new Date(afterMs).toISOString(),
-      published_before: new Date(beforeMs).toISOString(),
+      published_after: new Date(parsed.afterMs).toISOString(),
+      published_before: new Date(parsed.beforeExclusiveMs).toISOString(),
     };
   }
-  const rangesMs = {
-    "24h": 24 * 60 * 60 * 1000,
-    "7d": 7 * 24 * 60 * 60 * 1000,
-    "30d": 30 * 24 * 60 * 60 * 1000,
-    "90d": 90 * 24 * 60 * 60 * 1000,
-  };
-  const windowMs = rangesMs[preset];
-  if (windowMs === undefined) {
+  const calendarDaysInclusive = {
+    "24h": 1,
+    "7d": 7,
+    "30d": 30,
+    "90d": 90,
+  }[preset];
+  if (calendarDaysInclusive === undefined) {
     return {};
   }
-  const now = Date.now();
-  const skewMs = 60 * 1000;
+  const todayStartMs = localStartOfTodayMs();
+  const afterMs = todayStartMs - (calendarDaysInclusive - 1) * DAY_MS;
+  const beforeExclusiveMs = todayStartMs + DAY_MS;
   return {
-    published_after: new Date(now - windowMs).toISOString(),
-    published_before: new Date(now + skewMs).toISOString(),
+    published_after: new Date(afterMs).toISOString(),
+    published_before: new Date(beforeExclusiveMs).toISOString(),
   };
 }
 
@@ -689,13 +736,103 @@ export function createQueueController({
     }
 
     const discoverPublishPreset = getElement("discover-publish-preset");
-    if (discoverPublishPreset instanceof HTMLSelectElement) {
-      const syncCustomVisibility = () => {
-        setDiscoverPublishCustomVisible(discoverPublishPreset.value === "custom");
-      };
-      syncCustomVisibility();
-      discoverPublishPreset.addEventListener("change", syncCustomVisibility);
+    const discoverPublishAfter = getElement("discover-publish-after");
+    const discoverPublishBefore = getElement("discover-publish-before");
+
+    let discoverCustomRangeCollapsed = false;
+    const customOptionLabelMax = 56;
+
+    function syncDiscoverPresetCustomOptionLabel() {
+      const opt = getElement("discover-publish-preset-option-custom");
+      if (!(opt instanceof HTMLOptionElement) || !(discoverPublishPreset instanceof HTMLSelectElement)) {
+        return;
+      }
+      const preset = discoverPublishPreset.value.trim();
+      if (preset !== "custom") {
+        opt.textContent = t("discoverPresetCustom");
+        return;
+      }
+      const parsed = parseCustomPublishRangeFromDom();
+      if (
+        discoverCustomRangeCollapsed &&
+        parsed.valid &&
+        discoverPublishAfter instanceof HTMLInputElement &&
+        discoverPublishBefore instanceof HTMLInputElement
+      ) {
+        const startLabel = formatLocalDateYmd(discoverPublishAfter.value.trim());
+        const endLabel = formatLocalDateYmd(discoverPublishBefore.value.trim());
+        let text = `${startLabel} – ${endLabel}`;
+        if (text.length > customOptionLabelMax) {
+          text = `${text.slice(0, customOptionLabelMax - 1)}…`;
+        }
+        opt.textContent = text;
+        return;
+      }
+      opt.textContent = t("discoverPresetCustom");
     }
+
+    function refreshDiscoverPublishCustomUi() {
+      if (!(discoverPublishPreset instanceof HTMLSelectElement)) {
+        return;
+      }
+      const wrap = getElement("discover-publish-custom-wrap");
+      if (!(wrap instanceof HTMLElement)) {
+        return;
+      }
+      const preset = discoverPublishPreset.value.trim();
+      if (preset !== "custom") {
+        discoverCustomRangeCollapsed = false;
+        wrap.classList.add("is-hidden");
+        syncDiscoverPresetCustomOptionLabel();
+        return;
+      }
+      const parsed = parseCustomPublishRangeFromDom();
+      if (discoverCustomRangeCollapsed && parsed.valid) {
+        wrap.classList.add("is-hidden");
+        syncDiscoverPresetCustomOptionLabel();
+        return;
+      }
+      wrap.classList.remove("is-hidden");
+      syncDiscoverPresetCustomOptionLabel();
+    }
+
+    function onCustomPublishRangeFieldChange() {
+      if (!(discoverPublishPreset instanceof HTMLSelectElement) || discoverPublishPreset.value.trim() !== "custom") {
+        return;
+      }
+      const parsed = parseCustomPublishRangeFromDom();
+      discoverCustomRangeCollapsed = Boolean(parsed.valid);
+      refreshDiscoverPublishCustomUi();
+    }
+
+    if (discoverPublishPreset instanceof HTMLSelectElement) {
+      discoverPublishPreset.addEventListener("change", () => {
+        const nextPreset = discoverPublishPreset.value.trim();
+        if (nextPreset !== "custom") {
+          discoverCustomRangeCollapsed = false;
+          if (discoverPublishAfter instanceof HTMLInputElement) {
+            discoverPublishAfter.value = "";
+          }
+          if (discoverPublishBefore instanceof HTMLInputElement) {
+            discoverPublishBefore.value = "";
+          }
+        }
+        refreshDiscoverPublishCustomUi();
+      });
+    }
+
+    if (discoverPublishAfter instanceof HTMLInputElement) {
+      discoverPublishAfter.addEventListener("change", onCustomPublishRangeFieldChange);
+    }
+    if (discoverPublishBefore instanceof HTMLInputElement) {
+      discoverPublishBefore.addEventListener("change", onCustomPublishRangeFieldChange);
+    }
+
+    onLocaleChange(() => {
+      refreshDiscoverPublishCustomUi();
+    });
+
+    refreshDiscoverPublishCustomUi();
 
     const discoverButtonInline = getElement("discover-btn-inline");
     if (discoverButtonInline) {

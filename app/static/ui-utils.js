@@ -266,7 +266,7 @@ export function debounce(callback, delayMs) {
   };
 }
 
-/** Format API ISO datetime for video publish time in the current locale. */
+/** Format API ISO datetime as calendar date only (no time of day). */
 export function formatVideoPublishedAt(isoString) {
   const raw = String(isoString || "").trim();
   if (!raw) {
@@ -277,5 +277,22 @@ export function formatVideoPublishedAt(isoString) {
     return "";
   }
   const locale = getLocale() === "zh" ? "zh-CN" : undefined;
-  return parsed.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+  return parsed.toLocaleDateString(locale, { dateStyle: "medium" });
+}
+
+/** `YYYY-MM-DD` interpreted as local calendar date → locale date string (no time). */
+export function formatLocalDateYmd(ymd) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || "").trim());
+  if (!match) {
+    return "";
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const parsed = new Date(year, month, day, 12, 0, 0, 0);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  const locale = getLocale() === "zh" ? "zh-CN" : undefined;
+  return parsed.toLocaleDateString(locale, { dateStyle: "medium" });
 }

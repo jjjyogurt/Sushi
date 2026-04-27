@@ -411,18 +411,18 @@
                     <option value="7d">Last 7 days</option>
                     <option value="30d">Last 30 days</option>
                     <option value="90d">Last 90 days</option>
-                    <option value="custom">Custom range</option>
+                    <option value="custom" id="discover-publish-preset-option-custom">Custom range</option>
                   </select>
                 </label>
                 <div id="discover-publish-custom-wrap" class="discover-publish-custom-wrap is-hidden">
                   <div class="discover-publish-custom-row">
                     <label class="discover-publish-datetime-label">
-                      <span id="discover-publish-custom-start-label">Start (local)</span>
-                      <input id="discover-publish-after" type="datetime-local" step="60" autocomplete="off" />
+                      <span id="discover-publish-custom-start-label">Start date</span>
+                      <input id="discover-publish-after" type="date" autocomplete="off" />
                     </label>
                     <label class="discover-publish-datetime-label">
-                      <span id="discover-publish-custom-end-label">End (local)</span>
-                      <input id="discover-publish-before" type="datetime-local" step="60" autocomplete="off" />
+                      <span id="discover-publish-custom-end-label">End date</span>
+                      <input id="discover-publish-before" type="date" autocomplete="off" />
                     </label>
                   </div>
                 </div>
@@ -783,9 +783,13 @@
         <h2>Sign in</h2>
         <p>Use your Sushi account to continue.</p>
         <form id="auth-login-form" class="form-grid">
-          <label>
+          <label id="auth-user-select-wrap">
             Account
             <select id="auth-user-select"></select>
+          </label>
+          <label id="auth-user-id-wrap" class="is-hidden">
+            Account ID
+            <input id="auth-user-id" type="text" autocomplete="username" />
           </label>
           <label>
             Password

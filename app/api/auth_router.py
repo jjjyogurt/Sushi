@@ -34,8 +34,8 @@ def login(payload: AuthLoginRequest, response: Response, db: Session = Depends(g
         value=session_token,
         max_age=service.cookie_max_age_seconds(),
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=settings.use_secure_cookies(),
+        samesite="lax",
     )
     return AuthSessionResponse(user=map_auth_user_response(user))
 
@@ -53,9 +53,9 @@ def logout(
     response.delete_cookie(
         SESSION_COOKIE_NAME,
         path="/",
-        secure=True,
+        secure=settings.use_secure_cookies(),
         httponly=True,
-        samesite="none",
+        samesite="lax",
     )
     return {"status": "success"}
 

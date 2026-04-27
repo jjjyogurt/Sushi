@@ -442,3 +442,64 @@ def test_discover_forwards_publish_window_to_service(client, api_monitor_profile
     assert response.status_code == 200
     assert calls[0]["published_after"] == datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     assert calls[0]["published_before"] == datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+
+def test_get_analysis_returns_404_when_no_analysis_exists(client, api_db_session, api_monitor_profile):
+    """Test that GET /videos/{id}/analysis returns 404 when no analysis exists for video."""
+    repository = VideoRepository(api_db_session)
+    video = repository.upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="no-analysis-video",
+        video_url="https://youtu.be/no-analysis-video",
+        title="Video Without Analysis",
+        channel_name="Creator",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+
+    response = client.get(f"/videos/{video.id}/analysis")
+    assert response.status_code == 404
+    assert "Analysis not found" in response.json()["detail"]
+
+
+def test_get_analysis_returns_404_for_nonexistent_video(client):
+    """Test that GET /videos/{id}/analysis returns 404 for non-existent video ID."""
+    response = client.get("/videos/99999/analysis")
+    assert response.status_code == 404
+    assert "Analysis not found" in response.json()["detail"]
+
+
+def test_get_analysis_validates_invalid_language(client, api_db_session, api_monitor_profile):
+    """Test that GET /videos/{id}/analysis validates language parameter."""
+    repository = VideoRepository(api_db_session)
+    video = repository.upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="lang-test-video",
+        video_url="https://youtu.be/lang-test-video",
+        title="Language Test Video",
+        channel_name="Creator",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+
+    response = client.get(f"/videos/{video.id}/analysis?language=invalid")
+    assert response.status_code == 400
+
+
+def test_analyze_endpoint_maps_transcript_unavailable_errors(client, monkeypatch):
+    """Test that analyze endpoint maps TranscriptUnavailableError to 422."""
+    from app.services.exceptions import TranscriptUnavailableError
+
+    def _raise_unavailable(self, *, video_id: int, force_reanalyze: bool = False, knowledge_base_id=None):
+        _ = (video_id, force_reanalyze, knowledge_base_id)
+        raise TranscriptUnavailableError("No captions available for this video.")
+
+    monkeypatch.setattr(AnalysisService, "analyze_video", _raise_unavailable)
+
+    response = client.post("/videos/31/analyze", json={"force_reanalyze": True})
+    assert response.status_code == 422
+    assert response.json()["detail"].startswith("TRANSCRIPT_UNAVAILABLE:")

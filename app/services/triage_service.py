@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
@@ -21,6 +22,8 @@ from app.services.youtube_discovery_service import (
 )
 from app.utils.text import normalize_title
 from app.utils.youtube import extract_video_id, fetch_oembed_metadata
+
+logger = logging.getLogger(__name__)
 
 
 class TriageService:
@@ -163,32 +166,63 @@ class TriageService:
         published_after: Optional[datetime] = None,
         published_before: Optional[datetime] = None,
     ):
+        logger.info(
+            "DISCOVERY START: profile_id=%s max_results=%d mock=%s",
+            monitor_profile_id, max_results, self.settings.enable_mock_discovery
+        )
+
         profile = self._require_profile(monitor_profile_id)
 
         keywords = self._monitoring_keywords(profile)
         languages = self.monitor_repository.unpack_languages(profile)
         markets = self.monitor_repository.unpack_markets(profile)
 
+        logger.info(
+            "DISCOVERY PROFILE: name='%s' keywords=%d languages=%d markets=%d",
+            profile.name, len(keywords), len(languages), len(markets)
+        )
+        logger.debug("DISCOVERY KEYWORDS: %s", keywords)
+        logger.debug("DISCOVERY LANGUAGES: %s", languages)
+        logger.debug("DISCOVERY MARKETS: %s", markets)
+
         if self.settings.enable_mock_discovery:
+            logger.info("DISCOVERY: using mock seed (mock discovery enabled)")
             discovered = self.discovery_service.mock_seed_for_profile(profile=profile, max_results=max_results)
             expanded_keywords = list(dict.fromkeys(keywords))
         else:
+            logger.info("DISCOVERY: building query plan with Gemini/keyword fallback")
             plan = self.discovery_keyword_service.build_plan(keywords=keywords, languages=languages, markets=markets)
             expanded_keywords = list(dict.fromkeys([*plan.match_keywords, *keywords]))
+            logger.info(
+                "DISCOVERY PLAN: query_specs=%d match_keywords=%d",
+                len(plan.query_specs), len(plan.match_keywords)
+            )
+            logger.debug("DISCOVERY QUERY SPECS: %s", plan.query_specs)
+
             discovered = self.discovery_service.discover_live_with_specs(
                 query_specs=plan.query_specs,
                 max_results=max_results,
                 published_after=published_after,
                 published_before=published_before,
             )
+
+        logger.info("DISCOVERY RAW RESULTS: %d videos from search", len(discovered))
+
         discovered = filter_discovered_videos_by_publish_window(
             discovered,
             published_after=published_after,
             published_before=published_before,
         )
+        logger.info("DISCOVERY AFTER WINDOW FILTER: %d videos", len(discovered))
+
         filtered_discovered = [
             item for item in discovered if self._title_matches_keywords(title=item.title, keywords=expanded_keywords)
         ]
+        logger.info(
+            "DISCOVERY AFTER TITLE FILTER: %d videos (filtered out %d)",
+            len(filtered_discovered), len(discovered) - len(filtered_discovered)
+        )
+
         persisted = []
         for item in filtered_discovered:
             relevance_score, relevance_reason = self.relevance_service.score(
@@ -205,6 +239,16 @@ class TriageService:
             )
             if candidate is not None:
                 persisted.append(candidate)
+                logger.debug("DISCOVERY PERSISTED: video_id=%s title='%s'", candidate.id, item.title[:50])
+            else:
+                logger.debug("DISCOVERY SKIPPED: video already in other project title='%s'", item.title[:50])
+
+        logger.info(
+            "DISCOVERY COMPLETE: profile_id=%s persisted=%d (was filtered: %d -> %d -> %d)",
+            monitor_profile_id, len(persisted), len(discovered) + (len(discovered) - len(filtered_discovered)),
+            len(discovered), len(filtered_discovered)
+        )
+
         self.audit_repository.record(
             actor="system",
             action="discover_videos",

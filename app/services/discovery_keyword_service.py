@@ -28,11 +28,18 @@ class DiscoveryKeywordService:
         market_rows = YouTubeDiscoveryService._normalized_markets(markets)
         match_seed = list(dict.fromkeys(base_kw))
 
+        logger.info(
+            "Discovery plan build START: keywords=%d langs=%d markets=%d gemini_ready=%s",
+            len(base_kw), len(normalized_langs), len(market_rows), self._gemini_ready()
+        )
+
         if not base_kw:
+            logger.warning("Discovery plan: no valid keywords provided")
             return DiscoveryPlan(query_specs=[], match_keywords=match_seed)
 
         if self._gemini_ready():
             try:
+                logger.info("Discovery plan: calling Gemini for query expansion")
                 raw = self._gemini.plan_youtube_discovery_queries(
                     keywords=base_kw,
                     language_codes=normalized_langs,
@@ -42,12 +49,27 @@ class DiscoveryKeywordService:
                     ],
                 )
                 plan = self._plan_from_gemini_payload(raw, base_kw, normalized_langs, market_rows)
+                logger.info(
+                    "Discovery plan: Gemini returned queries=%d keywords=%d",
+                    len(plan.query_specs), len(plan.match_keywords)
+                )
                 if plan.query_specs:
                     return plan
+                logger.warning("Discovery plan: Gemini returned empty specs, using fallback")
             except Exception as error:  # noqa: BLE001
-                logger.warning("Gemini discovery plan failed; using fallback. error=%s", error)
+                logger.warning(
+                    "Discovery plan: Gemini failed, using fallback. error=%s type=%s",
+                    error, type(error).__name__, exc_info=True
+                )
+        else:
+            logger.info("Discovery plan: Gemini not ready (no API key or client), using fallback")
 
-        return self._fallback_plan(base_kw, normalized_langs, market_rows)
+        fallback_plan = self._fallback_plan(base_kw, normalized_langs, market_rows)
+        logger.info(
+            "Discovery plan FALLBACK: queries=%d keywords=%d",
+            len(fallback_plan.query_specs), len(fallback_plan.match_keywords)
+        )
+        return fallback_plan
 
     def _plan_from_gemini_payload(
         self,
