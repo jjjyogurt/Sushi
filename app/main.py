@@ -58,12 +58,14 @@ def on_startup() -> None:
 
 @app.get("/", response_class=HTMLResponse)
 def render_home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html")
 
 
 @app.get("/projects/{project_id}", response_class=HTMLResponse)
 def render_project(request: Request, project_id: int):
-    return templates.TemplateResponse("index.html", {"request": request, "project_id": project_id})
+    return templates.TemplateResponse(
+        request=request, name="index.html", context={"project_id": project_id}
+    )
 
 
 app.include_router(monitor_router)
