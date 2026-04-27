@@ -24,27 +24,25 @@ from app.db_migrations import (
     ensure_video_candidate_assignment_columns,
     ensure_video_comments_table,
 )
-from app.db import engine
+from app.db import get_db_engine
 from app.models.base import Base
+
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Influencer Video Intelligence", version="0.1.0")
 templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# Ensure local SQLite tables exist for both API runtime and local script usage.
-Base.metadata.create_all(bind=engine)
-ensure_monitor_profiles_key_products_column(engine)
-ensure_analysis_results_summary_columns(engine)
-ensure_analysis_results_language_column_and_index(engine)
-ensure_analysis_results_comment_columns(engine)
-ensure_video_comments_table(engine)
-ensure_video_candidate_assignment_columns(engine)
-ensure_default_app_users(engine)
-cleanup_orphan_video_data(engine)
-
 
 @app.on_event("startup")
 def on_startup() -> None:
+    # Get database engine with retry logic for Cloud SQL connections
+    engine = get_db_engine(max_retries=15, retry_delay=2.0)
+    
+    # Run database migrations - only runs after Cloud SQL proxy is ready
     Base.metadata.create_all(bind=engine)
     ensure_monitor_profiles_key_products_column(engine)
     ensure_analysis_results_summary_columns(engine)
@@ -54,6 +52,7 @@ def on_startup() -> None:
     ensure_video_candidate_assignment_columns(engine)
     ensure_default_app_users(engine)
     cleanup_orphan_video_data(engine)
+    logger.info("Application startup complete - all migrations finished")
 
 
 @app.get("/", response_class=HTMLResponse)
