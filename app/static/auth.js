@@ -23,6 +23,29 @@ export function createAuthController({ request, setState }) {
   let currentUser = null;
   let waitingResolver = null;
   let formBound = false;
+  let selectorDefaultPassword = "";
+
+  function syncLoginInputsFromSelection() {
+    const userSelect = getElement("auth-user-select");
+    const userIdInput = getElement("auth-user-id");
+    const passwordInput = getElement("auth-password");
+    if (!(userSelect instanceof HTMLSelectElement)) {
+      return;
+    }
+    const selectedUserId = String(userSelect.value || "").trim();
+    if (!selectedUserId) {
+      return;
+    }
+    if (userIdInput instanceof HTMLInputElement) {
+      userIdInput.value = selectedUserId;
+    }
+    if (passwordInput instanceof HTMLInputElement) {
+      if (!selectorDefaultPassword) {
+        selectorDefaultPassword = passwordInput.value || "1234";
+      }
+      passwordInput.value = selectorDefaultPassword;
+    }
+  }
 
   function syncCurrentUserLabels() {
     const userLabel = currentUser?.display_name || t("accountNotSignedIn");
@@ -61,6 +84,10 @@ export function createAuthController({ request, setState }) {
       select.innerHTML = users
         .map((user) => `<option value="${user.user_id}">${user.display_name}</option>`)
         .join("");
+      if (users.length > 0) {
+        select.value = users[0].user_id;
+      }
+      syncLoginInputsFromSelection();
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
         users = [];
@@ -166,10 +193,17 @@ export function createAuthController({ request, setState }) {
       event.preventDefault();
       void submitLogin();
     });
+    const userSelect = getElement("auth-user-select");
+    if (userSelect instanceof HTMLSelectElement) {
+      userSelect.addEventListener("change", () => {
+        syncLoginInputsFromSelection();
+      });
+    }
   }
 
   async function waitForLogin() {
     setAuthGateVisible(true);
+    syncLoginInputsFromSelection();
     return new Promise((resolve) => {
       waitingResolver = resolve;
     });

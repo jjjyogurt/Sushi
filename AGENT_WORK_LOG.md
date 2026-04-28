@@ -1,5 +1,54 @@
 # Agent Work Log
 
+## 2026-04-28 14:30
+
+- Task: Project workspace — place Insights control beside back (top-right cluster).
+- Changes: `index.html` — `queue-header-actions` wraps `open-insights-btn` + `back-to-dashboard-btn`; removed extra `button-row`; `styles.css` — flex cluster with 8px gap.
+- Check: Not run.
+- Next: None.
+
+## 2026-04-28 14:00
+
+- Task: Align Projects (dashboard) typography/spacing with VOC and other primary panels.
+- Changes: `styles.css` — `#dashboard.panel` uses same panel padding + `.content:has(#dashboard.active)` as others; `.panel-header` flex row + intro `flex:1` (queue/insights stay column); `#dashboard .project-grid` gap 24px, margin-top 0.
+- Check: Not run.
+- Next: None.
+
+## 2026-04-28
+
+- Task: Remove Insights from left sidebar navigation.
+- Changes: `index.html` — removed nav button `data-section="insights"`; `i18n.js` — dropped `navInsights` strings and STATIC_BINDINGS entry for sidebar Insights.
+- Check: Not run.
+- Next: Insights panel remains reachable via Project workspace “Insights” control (`open-insights-btn`) if desired.
+
+## 2026-04-28 13:15
+
+- Task: Match reduced top spacing on Insights, VOC, Watch list, Alerts, Settings (same as queue).
+- Changes: `styles.css` — combined `#insights`, `#voc`, `#watchlist`, `#alerts`, `#settings` with queue panel padding rule; extended `.content:has(...)` for those panels’ `.active` state.
+- Check: Not run.
+- Next: None.
+
+## 2026-04-28 13:00
+
+- Task: Reduce empty vertical gap below topbar on project workspace (queue) page.
+- Changes: `styles.css` — `#queue.panel` top padding 12px; `.content:has(#queue.panel.active)` padding-top 16px (stacks with panel less than before 24+40).
+- Check: Not run.
+- Next: None.
+
+## 2026-04-28 12:30
+
+- Task: Queue / project workspace header — same exit icon pattern as Insights (bordered icon-only back).
+- Changes: `index.html` queue-header-row + `btn-secondary btn-icon-only`; `styles.css` queue header flex; `i18n.js` `back` on `aria-label`.
+- Check: Not run.
+- Next: None.
+
+## 2026-04-28 12:00
+
+- Task: Insights header — move back control top-right; icon-only (keep arrow).
+- Changes: `index.html` insights header row + `btn-icon-only`; `styles.css` flex row; `i18n.js` bind `insightsBackToProject` to `aria-label`.
+- Check: Not run.
+- Next: None.
+
 ## 2026-04-24 15:00
 
 - Task: Deploy Sushi app to Cloud Run + Firebase; create Cloud SQL instance, database, user; enable APIs; build container; configure env vars and IAM.
@@ -376,3 +425,115 @@
 - Changes: Added logging to `youtube_discovery_service.py` (10+ log points for API requests, responses, errors, timeouts, transport errors, JSON parse errors); added logging to `discovery_keyword_service.py` (Gemini vs fallback decision logging); added logging to `triage_service.py` (full discovery flow tracing including filters); fixed silent exception handling that was swallowing network errors.
 - Check: `python3 -m pytest tests/unit/` — 109 passed.
 - Next: Deploy and check Cloud Run logs to identify exact failure point in discovery pipeline.
+
+## 2026-04-28 10:55
+
+- Task: Implement project-level Insights snapshots and history on Project Workspace.
+- Changes: Added `project_insight_reports` model, repository/service/router, new `/monitor-profiles/{id}/insights/*` APIs, queue-level Insights entry/panel, refresh/history UI, and i18n/style updates; snapshots use completed analyses with DB transcripts only.
+- Check: `python3 -m pytest tests/unit/test_project_insights_router.py tests/unit/test_video_router.py tests/unit/test_monitor_repository.py tests/unit/test_db_migrations.py` (all passed).
+- Next: Optional follow-up: async refresh jobs + month-over-month compare deltas.
+
+## 2026-04-28 11:03
+
+- Task: Auto-fill auth account ID and password from account selector.
+- Changes: Updated `app/static/auth.js` to sync selected user into `auth-user-id` and auto-apply default password on selector load/change and login gate open.
+- Check: `python3 -m pytest tests/unit/test_auth_list_users.py tests/unit/test_auth_watchlist_router.py`; ReadLints clean on `app/static/auth.js`.
+- Next: Optional UI tweak: surface selected account ID visibly under selector.
+
+## 2026-04-28 11:12
+
+- Task: Add Insights return button and history deletion controls.
+- Changes: Added Back-to-Project and Clear History buttons in Insights UI, per-snapshot delete action in history list, and new backend delete endpoints (`DELETE /insights/history/{id}` and `DELETE /insights/history`).
+- Check: `python3 -m pytest tests/unit/test_project_insights_router.py tests/unit/test_video_router.py`; ReadLints clean on touched files.
+- Next: Optional polish: add undo toast for accidental history delete.
+
+## 2026-04-28 11:22
+
+- Task: Upgrade Insights report structure and Gemini synthesis pipeline.
+- Changes: Renamed sections to Praise/Criticism, added Team Action Plan + Methodology sections, and updated project insights generation to pass project transcript evidence + AGENTS prompt into Gemini with deterministic fallback.
+- Check: `python3 -m pytest tests/unit/test_project_insights_router.py tests/unit/test_video_router.py`; ReadLints clean on touched files.
+- Next: Optional improvement: dedicated insights prompt versioning separate from AGENTS.md.
+
+## 2026-04-28 11:26
+
+- Task: Clarify that Insights synthesis is multi-video comprehensive reporting.
+- Changes: Updated `generate_project_insights_report` prompt in `app/services/gemini_client.py` with explicit “not a single-video review” and “aggregate cross-video patterns” instructions before AGENTS.md guidance.
+- Check: `python3 -m pytest tests/unit/test_project_insights_router.py`; ReadLints clean on touched file.
+- Next: Optional: add stronger conflict rule (“if AGENTS prompt conflicts, prioritize project-level aggregation”).
+
+## 2026-04-28 12:02
+
+- Task: Diagnose why dashboard projects disappear after login.
+- Changes: Traced dashboard to `/monitor-profiles`, inspected Cloud Run revisions, and confirmed latest revision lacks `DATABASE_URL` and `ENVIRONMENT`, causing fallback to local SQLite.
+- Check: `.venv/bin/python -m pytest tests/unit/test_monitor_router.py tests/unit/test_monitor_repository.py -q` (5 passed); live `/health` + monitor create/list/delete API checks; `gcloud run revisions describe` env diff.
+- Next: Restore production DB/env vars on Cloud Run and rotate exposed secrets.
+
+## 2026-04-28 14:13
+
+- Task: Implement Cloud Run production DB fix for disappearing project data.
+- Changes: Updated `sushi-backend` service env with `ENVIRONMENT=production` and Cloud SQL `DATABASE_URL`, rolled to revision `sushi-backend-00016-ktl`, and validated env/runtime behavior.
+- Check: Live checks passed: `/health` 200, `/auth/users` 403, monitor profile create/list/delete persistence smoke test succeeded.
+- Next: Rotate exposed DB/API credentials and migrate secrets to Secret Manager.
+
+## 2026-04-28 11:58
+
+- Task: Remove leaked credentials from deployment docs and add secret guards.
+- Changes: Redacted raw `GEMINI_API_KEY` and DB password/URL in `DEPLOY_LOG.md`, switched deploy example to `--set-secrets`, added `.pre-commit-config.yaml`, `secret-scan.yml`, and README setup notes.
+- Check: `rg` leak-pattern scan clean for real keys; `ReadLints` clean on touched files; `pre-commit` not installed locally.
+- Next: Rotate compromised credentials and enable pre-commit on each developer machine.
+
+## 2026-04-28 13:26
+
+- Task: Improve Insights UX for generation state and project clarity.
+- Changes: Added non-clickable `Generating...` refresh state with click guard in `insights.js`, and displayed current project name in Insights header via `insights-project-context`.
+- Check: `node --check app/static/insights.js` and `node --check app/static/i18n.js`.
+- Next: Optional polish: add spinner icon and elapsed time while generation runs.
+
+## 2026-04-28 15:30
+
+- Task: Run alpha test execution and report for Project Insights readiness.
+- Changes: Executed P0 gate, full unit regression, and Project Insights module tests in live and deterministic modes.
+- Check: `.venv/bin/python -m pytest tests/unit -q` (111/112 with live synthesis; 112/112 with `GEMINI_API_KEY=''`); P0 gate 32/32 pass.
+- Next: Stabilize Insights refresh test path by disabling live Gemini in tests or enforcing deterministic synthesis.
+
+## 2026-04-28 15:46
+
+- Task: Create canonical backend deployment runbook.
+- Changes: Added `BACKEND_DEPLOYMENT.md` with preflight, deploy, verify, rollback, and update-policy steps.
+- Check: Matched values with `firebase.json`, `.firebaserc`, `.env.example`; `ReadLints` clean.
+- Next: Optional: add `scripts/deploy_backend.sh` to mirror runbook commands.
+
+## 2026-04-28 16:55
+
+- Task: Document backend database design for fast onboarding.
+- Changes: Added `DATABASE_DESIGN.md` with architecture flow, ER diagram, domain table map, transcript/analysis storage path, and Cloud Run/Cloud SQL linkage.
+- Check: `ReadLints` clean on `DATABASE_DESIGN.md`.
+- Next: Optional: add generated schema export (column/type matrix) for SQL-level auditing.
+
+## 2026-04-28 17:09
+
+- Task: Add rule for mandatory DB doc updates.
+- Changes: Updated `AGENTS.md` with a Database Change Governance section requiring `DATABASE_DESIGN.md` updates and explicit "What Changed" notes for schema-impacting changes.
+- Check: `ReadLints` clean on `AGENTS.md`.
+- Next: Optional: add a PR checklist item enforcing this rule.
+
+## 2026-04-28 17:58
+
+- Task: Restore Cloud Run backend after DB credential update.
+- Changes: Updated production `DATABASE_URL` to use `sushi-d9036-database` while preserving current credentials/socket config.
+- Check: Cloud Run revision `sushi-backend-00021-h7g` deployed; root URL returned 200; startup log shows "Application startup complete".
+- Next: Rotate exposed API keys/passwords and move DB URL to Secret Manager.
+
+## 2026-04-28 18:05
+
+- Task: Deploy latest backend to Cloud Run.
+- Changes: Made project insights router tests deterministic by bypassing live Gemini synthesis in unit tests, then deployed source to `sushi-backend`.
+- Check: `python3 -m pytest tests/unit -q` passed; revision `sushi-backend-00022-pn6` serves 100%; `/health` and root returned 200.
+- Next: Move production secrets into Secret Manager before the next runbook-aligned deploy.
+
+## 2026-04-28 18:08
+
+- Task: Update backend deployment documentation for current env handling.
+- Changes: Documented that `DATABASE_URL` is a Cloud Run env var and should not use missing Secret Manager entry `DATABASE_URL:latest`.
+- Check: `ReadLints` clean on updated markdown files.
+- Next: Keep future deploys preserving env vars unless runtime config changes.

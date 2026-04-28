@@ -11,6 +11,7 @@ from app.api.health_router import router as health_router
 from app.api.incident_router import router as incident_router
 from app.api.knowledge_router import router as knowledge_router
 from app.api.monitor_router import router as monitor_router
+from app.api.project_insights_router import router as project_insights_router
 from app.api.video_router import router as video_router
 from app.api.voc_router import router as voc_router
 from app.api.watchlist_router import router as watchlist_router
@@ -68,6 +69,7 @@ def render_project(request: Request, project_id: int):
 
 
 app.include_router(monitor_router)
+app.include_router(project_insights_router)
 app.include_router(video_router)
 app.include_router(chat_router)
 app.include_router(incident_router)

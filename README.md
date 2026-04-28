@@ -98,6 +98,14 @@ Step-by-step local guide (venv, Windows, troubleshooting): [LOCAL_SETUP.md](LOCA
 
 Do not commit raw API keys. Keep `GEMINI_API_KEY` and `YOUTUBE_TRANSCRIPT_API_KEY` only in local/prod environment variables.
 
+Enable local secret scanning before your first commit:
+
+1. `pip install pre-commit`
+2. `pre-commit install`
+3. `pre-commit run --all-files`
+
+CI also runs a secret scan via `.github/workflows/secret-scan.yml` on PRs and pushes to `main`.
+
 ## Gemini troubleshooting
 
 - `GEMINI_API_KEY is not configured` means analysis/chat now fail closed by design; set a valid key in `.env`.

@@ -9,6 +9,7 @@ from app.models.knowledge_chunk import KnowledgeChunk
 from app.models.knowledge_snapshot import KnowledgeSnapshot
 from app.models.knowledge_source import KnowledgeSource
 from app.models.monitor_profile import MonitorProfile
+from app.models.project_insight_report import ProjectInsightReport
 from app.models.voc_evidence import VocEvidence
 from app.models.voc_insight import VocInsight
 from app.models.voc_project import VocProject
@@ -25,6 +26,7 @@ from app.models.video_watchlist_entry import VideoWatchlistEntry
 __all__ = [
     "AuditLog",
     "MonitorProfile",
+    "ProjectInsightReport",
     "VideoCandidate",
     "VideoComment",
     "AppUser",

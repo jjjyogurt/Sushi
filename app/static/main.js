@@ -25,6 +25,7 @@ import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js";
 import { createVocController } from "./voc.js";
 import { createAllVideosSettingsController } from "./all-videos-settings.js";
+import { createInsightsController } from "./insights.js";
 import { createWatchlistController } from "./watchlist.js";
 import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js";
 
@@ -447,6 +448,7 @@ async function bootstrap() {
   await authController.ensureAuthenticated();
   authController.bindLogoutButtons();
   let queueController = null;
+  let insightsController = null;
   let watchlistController = null;
   function clearNewVideoLabelsFromAnyAction() {
     const state = getState();
@@ -505,6 +507,7 @@ async function bootstrap() {
       queueController.renderProfileSelect();
     }
     knowledgeSettingsController.syncProjectSelection();
+    insightsController?.syncEntryVisibility();
   }
 
   function bindLanguageSelector() {
@@ -539,6 +542,7 @@ async function bootstrap() {
     queueController?.renderVideos();
     await videoDetailController.renderVideoDetail();
     rerenderProfileArea();
+    insightsController?.syncEntryVisibility();
     await loadAlerts();
     if (document.querySelector("#watchlist.panel.active")) {
       await watchlistController?.refresh();
@@ -559,6 +563,13 @@ async function bootstrap() {
         await watchlistController.refresh();
       }
     },
+  });
+
+  insightsController = createInsightsController({
+    getState,
+    request,
+    runTask,
+    setActiveSection,
   });
 
   watchlistController = createWatchlistController({
@@ -788,7 +799,9 @@ async function bootstrap() {
       void runTask(async () => {
         await watchlistController?.refresh();
       });
+      return;
     }
+    insightsController?.handleSectionChange(sectionId);
   });
   bindDashboardControls();
   bindTokenInputs();
@@ -801,6 +814,7 @@ async function bootstrap() {
   knowledgeSettingsController.bindKnowledgeSettingsControls();
   vocController.bindVocControls();
   queueController.bindQueueInteractions();
+  insightsController.bindInsightsControls();
   watchlistController.bindWatchlistControls();
   allVideosSettingsController.bindAllVideosSettings();
   bindDashboardInteractions({
@@ -861,6 +875,7 @@ async function bootstrap() {
   setActiveSection(routeProjectId ? "queue" : "dashboard");
 
   await loadProfiles();
+  insightsController.syncEntryVisibility();
   await queueController.refreshVideos();
   await watchlistController.refresh();
 

@@ -220,6 +220,14 @@ def cleanup_orphan_video_data(engine: Engine) -> None:
             )
             connection.execute(text("DELETE FROM chat_sessions WHERE video_candidate_id NOT IN (SELECT id FROM video_candidates)"))
 
+        if "project_insight_reports" in table_names:
+            connection.execute(
+                text(
+                    "DELETE FROM project_insight_reports "
+                    "WHERE monitor_profile_id NOT IN (SELECT id FROM monitor_profiles)"
+                )
+            )
+
         connection.execute(text(f"DELETE FROM video_candidates WHERE id IN ({stale_or_orphan_video_subquery})"))
 
 

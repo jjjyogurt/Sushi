@@ -11,7 +11,7 @@
 - **Region:** `asia-southeast1` (Singapore)
 - **Connection Name:** `sushi-d9036:asia-southeast1:sushi-d9036-instance`
 - **Database:** `sushi-d9036-database`
-- **User:** `sushi-d9036-instance` / Password: `Aa123456!!`
+- **User:** `sushi-d9036-instance` / Password: `REDACTED` (store in Secret Manager only)
 
 ### 2. Cloud Run Service
 - **Service Name:** `sushi-backend`
@@ -37,8 +37,13 @@
 | Variable | Value |
 |----------|-------|
 | `ENVIRONMENT` | `production` |
-| `DATABASE_URL` | `postgresql+psycopg2://sushi-d9036-instance:Aa123456%21%21@/sushi-d9036-database?host=/cloudsql/sushi-d9036:asia-southeast1:sushi-d9036-instance` |
-| `GEMINI_API_KEY` | `AIzaSyCbfI-GeAbTZREU4vhHj2nMz4_rX6QXYIk` |
+| `DATABASE_URL` | `postgresql+psycopg2://APP_USER:***REDACTED***@/DB_NAME?host=/cloudsql/PROJECT:REGION:INSTANCE` |
+| `GEMINI_API_KEY` | `***REDACTED***` |
+
+### Security Note
+
+- Raw credentials were removed from this document.
+- If the previous values were used in production, rotate the DB password and API key immediately.
 
 ---
 
@@ -115,10 +120,12 @@ gcloud run deploy sushi-backend \
   --source . \
   --region asia-southeast1 \
   --add-cloudsql-instances sushi-d9036:asia-southeast1:sushi-d9036-instance \
-  --set-env-vars ENVIRONMENT=production \
-  --set-env-vars "DATABASE_URL=postgresql+psycopg2://sushi-d9036-instance:Aa123456%21%21@/sushi-d9036-database?host=/cloudsql/sushi-d9036:asia-southeast1:sushi-d9036-instance" \
-  --set-env-vars GEMINI_API_KEY="AIzaSyCbfI-GeAbTZREU4vhHj2nMz4_rX6QXYIk" \
   --allow-unauthenticated
+
+# Current production note:
+# DATABASE_URL is a Cloud Run environment variable, not a Secret Manager entry.
+# Preserve existing env vars on code-only deploys, or update specific keys with
+# --update-env-vars when runtime config changes.
 
 # 3. Deploy Firebase (if needed)
 firebase deploy --only hosting

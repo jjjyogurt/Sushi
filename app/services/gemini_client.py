@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import Any, List
+from typing import Any, Dict, List
 
 from app.config import Settings
 from app.models.enums import RiskLevel, Sentiment
@@ -126,6 +126,56 @@ class GeminiClient:
         if not normalized:
             raise GeminiResponseError("Gemini VOC report output is empty.")
         return normalized
+
+    def generate_project_insights_report(
+        self,
+        *,
+        project_name: str,
+        total_video_count: int,
+        analyzed_video_count: int,
+        records: List[dict],
+        agent_instructions: str,
+    ) -> dict:
+        self._ensure_runtime_ready()
+        normalized_records = [row for row in records if isinstance(row, dict)]
+        if not normalized_records:
+            raise GeminiResponseError("Project insights input is empty.")
+
+        max_records = 80
+        records_for_prompt = normalized_records[:max_records]
+        payload = json.dumps(records_for_prompt, ensure_ascii=True)
+        prompt = (
+            "You are a professional product-insights researcher for consumer electronics.\n"
+            "Generate a project-level synthesis using only the evidence provided.\n"
+            "This is a comprehensive multi-video project report, not a single-video review.\n"
+            "Aggregate recurring themes across all included videos and prioritize cross-video patterns.\n"
+            "Follow these AGENTS.md instructions for evaluation style and quality bar:\n"
+            f"{agent_instructions}\n"
+            "Return strict JSON only with this exact shape:\n"
+            '{'
+            '"summary_headline":"string",'
+            '"summary_body":"string",'
+            '"business_impact":"string",'
+            '"overall_sentiment":"positive|neutral|negative",'
+            '"risk_level":"low|medium|high|critical",'
+            '"risk_score":0.0,'
+            '"praise_points":["string"],'
+            '"criticism_points":["string"],'
+            '"user_recommendations":["string"]'
+            '}\n'
+            "Rules:\n"
+            "- Base all claims on provided records only.\n"
+            "- Keep lists concise and high-signal (max 5 each).\n"
+            "- Do not fabricate incidents, timestamps, or failures.\n"
+            "- Use critical/high risk wording only when evidence supports it.\n"
+            f"Project name: {project_name}\n"
+            f"Total project videos: {total_video_count}\n"
+            f"Analyzed videos included: {analyzed_video_count}\n"
+            f"Records JSON:\n{payload}\n"
+        )
+        raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=prompt)
+        parsed = self._parse_json_payload(raw=raw, context="project insights report")
+        return self._normalize_project_insights_payload(parsed)
 
     def chat_about_video(self, *, context: str, question: str, language: str) -> ChatOutput:
         self._ensure_runtime_ready()
@@ -699,6 +749,29 @@ class GeminiClient:
     @staticmethod
     def _normalize_action_recommendation(value: Any) -> str:
         return str(value or "").strip()
+
+    @staticmethod
+    def _normalize_project_insights_payload(parsed: dict) -> Dict[str, Any]:
+        sentiment = GeminiClient._safe_sentiment(parsed.get("overall_sentiment")).value
+        risk_level = GeminiClient._safe_risk_level(parsed.get("risk_level")).value
+        risk_score_raw = GeminiClient._safe_confidence(parsed.get("risk_score"), fallback=0.0) * 10
+        if parsed.get("risk_score") is not None:
+            try:
+                risk_score_raw = float(parsed.get("risk_score"))
+            except (TypeError, ValueError):
+                risk_score_raw = 0.0
+        risk_score = max(0.0, min(10.0, round(risk_score_raw, 1)))
+        return {
+            "summary_headline": str(parsed.get("summary_headline", "")).strip(),
+            "summary_body": str(parsed.get("summary_body", "")).strip(),
+            "business_impact": str(parsed.get("business_impact", "")).strip(),
+            "overall_sentiment": sentiment,
+            "risk_level": risk_level,
+            "risk_score": risk_score,
+            "praise_points": GeminiClient._normalize_point_list(parsed.get("praise_points")),
+            "criticism_points": GeminiClient._normalize_point_list(parsed.get("criticism_points")),
+            "user_recommendations": GeminiClient._normalize_point_list(parsed.get("user_recommendations")),
+        }
 
     @staticmethod
     def _chat_from_parsed(*, parsed: dict) -> ChatOutput:

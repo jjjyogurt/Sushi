@@ -385,15 +385,25 @@
 
           <section id="queue" class="panel">
             <div class="panel-header queue-panel-header">
-              <div>
-                <h2>Project Workspace</h2>
-                <p>Review project videos, run AI analysis, and manage your global queue.</p>
-              </div>
-              <div class="button-row">
-                <button id="back-to-dashboard-btn" class="btn btn-clean" type="button">
-                  <span class="material-symbols-outlined">arrow_back</span>
-                  Back
-                </button>
+              <div class="queue-header-row">
+                <div class="queue-header-intro">
+                  <h2>Project Workspace</h2>
+                  <p>Review project videos, run AI analysis, and manage your global queue.</p>
+                </div>
+                <div class="queue-header-actions">
+                  <button id="open-insights-btn" class="btn btn-secondary is-hidden" type="button">
+                    <span class="material-symbols-outlined">insights</span>
+                    Insights
+                  </button>
+                  <button
+                    id="back-to-dashboard-btn"
+                    class="btn btn-secondary btn-icon-only"
+                    type="button"
+                    aria-label="Back"
+                  >
+                    <span class="material-symbols-outlined">arrow_back</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -501,6 +511,90 @@
                     <div class="line"></div>
                   </div>
                 </div>
+              </section>
+            </div>
+          </section>
+
+          <section id="insights" class="panel">
+            <div class="panel-header insights-panel-header">
+              <div class="insights-header-row">
+                <div class="insights-header-intro">
+                  <h2 id="insights-title">Insights</h2>
+                  <p id="insights-description">Project-level summary from analyzed videos only.</p>
+                  <p id="insights-project-context" class="meta insights-project-context"></p>
+                </div>
+                <button
+                  id="back-to-project-from-insights-btn"
+                  class="btn btn-secondary btn-icon-only"
+                  type="button"
+                  aria-label="Back to Project"
+                >
+                  <span class="material-symbols-outlined">arrow_back</span>
+                </button>
+              </div>
+              <div class="button-row">
+                <button id="refresh-insights-btn" class="btn btn-primary" type="button">Refresh Report</button>
+              </div>
+            </div>
+            <div id="insights-empty-state" class="pane insights-empty-state">
+              <p class="meta">Select a project and run analysis to generate insights.</p>
+            </div>
+            <div id="insights-content" class="insights-layout is-hidden">
+              <section class="pane insights-main-pane">
+                <div id="insights-meta" class="insights-meta-grid"></div>
+                <div class="pane insights-report-pane">
+                  <div class="pane-header">
+                    <h3 id="insights-executive-summary-title">Executive Summary</h3>
+                  </div>
+                  <div id="insights-summary" class="insights-rich-content"></div>
+                </div>
+                <div class="insights-signal-grid">
+                  <section class="pane insights-signal-pane">
+                    <div class="pane-header">
+                      <h3 id="insights-goods-title">Praise</h3>
+                    </div>
+                    <ul id="insights-goods-list" class="insights-list"></ul>
+                  </section>
+                  <section class="pane insights-signal-pane">
+                    <div class="pane-header">
+                      <h3 id="insights-bads-title">Criticism</h3>
+                    </div>
+                    <ul id="insights-bads-list" class="insights-list"></ul>
+                  </section>
+                </div>
+                <section class="pane insights-report-pane">
+                  <div class="pane-header">
+                    <h3 id="insights-recommendations-title">User Recommendations</h3>
+                  </div>
+                  <ul id="insights-recommendations-list" class="insights-list"></ul>
+                </section>
+                <div class="insights-signal-grid">
+                  <section class="pane insights-signal-pane">
+                    <div class="pane-header">
+                      <h3 id="insights-team-actions-title">Team Action Plan</h3>
+                    </div>
+                    <ul id="insights-team-actions-list" class="insights-list"></ul>
+                  </section>
+                  <section class="pane insights-signal-pane">
+                    <div class="pane-header">
+                      <h3 id="insights-methodology-title">Methodology</h3>
+                    </div>
+                    <ul id="insights-methodology-list" class="insights-list"></ul>
+                  </section>
+                </div>
+                <section class="pane insights-report-pane">
+                  <div class="pane-header">
+                    <h3 id="insights-snapshot-title">Snapshot Report</h3>
+                  </div>
+                  <pre id="insights-markdown" class="insights-markdown"></pre>
+                </section>
+              </section>
+              <section class="pane insights-history-pane">
+                <div class="pane-header insights-history-header">
+                  <h3 id="insights-history-title">History</h3>
+                  <button id="clear-insights-history-btn" class="btn btn-secondary btn-sm" type="button">Clear History</button>
+                </div>
+                <div id="insights-history-list" class="insights-history-list"></div>
               </section>
             </div>
           </section>

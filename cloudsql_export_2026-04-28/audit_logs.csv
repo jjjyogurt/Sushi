@@ -1,0 +1,17 @@
+1,system,discover_videos,monitor_profile,1,discovered_count=0,2026-04-27 09:44:07.276504+00,2026-04-27 09:44:07.276504+00
+2,system,discover_videos,monitor_profile,1,discovered_count=0,2026-04-27 09:44:42.882963+00,2026-04-27 09:44:42.882963+00
+3,system,discover_videos,monitor_profile,1,discovered_count=0,2026-04-27 09:44:48.493922+00,2026-04-27 09:44:48.493922+00
+4,system,discover_videos,monitor_profile,1,discovered_count=0,2026-04-27 09:45:02.163906+00,2026-04-27 09:45:02.163906+00
+5,system,discover_videos,monitor_profile,1,discovered_count=0,2026-04-27 10:26:40.082551+00,2026-04-27 10:26:40.082551+00
+6,system,discover_videos,monitor_profile,1,discovered_count=0,2026-04-27 10:26:55.792667+00,2026-04-27 10:26:55.792667+00
+7,system,discover_videos,monitor_profile,1,discovered_count=0,2026-04-27 10:27:00.174241+00,2026-04-27 10:27:00.174241+00
+8,system,discover_videos,monitor_profile,1,discovered_count=0,2026-04-27 10:27:18.546963+00,2026-04-27 10:27:18.546963+00
+9,system,discover_videos,monitor_profile,1,discovered_count=20,2026-04-28 06:12:08.084138+00,2026-04-28 06:12:08.084138+00
+10,system,analysis_forced,video_candidate,15,"status=en:failed,zh-Hans:failed,version=v1,error_code=en:GEMINI_PROVIDER_ERROR,zh-Hans:UPSTREAM_ENGLISH_FAILED,request_id=a1795eb0c1",2026-04-28 06:12:23.249198+00,2026-04-28 06:12:23.249198+00
+11,system,analysis_forced,video_candidate,6,"status=en:failed,zh-Hans:failed,version=v1,error_code=en:GEMINI_PROVIDER_ERROR,zh-Hans:UPSTREAM_ENGLISH_FAILED,request_id=e6fd64330c",2026-04-28 07:25:28.570634+00,2026-04-28 07:25:28.570634+00
+12,system,analysis_forced,video_candidate,15,"status=en:failed,zh-Hans:failed,version=v1,error_code=en:GEMINI_PROVIDER_ERROR,zh-Hans:UPSTREAM_ENGLISH_FAILED,request_id=8eedf0e57b",2026-04-28 07:25:30.703661+00,2026-04-28 07:25:30.703661+00
+13,system,analysis_forced,video_candidate,11,"status=en:failed,zh-Hans:failed,version=v1,error_code=en:GEMINI_PROVIDER_ERROR,zh-Hans:UPSTREAM_ENGLISH_FAILED,request_id=30ceb2aab0",2026-04-28 07:27:08.349822+00,2026-04-28 07:27:08.349822+00
+14,system,analysis_forced,video_candidate,15,"status=en:failed,zh-Hans:failed,version=v1,error_code=en:GEMINI_PROVIDER_ERROR,zh-Hans:UPSTREAM_ENGLISH_FAILED,request_id=5d1fd82c46",2026-04-28 07:44:55.97918+00,2026-04-28 07:44:55.97918+00
+15,system,analysis_forced,video_candidate,15,"status=en:failed,zh-Hans:failed,version=v1,error_code=en:GEMINI_PROVIDER_ERROR,zh-Hans:UPSTREAM_ENGLISH_FAILED,request_id=eff069cb3c",2026-04-28 07:46:19.082844+00,2026-04-28 07:46:19.082844+00
+16,system,analysis_forced,video_candidate,15,"status=en:failed,zh-Hans:failed,version=v1,error_code=en:GEMINI_PROVIDER_ERROR,zh-Hans:UPSTREAM_ENGLISH_FAILED,request_id=7290cc4a3a",2026-04-28 07:46:20.700232+00,2026-04-28 07:46:20.700232+00
+17,system,analysis_forced,video_candidate,15,"status=en:completed,zh-Hans:completed,version=v1,error_code=en:none,zh-Hans:none,request_id=7fe068ce53",2026-04-28 08:43:12.126822+00,2026-04-28 08:43:12.126822+00
