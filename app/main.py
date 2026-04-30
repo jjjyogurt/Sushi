@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 
 import app.models  # noqa: F401
 from app.api.agent_settings_router import router as agent_settings_router
+from app.api.analysis_batch_router import router as analysis_batch_router
 from app.api.auth_router import router as auth_router
 from app.api.chat_router import router as chat_router
 from app.api.health_router import router as health_router
@@ -19,6 +20,7 @@ from app.api.voc_router import router as voc_router
 from app.api.watchlist_router import router as watchlist_router
 from app.db_migrations import (
     cleanup_orphan_video_data,
+    ensure_analysis_batch_tables,
     ensure_analysis_results_comment_columns,
     ensure_analysis_results_language_column_and_index,
     ensure_analysis_results_summary_columns,
@@ -31,8 +33,6 @@ from app.db_migrations import (
 )
 from app.db import get_db_engine
 from app.models.base import Base
-
-import time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,7 @@ async def lifespan(_: FastAPI):
 
     # Run database migrations - only runs after Cloud SQL proxy is ready
     Base.metadata.create_all(bind=engine)
+    ensure_analysis_batch_tables(engine)
     ensure_monitor_profiles_key_products_column(engine)
     ensure_analysis_results_summary_columns(engine)
     ensure_analysis_results_language_column_and_index(engine)
@@ -84,6 +85,7 @@ def render_project(request: Request, project_id: int):
 app.include_router(monitor_router)
 app.include_router(project_insights_router)
 app.include_router(video_router)
+app.include_router(analysis_batch_router)
 app.include_router(chat_router)
 app.include_router(incident_router)
 app.include_router(health_router)

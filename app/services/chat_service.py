@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -65,7 +66,12 @@ class ChatService:
             knowledge=fallback_knowledge,
             knowledge_context=knowledge_context,
         )
-        output = self.gemini_client.chat_about_video(context=context, question=question, language=candidate.language)
+        detected_question_language = self._detect_question_language(question)
+        output = self.gemini_client.chat_about_video(
+            context=context,
+            question=question,
+            language=detected_question_language,
+        )
 
         assistant_message = self.chat_repository.add_message(
             session_id=session.id,
@@ -138,3 +144,19 @@ class ChatService:
         budget = max(0, max_chars - len(marker))
         return f"{transcript_text[:budget].rstrip()}{marker}"
 
+    @staticmethod
+    def _detect_question_language(question: str) -> str:
+        text = str(question or "").strip()
+        if not text:
+            return "en"
+        if re.search(r"[\u4e00-\u9fff]", text):
+            return "zh-Hans"
+        if re.search(r"[\u3040-\u30ff]", text):
+            return "ja"
+        if re.search(r"[\uac00-\ud7af]", text):
+            return "ko"
+        if re.search(r"[\u0400-\u04ff]", text):
+            return "ru"
+        if re.search(r"[\u0600-\u06ff]", text):
+            return "ar"
+        return "en"

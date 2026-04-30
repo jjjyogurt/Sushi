@@ -6,6 +6,68 @@ from app.services.security import hash_password
 
 DEFAULT_APP_USERS = tuple(f"Sushi_{index}" for index in range(1, 16))
 
+
+def ensure_analysis_batch_tables(engine: Engine) -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    with engine.begin() as connection:
+        if "analysis_batches" not in table_names:
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE analysis_batches (
+                        id INTEGER PRIMARY KEY,
+                        monitor_profile_id INTEGER NULL,
+                        created_by VARCHAR(80) NOT NULL DEFAULT 'system',
+                        status VARCHAR(20) NOT NULL DEFAULT 'queued',
+                        total_count INTEGER NOT NULL DEFAULT 0,
+                        processed_count INTEGER NOT NULL DEFAULT 0,
+                        success_count INTEGER NOT NULL DEFAULT 0,
+                        failed_count INTEGER NOT NULL DEFAULT 0,
+                        last_error TEXT NOT NULL DEFAULT '',
+                        started_at DATETIME NULL,
+                        finished_at DATETIME NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(monitor_profile_id) REFERENCES monitor_profiles(id)
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text("CREATE INDEX ix_analysis_batches_status_created ON analysis_batches (status, created_at)")
+            )
+            connection.execute(
+                text("CREATE INDEX ix_analysis_batches_monitor_profile_id ON analysis_batches (monitor_profile_id)")
+            )
+
+        if "analysis_batch_items" not in table_names:
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE analysis_batch_items (
+                        id INTEGER PRIMARY KEY,
+                        batch_id INTEGER NOT NULL,
+                        video_id INTEGER NOT NULL,
+                        status VARCHAR(20) NOT NULL DEFAULT 'queued',
+                        attempt_count INTEGER NOT NULL DEFAULT 0,
+                        error_message TEXT NOT NULL DEFAULT '',
+                        started_at DATETIME NULL,
+                        finished_at DATETIME NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(batch_id) REFERENCES analysis_batches(id),
+                        FOREIGN KEY(video_id) REFERENCES video_candidates(id)
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX ix_analysis_batch_items_batch_id ON analysis_batch_items (batch_id)"))
+            connection.execute(text("CREATE INDEX ix_analysis_batch_items_video_id ON analysis_batch_items (video_id)"))
+            connection.execute(
+                text("CREATE INDEX ix_analysis_batch_items_batch_status ON analysis_batch_items (batch_id, status)")
+            )
+
 def ensure_monitor_profiles_key_products_column(engine: Engine) -> None:
     inspector = inspect(engine)
     columns = {column["name"] for column in inspector.get_columns("monitor_profiles")}
@@ -244,6 +306,29 @@ def cleanup_orphan_video_data(engine: Engine) -> None:
                 )
             )
             connection.execute(text("DELETE FROM analysis_results WHERE video_candidate_id NOT IN (SELECT id FROM video_candidates)"))
+
+        if "analysis_batch_items" in table_names:
+            connection.execute(
+                text(
+                    f"DELETE FROM analysis_batch_items WHERE video_id IN ({stale_or_orphan_video_subquery})"
+                )
+            )
+            connection.execute(text("DELETE FROM analysis_batch_items WHERE video_id NOT IN (SELECT id FROM video_candidates)"))
+
+        if "analysis_batches" in table_names:
+            connection.execute(
+                text(
+                    "DELETE FROM analysis_batches "
+                    "WHERE monitor_profile_id IS NOT NULL AND monitor_profile_id NOT IN (SELECT id FROM monitor_profiles)"
+                )
+            )
+            if "analysis_batch_items" in table_names:
+                connection.execute(
+                    text(
+                        "DELETE FROM analysis_batches "
+                        "WHERE id NOT IN (SELECT DISTINCT batch_id FROM analysis_batch_items)"
+                    )
+                )
 
         if "incidents" in table_names:
             connection.execute(

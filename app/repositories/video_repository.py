@@ -4,8 +4,13 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.models.video_watchlist_entry import VideoWatchlistEntry
+from app.models.analysis_batch import AnalysisBatchItem
+from app.models.analysis_result import AnalysisResult
+from app.models.chat import ChatMessage, ChatSession
 from app.models.enums import QueueState
+from app.models.incident import Alert, Incident
 from app.models.video_candidate import VideoCandidate
+from app.models.video_comment import VideoComment
 from app.utils.text import normalize_title, title_fingerprint
 
 
@@ -82,9 +87,24 @@ class VideoRepository:
         candidate = self.get_by_id(video_id)
         if candidate is None:
             return False
+        incident_id_query = self.session.query(Incident.id).filter(Incident.video_candidate_id == video_id)
+        chat_session_id_query = self.session.query(ChatSession.id).filter(ChatSession.video_candidate_id == video_id)
+        self.session.query(Alert).filter(Alert.incident_id.in_(incident_id_query)).delete(synchronize_session=False)
+        self.session.query(Incident).filter(Incident.video_candidate_id == video_id).delete(synchronize_session=False)
+        self.session.query(ChatMessage).filter(
+            ChatMessage.chat_session_id.in_(chat_session_id_query)
+        ).delete(synchronize_session=False)
+        self.session.query(ChatSession).filter(ChatSession.video_candidate_id == video_id).delete(synchronize_session=False)
         self.session.query(VideoWatchlistEntry).filter(
             VideoWatchlistEntry.video_candidate_id == video_id
         ).delete(synchronize_session=False)
+        self.session.query(VideoComment).filter(VideoComment.video_candidate_id == video_id).delete(synchronize_session=False)
+        self.session.query(AnalysisResult).filter(AnalysisResult.video_candidate_id == video_id).delete(
+            synchronize_session=False
+        )
+        self.session.query(AnalysisBatchItem).filter(AnalysisBatchItem.video_id == video_id).delete(
+            synchronize_session=False
+        )
         self.session.delete(candidate)
         self.session.commit()
         return True
@@ -155,4 +175,3 @@ class VideoRepository:
                 query = query.filter(VideoCandidate.normalized_title.contains(normalized_query))
 
         return query.order_by(desc(VideoCandidate.published_at)).all()
-

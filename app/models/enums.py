@@ -15,6 +15,22 @@ class AnalysisStatus(str, Enum):
     SKIPPED = "skipped"
 
 
+class AnalysisBatchStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class AnalysisBatchItemStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class Sentiment(str, Enum):
     POSITIVE = "positive"
     NEUTRAL = "neutral"
@@ -40,4 +56,3 @@ class KnowledgeSourceStatus(str, Enum):
     PROCESSING = "processing"
     READY = "ready"
     FAILED = "failed"
-

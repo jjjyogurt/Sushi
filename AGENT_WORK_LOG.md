@@ -654,3 +654,63 @@
 - Changes: Untracked/deleted `cloudsql_export_2026-04-28/*` and `.DS_Store`; updated `.gitignore`; cleaned trailing whitespace in docs.
 - Check: `git diff --check`; `python3 -m pytest tests/unit/test_monitor_router.py tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_analysis_service.py tests/unit/test_gemini_client.py`.
 - Next: Commit cleanup patch, then run PIPE-REAL-001 before production deploy.
+
+## 2026-04-30 15:04
+- Task: Commit release-cleanup patch and rerun full automated regression.
+- Changes: Created commit `57aab8c` removing tracked export artifacts and strengthening `.gitignore`.
+- Check: `python3 -m pytest tests/unit` (114 passed).
+- Next: Execute manual `PIPE-REAL-001` in production-like env for final go/no-go.
+
+## 2026-04-30 15:10
+- Task: Deploy backend to Cloud Run using `BACKEND_DEPLOYMENT.md` runbook.
+- Changes: Deployed `sushi-backend` to revision `sushi-backend-00024-xcv` in `asia-southeast1` with existing Cloud SQL attachment.
+- Check: `python3 -m pytest tests/unit -q`; `/health` returned ok; revision status Ready; log scan shows clean startup.
+- Next: Run manual `PIPE-REAL-001` end-to-end in production-like flow and record outcome.
+
+## 2026-04-30 15:31
+- Task: Re-test Video AI chat reply language and fix mismatch with user question language.
+- Changes: Updated `ChatService` to detect language from latest question text and pass it to Gemini chat instead of video language; added regression test for Chinese question with German video language.
+- Check: `PYTHONPATH=. ./.venv/bin/pytest -q tests/unit/test_chat_service.py` (5 passed).
+- Next: Manually verify chat UI with Chinese/English/Japanese prompts on a non-English video record.
+
+## 2026-04-30 15:35
+- Task: Deploy latest minor updates to production Cloud Run.
+- Changes: Deployed new backend revision `sushi-backend-00025-bl9` with 100% traffic.
+- Check: `python3 -m pytest tests/unit -q` (115 passed); `/health` ok; latest revision Ready; startup logs clean.
+- Next: Spot-check updated UI/chat behavior in production and monitor logs for 15-30 minutes.
+
+## 2026-04-30 15:45
+- Task: Diagnose and fix discovery mismatch + queue delete failure for new Aqua project.
+- Changes: Enforced key-product title match during discovery; added full dependent-row cleanup in single-video delete; added regression tests.
+- Check: `python3 -m pytest tests/unit/test_triage_service.py tests/unit/test_video_repository.py -q` and `python3 -m pytest tests/unit/test_video_router.py -q`.
+- Next: Deploy patch and re-test delete + discovery behavior on production UI.
+
+## 2026-04-30 16:49
+- Task: Prepare alpha release deployment test-case runbook.
+- Changes: Reworked ALPHA_RELEASE_TEST_CASES.md with P0/P1/P2 gates, deploy timeline, evidence, and sign-off blocks.
+- Check: not run (document update only).
+- Next: Execute P0 staging gate and capture evidence per case.
+
+## 2026-04-30 16:51
+- Task: Run alpha release test gates from checklist.
+- Changes: Executed P0 core gate suite and full unit regression suite.
+- Check: `python3 -m pytest tests/unit/test_monitor_router.py tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_analysis_service.py tests/unit/test_gemini_client.py`; `python3 -m pytest tests/unit`.
+- Next: Run staging/prod manual smoke cases (PIPE-REAL-001, RPT-001, CHAT-001).
+
+## 2026-04-30 16:55
+- Task: Deploy backend to Cloud Run using backend runbook.
+- Changes: Ran preflight tests, deployed sushi-backend revision 00026, verified health and traffic.
+- Check: `python3 -m pytest tests/unit -q`; `curl /health` returned ok; latest revision serves 100% traffic.
+- Next: Execute manual P0 smoke (PIPE-REAL-001, RPT-001, CHAT-001) in production.
+
+## 2026-04-30 17:50
+- Task: Make “Run all analysis” production-grade async with refresh-safe progress.
+- Changes: Added durable batch queue tables/APIs, worker (`app/workers/analysis_batch_worker.py`), frontend polling/resume, and schema/docs updates.
+- Check: `python3 -m py_compile ...`; `python3 -m pytest -q tests/unit/test_video_router.py tests/unit/test_monitor_repository.py tests/unit/test_db_migrations.py` (20 passed).
+- Next: Deploy worker as separate service/process and add batch retry endpoint for failed items.
+
+## 2026-04-30 17:53
+- Task: Run full unit suite and update alpha release test checklist.
+- Changes: Executed full `tests/unit` run and added async analysis batch test cases plus latest regression evidence in `ALPHA_RELEASE_TEST_CASES.md`.
+- Check: `python3 -m pytest -q tests/unit` (117 passed, 1 warning).
+- Next: Add dedicated unit/API tests for `/analysis/batches` endpoints and worker claim/cancel race conditions.

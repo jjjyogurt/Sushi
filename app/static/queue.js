@@ -12,6 +12,7 @@ import { onLocaleChange, t } from "./i18n.js";
 
 const MAX_MANUAL_VIDEO_URLS = 100;
 const MAX_VISIBLE_MANUAL_URL_ROWS = 5;
+const ACTIVE_ANALYSIS_BATCH_KEY = "active_analysis_batch_id";
 
 function analysisStatusBadge(video) {
   const status = String(video.latest_analysis_status || "").toLowerCase();
@@ -188,6 +189,88 @@ export function createQueueController({
   onAnyVideoAction,
   onWatchlistMutated,
 }) {
+  let activeBatchPollTimer = null;
+
+  function clearActiveBatchPollTimer() {
+    if (activeBatchPollTimer) {
+      window.clearTimeout(activeBatchPollTimer);
+      activeBatchPollTimer = null;
+    }
+  }
+
+  function setActiveBatchId(batchId) {
+    if (!batchId) {
+      window.localStorage.removeItem(ACTIVE_ANALYSIS_BATCH_KEY);
+      return;
+    }
+    window.localStorage.setItem(ACTIVE_ANALYSIS_BATCH_KEY, String(batchId));
+  }
+
+  function getActiveBatchId() {
+    const raw = window.localStorage.getItem(ACTIVE_ANALYSIS_BATCH_KEY);
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  function renderBatchProgressOnButton(button, batch) {
+    if (!(button instanceof HTMLButtonElement) || !batch) {
+      return;
+    }
+    const processed = Number(batch.processed_count || 0);
+    const total = Number(batch.total_count || 0);
+    button.disabled = true;
+    button.textContent = t("analyzingProgress", { current: Math.min(processed, total), total });
+  }
+
+  async function pollBatchUntilFinished(batchId, runAllButton) {
+    const button = runAllButton || getElement("run-all-analysis-btn");
+    clearActiveBatchPollTimer();
+    setActiveBatchId(batchId);
+
+    while (true) {
+      const batch = await request(`/analysis/batches/${batchId}`);
+      const status = String(batch.status || "").toLowerCase();
+      renderBatchProgressOnButton(button, batch);
+      if (status === "queued" || status === "running") {
+        await new Promise((resolve) => {
+          activeBatchPollTimer = window.setTimeout(resolve, 2000);
+        });
+        continue;
+      }
+
+      clearActiveBatchPollTimer();
+      setActiveBatchId(null);
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = false;
+        button.textContent = t("runAllAnalysis");
+      }
+      await refreshVideos();
+
+      if (status === "failed") {
+        throw new Error(batch.last_error || t("analysisFailed"));
+      }
+      return batch;
+    }
+  }
+
+  async function resumeActiveBatchIfAny(runAllButton) {
+    const batchId = getActiveBatchId();
+    if (!batchId) {
+      return;
+    }
+    try {
+      await pollBatchUntilFinished(batchId, runAllButton);
+    } catch (_error) {
+      setActiveBatchId(null);
+      clearActiveBatchPollTimer();
+      const button = runAllButton || getElement("run-all-analysis-btn");
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = false;
+        button.textContent = t("runAllAnalysis");
+      }
+    }
+  }
+
   function renderProfileSelect() {
     const profileSelect = getElement("profile-select");
     if (!profileSelect) {
@@ -553,60 +636,18 @@ export function createQueueController({
       throw new Error(t("errorNoVideosToAnalyze"));
     }
 
-    const videosToAnalyze = videos.filter(
-      (video) => String(video.latest_analysis_status || "").toLowerCase() !== "completed"
-    );
-    if (videosToAnalyze.length === 0) {
-      return;
-    }
-
     const button = runAllButton || getElement("run-all-analysis-btn");
-    const originalLabel = button ? button.textContent : t("runAllAnalysis");
-    if (button) {
+    if (button instanceof HTMLButtonElement) {
       button.disabled = true;
+      button.textContent = t("analyzingProgress", { current: 0, total: videos.length });
     }
-
-    let successCount = 0;
-    let failedCount = 0;
-    const failures = [];
-
-    try {
-      for (let index = 0; index < videosToAnalyze.length; index += 1) {
-        const video = videosToAnalyze[index];
-        if (button) {
-          button.textContent = t("analyzingProgress", { current: index + 1, total: videosToAnalyze.length });
-        }
-        try {
-          await request(`/videos/${video.id}/analyze`, {
-            method: "POST",
-            body: JSON.stringify({ force_reanalyze: false }),
-          });
-          videoDetailController.invalidateVideoCache(video.id);
-          successCount += 1;
-        } catch (error) {
-          failedCount += 1;
-          const message = error instanceof Error ? error.message : t("analysisFailed");
-          failures.push(`${video.title}: ${message}`);
-        }
-      }
-    } finally {
-      if (button) {
-        button.disabled = false;
-        button.textContent = originalLabel || t("runAllAnalysis");
-      }
-    }
-
-    await refreshVideos();
-    if (failedCount > 0) {
-      const failurePreview = failures.slice(0, 2).join(" | ");
-      throw new Error(
-        t("runAllCompletedWithFailures", {
-          successCount,
-          failedCount,
-          failurePreview,
-        })
-      );
-    }
+    const batch = await request("/analysis/batches", {
+      method: "POST",
+      body: JSON.stringify({
+        monitor_profile_id: getState().selectedProfileId,
+      }),
+    });
+    await pollBatchUntilFinished(batch.id, button);
   }
 
   async function deleteVideo(videoId) {
@@ -848,6 +889,7 @@ export function createQueueController({
 
     const runAllAnalysisButton = getElement("run-all-analysis-btn");
     if (runAllAnalysisButton) {
+      void resumeActiveBatchIfAny(runAllAnalysisButton);
       runAllAnalysisButton.addEventListener("click", () => {
         void runTask(async () => {
           await runAllAnalyses(runAllAnalysisButton);

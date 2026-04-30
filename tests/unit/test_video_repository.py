@@ -1,8 +1,12 @@
 from datetime import datetime, timezone
 
 from app.models.analysis_result import AnalysisResult
+from app.models.chat import ChatMessage, ChatSession
 from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
+from app.models.incident import Alert, Incident
 from app.models.monitor_profile import MonitorProfile
+from app.models.video_comment import VideoComment
+from app.models.video_watchlist_entry import VideoWatchlistEntry
 from app.repositories.video_repository import VideoRepository
 from app.utils.json_codec import encode_json
 
@@ -302,3 +306,61 @@ def test_list_filters_by_sentiment_on_latest_analysis(db_session, monitor_profil
     filtered = repository.list(monitor_profile_id=monitor_profile.id, sentiment="negative")
     assert [item.youtube_video_id for item in filtered] == ["sentiment-negative"]
 
+
+def test_delete_removes_video_dependencies(db_session, monitor_profile):
+    repository = VideoRepository(db_session)
+    video = repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="delete-me",
+        video_url="https://youtu.be/delete-me",
+        title="Delete candidate",
+        channel_name="Creator",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+
+    analysis = AnalysisResult(
+        video_candidate_id=video.id,
+        analysis_version="v1",
+        model_name="test-model",
+        status=AnalysisStatus.COMPLETED,
+        transcript_text="",
+        summary_text="",
+        translated_summary="",
+        sentiment=Sentiment.NEUTRAL,
+        risk_level=RiskLevel.MEDIUM,
+        confidence_score="0.8",
+        evidence_json="[]",
+        insights_json="[]",
+        error_message="",
+    )
+    incident = Incident(video_candidate_id=video.id, severity="high", owner="owner-a", notes="note")
+    chat_session = ChatSession(video_candidate_id=video.id, created_by="u1")
+    watch = VideoWatchlistEntry(video_candidate_id=video.id, user_id="u1")
+    now = datetime.now(timezone.utc)
+    comment = VideoComment(
+        video_candidate_id=video.id,
+        youtube_comment_id="c1",
+        text="test",
+        like_count=0,
+        published_at=now,
+        updated_at_remote=now,
+        is_reply=False,
+    )
+    db_session.add_all([analysis, incident, chat_session, watch, comment])
+    db_session.flush()
+    alert = Alert(incident_id=incident.id, channel="inbox", message="alert")
+    chat_message = ChatMessage(chat_session_id=chat_session.id, role="user", content="hello")
+    db_session.add_all([alert, chat_message])
+    db_session.commit()
+
+    deleted = repository.delete(video.id)
+    assert deleted is True
+    assert repository.get_by_id(video.id) is None
+    assert db_session.query(AnalysisResult).filter(AnalysisResult.video_candidate_id == video.id).count() == 0
+    assert db_session.query(Incident).filter(Incident.video_candidate_id == video.id).count() == 0
+    assert db_session.query(ChatSession).filter(ChatSession.video_candidate_id == video.id).count() == 0
+    assert db_session.query(VideoWatchlistEntry).filter(VideoWatchlistEntry.video_candidate_id == video.id).count() == 0
+    assert db_session.query(VideoComment).filter(VideoComment.video_candidate_id == video.id).count() == 0

@@ -1,5 +1,6 @@
 from app.models.audit_log import AuditLog
 from app.models.analysis_result import AnalysisResult
+from app.models.analysis_batch import AnalysisBatch, AnalysisBatchItem
 from app.models.app_user import AppUser
 from app.models.auth_session import AuthSession
 from app.models.chat import ChatMessage, ChatSession
@@ -42,6 +43,8 @@ __all__ = [
     "VocSkillVersion",
     "VocTemplateVersion",
     "AnalysisResult",
+    "AnalysisBatch",
+    "AnalysisBatchItem",
     "ChatSession",
     "ChatMessage",
     "Incident",
@@ -51,4 +54,3 @@ __all__ = [
     "KnowledgeChunk",
     "KnowledgeSnapshot",
 ]
-

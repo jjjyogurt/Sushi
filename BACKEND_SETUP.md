@@ -47,6 +47,7 @@
 ## Runtime
 
 - **Entry:** `uvicorn app.main:app` (locally `--reload`; Docker/cmd uses `--host 0.0.0.0`).
+- **Async analysis worker:** Run a separate process `python -m app.workers.analysis_batch_worker` in production to consume queued analysis batch items.
 - **App identity:** `FastAPI(title="Influencer Video Intelligence", version="0.1.0")` in `app/main.py`.
 - **Startup:** After DB connection (with retries for managed databases), SQLAlchemy `Base.metadata.create_all` runs, then helpers in `app/db_migrations.py`.
 
@@ -80,6 +81,7 @@ See `.env.example` for names and sane defaults.
 Routers are registered from `app/main.py`, including:
 
 - Health, authentication, monitors, videos, chat, incidents, agent settings, knowledge, VOC, watchlist.
+- Async analysis batches (`/analysis/batches` create/status/items/cancel).
 
 **Multipart uploads:** `python-multipart` where file uploads apply.
 

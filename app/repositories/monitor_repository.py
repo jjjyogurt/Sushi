@@ -3,6 +3,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.analysis_result import AnalysisResult
+from app.models.analysis_batch import AnalysisBatch, AnalysisBatchItem
 from app.models.chat import ChatMessage, ChatSession
 from app.models.incident import Alert, Incident
 from app.models.knowledge_base import KnowledgeBase
@@ -95,9 +96,15 @@ class MonitorRepository:
                 self.session.query(AnalysisResult).filter(
                     AnalysisResult.video_candidate_id.in_(video_ids)
                 ).delete(synchronize_session=False)
+                self.session.query(AnalysisBatchItem).filter(
+                    AnalysisBatchItem.video_id.in_(video_ids)
+                ).delete(synchronize_session=False)
                 self.session.query(VideoCandidate).filter(
                     VideoCandidate.id.in_(video_ids)
                 ).delete(synchronize_session=False)
+            self.session.query(AnalysisBatch).filter(
+                AnalysisBatch.monitor_profile_id == profile_id
+            ).delete(synchronize_session=False)
             self.session.query(ProjectInsightReport).filter(
                 ProjectInsightReport.monitor_profile_id == profile_id
             ).delete(synchronize_session=False)
@@ -139,4 +146,3 @@ class MonitorRepository:
     @staticmethod
     def unpack_key_products(profile: MonitorProfile) -> List[str]:
         return decode_json(profile.key_products, [])
-

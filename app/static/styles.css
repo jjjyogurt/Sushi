@@ -394,6 +394,11 @@ body {
   gap: 24px;
 }
 
+#dashboard .dashboard-create-btn {
+  margin-top: 12px;
+  width: fit-content;
+}
+
 .btn {
   padding: 10px 20px;
   border-radius: 6px;

@@ -145,6 +145,8 @@ erDiagram
     - `risk_breakdown_json` (low/medium/high/critical counts)
     - `reach_metrics_json` (reach-weighted impact metrics)
     - `top_negative_videos_json` (top 5 negative videos by reach)
+- `analysis_batches`: durable async batch runs for “Run all analysis” with aggregate progress counters.
+- `analysis_batch_items`: per-video execution state for each batch (`queued/running/completed/failed/cancelled`), including attempts and failure message.
 
 ### 3) Chat + Incident Workflow
 
@@ -221,6 +223,7 @@ Startup migration helpers currently ensure/repair:
 - analysis summary columns
 - analysis `language` column + unique index
 - analysis comment summary columns
+- analysis batch tables (`analysis_batches`, `analysis_batch_items`)
 - `video_comments` table
 - video assignment columns
 - project insight portfolio metrics columns
@@ -238,6 +241,11 @@ Because this project uses imperative startup migrations, changes to models shoul
 - What changed: Retired and dropped legacy `business_impact` columns from `analysis_results` and `project_insight_reports`. Removed all API/service/model references to `business_impact`; summary outputs now rely on headline/core insight/top risk trigger/immediate focus.
 - Why it changed: `business_impact` was no longer part of the desired insights template and created duplicate or low-signal output relative to `immediate_focus`.
 - Impact on existing data and compatibility: Startup migration now drops these columns if present. Historical values in `business_impact` are removed and are no longer returned by API responses. Existing insights behavior remains compatible via `immediate_focus` and recommendation fields.
+
+### What Changed (2026-04-30, async analysis batches)
+- What changed: Added new tables `analysis_batches` and `analysis_batch_items`, new indexes for batch lookup/progress, and APIs for create/status/items/cancel. Added a dedicated worker entrypoint (`app/workers/analysis_batch_worker.py`) that consumes queued batch items and executes `AnalysisService.analyze_video`.
+- Why it changed: Replace in-browser sequential analysis loop with durable backend job execution so progress survives page refresh and supports production-safe long-running analysis.
+- Impact on existing data and compatibility: Backward compatible for existing `analysis_results`/video data. New batch tables are additive; old single-video `/videos/{id}/analyze` API remains available. Deletion cleanup now also removes orphaned batch rows/items tied to deleted videos/projects.
 
 ---
 

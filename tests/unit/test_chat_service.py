@@ -35,9 +35,11 @@ def _seed_analysis(db_session, video_id: int):
 class StubGeminiChatClient:
     def __init__(self, output: ChatOutput):
         self.output = output
+        self.last_language = None
 
     def chat_about_video(self, *, context: str, question: str, language: str) -> ChatOutput:
-        _ = (context, question, language)
+        _ = (context, question)
+        self.last_language = language
         return self.output
 
 
@@ -111,3 +113,23 @@ def test_chat_fails_closed_when_gemini_key_is_missing(db_session, discovered_vid
     finally:
         settings.gemini_api_key = original_key
 
+
+def test_chat_uses_question_language_not_video_language(db_session, discovered_video):
+    discovered_video.queue_state = QueueState.APPROVED
+    discovered_video.language = "de"
+    db_session.commit()
+    _seed_analysis(db_session, discovered_video.id)
+
+    service = ChatService(db_session)
+    stub = StubGeminiChatClient(
+        ChatOutput(
+            content="测试回复",
+            citations=[],
+            confidence_score=0.8,
+            insufficient_evidence=False,
+        )
+    )
+    service.gemini_client = stub
+
+    service.ask(video_id=discovered_video.id, question="哪一个功能被夸奖最多？", user_id="u4")
+    assert stub.last_language == "zh-Hans"

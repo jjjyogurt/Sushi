@@ -1,8 +1,10 @@
 from app.models.analysis_result import AnalysisResult
+from app.models.analysis_batch import AnalysisBatch, AnalysisBatchItem
 from app.models.chat import ChatMessage
 from app.models.incident import Alert, Incident
 from app.models.monitor_profile import MonitorProfile
 from app.schemas.analysis import AnalysisResponse
+from app.schemas.analysis_batch import AnalysisBatchItemResponse, AnalysisBatchResponse
 from app.schemas.chat import ChatMessageResponse
 from app.schemas.incident import AlertResponse, IncidentResponse
 from app.schemas.monitor import MonitorProfileResponse
@@ -147,6 +149,39 @@ def map_chat_message_response(model: ChatMessage) -> ChatMessageResponse:
         citations=decode_json(model.citations_json, []),
         confidence_score=float(model.confidence_score or "0"),
         insufficient_evidence=model.insufficient_evidence,
+    )
+
+
+def map_analysis_batch_response(model: AnalysisBatch) -> AnalysisBatchResponse:
+    return AnalysisBatchResponse(
+        id=model.id,
+        monitor_profile_id=model.monitor_profile_id,
+        created_by=model.created_by,
+        status=model.status,
+        total_count=model.total_count,
+        processed_count=model.processed_count,
+        success_count=model.success_count,
+        failed_count=model.failed_count,
+        last_error=model.last_error,
+        started_at=model.started_at,
+        finished_at=model.finished_at,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+    )
+
+
+def map_analysis_batch_item_response(model: AnalysisBatchItem) -> AnalysisBatchItemResponse:
+    return AnalysisBatchItemResponse(
+        id=model.id,
+        batch_id=model.batch_id,
+        video_id=model.video_id,
+        status=model.status,
+        attempt_count=model.attempt_count,
+        error_message=model.error_message,
+        started_at=model.started_at,
+        finished_at=model.finished_at,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
     )
 
 

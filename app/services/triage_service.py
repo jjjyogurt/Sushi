@@ -86,7 +86,13 @@ class TriageService:
 
         return list(dict.fromkeys(item for item in variants if item))
 
-    def _title_matches_keywords(self, *, title: str, keywords: List[str]) -> bool:
+    def _title_matches_keywords(
+        self,
+        *,
+        title: str,
+        keywords: List[str],
+        required_keywords: Optional[List[str]] = None,
+    ) -> bool:
         normalized_title = self._normalize_search_text(title)
         if not normalized_title:
             return False
@@ -99,10 +105,24 @@ class TriageService:
         if not keyword_variants:
             return True
 
-        for keyword in keyword_variants:
-            if self._keyword_matches_title(normalized_title=normalized_title, keyword=keyword):
-                return True
-        return False
+        has_keyword_match = any(
+            self._keyword_matches_title(normalized_title=normalized_title, keyword=keyword)
+            for keyword in keyword_variants
+        )
+        if not has_keyword_match:
+            return False
+
+        required_variants = [
+            variant
+            for keyword in (required_keywords or [])
+            for variant in self._keyword_variants(keyword)
+        ]
+        if not required_variants:
+            return True
+        return any(
+            self._keyword_matches_title(normalized_title=normalized_title, keyword=keyword)
+            for keyword in required_variants
+        )
 
     def _require_profile(self, monitor_profile_id: int):
         profile = self.monitor_repository.get(monitor_profile_id)
@@ -174,6 +194,7 @@ class TriageService:
         profile = self._require_profile(monitor_profile_id)
 
         keywords = self._monitoring_keywords(profile)
+        required_product_keywords = self.monitor_repository.unpack_key_products(profile)
         languages = self.monitor_repository.unpack_languages(profile)
         markets = self.monitor_repository.unpack_markets(profile)
 
@@ -216,7 +237,13 @@ class TriageService:
         logger.info("DISCOVERY AFTER WINDOW FILTER: %d videos", len(discovered))
 
         filtered_discovered = [
-            item for item in discovered if self._title_matches_keywords(title=item.title, keywords=expanded_keywords)
+            item
+            for item in discovered
+            if self._title_matches_keywords(
+                title=item.title,
+                keywords=expanded_keywords,
+                required_keywords=required_product_keywords,
+            )
         ]
         logger.info(
             "DISCOVERY AFTER TITLE FILTER: %d videos (filtered out %d)",
@@ -466,4 +493,3 @@ class TriageService:
             details=f"video_id={video_id}",
         )
         return candidate
-

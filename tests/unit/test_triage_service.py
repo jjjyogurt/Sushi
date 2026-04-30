@@ -183,6 +183,52 @@ def test_discover_scores_using_key_products(db_session):
         settings.enable_mock_discovery = original_mock
 
 
+def test_discover_requires_key_product_match_when_configured(db_session):
+    settings = get_settings()
+    original_mock = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
+    profile = MonitorProfile(
+        name="Aqua Discovery Project",
+        brand_keywords=encode_json(["hoverair"]),
+        markets=encode_json(["global"]),
+        languages=encode_json(["en"]),
+        key_products=encode_json(["aqua"]),
+        alert_sensitivity="medium",
+        is_active=True,
+    )
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+
+    service = TriageService(db_session)
+    service.discovery_service.mock_seed_for_profile = lambda profile, max_results: [
+        DiscoveredVideo(
+            youtube_video_id="promax-result",
+            video_url="https://www.youtube.com/watch?v=promax-result",
+            title="HoverAir X1 ProMax review",
+            channel_name="Creator",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            description="HoverAir review",
+        ),
+        DiscoveredVideo(
+            youtube_video_id="aqua-result",
+            video_url="https://www.youtube.com/watch?v=aqua-result",
+            title="HoverAir Aqua waterproof drone first look",
+            channel_name="Creator",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            description="HoverAir Aqua details",
+        ),
+    ]
+
+    try:
+        discovered = service.discover_for_profile(monitor_profile_id=profile.id, max_results=20)
+        assert [item.youtube_video_id for item in discovered] == ["aqua-result"]
+    finally:
+        settings.enable_mock_discovery = original_mock
+
+
 def test_discover_filters_out_titles_without_keyword_match(db_session):
     settings = get_settings()
     original_mock = settings.enable_mock_discovery
@@ -347,4 +393,3 @@ def test_discover_keeps_localized_title_when_language_is_non_latin(db_session):
         assert [item.youtube_video_id for item in discovered] == ["jp-smart-video"]
     finally:
         settings.enable_mock_discovery = original_mock
-
