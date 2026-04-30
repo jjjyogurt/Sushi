@@ -1,6 +1,6 @@
 # Backend setup
 
-**Document date:** 2026-04-28  
+**Document date:** 2026-04-28
 **Scope:** Backend runtime, persistence, integrations, and deployment as implemented in this repository.
 
 ---

@@ -4,3 +4,9 @@ __pycache__/
 *.pyc
 sushi.db
 .pytest_cache/
+
+# OS/editor artifacts
+.DS_Store
+
+# Local data exports and dumps
+cloudsql_export_*/

@@ -642,3 +642,15 @@
 - Changes: Installed pytest and executed targeted + full unit suites covering migrations, mappers, analysis, Gemini parsing, video/router, and project insights.
 - Check: 114 passed, 0 failed (tests/unit), plus targeted 35 passed.
 - Next: Add integration smoke tests for UI rendering and startup migration against production-like PostgreSQL.
+
+## 2026-04-30 14:55
+- Task: Run full alpha release validation with focus on `ALPHA_RELEASE_TEST_CASES.md` and git diff risk review.
+- Changes: Added release-readiness assessment; identified committed Cloud SQL export and metadata artifacts as blockers.
+- Check: `python3 -m pytest tests/unit/test_monitor_router.py tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_analysis_service.py tests/unit/test_gemini_client.py`; `python3 -m pytest tests/unit` (all pass).
+- Next: Remove sensitive export/artifact files from release commits and rerun P0 + real pipeline case before deploy.
+
+## 2026-04-30 15:00
+- Task: Fix release blockers by removing committed export artifacts and hardening ignore rules.
+- Changes: Untracked/deleted `cloudsql_export_2026-04-28/*` and `.DS_Store`; updated `.gitignore`; cleaned trailing whitespace in docs.
+- Check: `git diff --check`; `python3 -m pytest tests/unit/test_monitor_router.py tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_analysis_service.py tests/unit/test_gemini_client.py`.
+- Next: Commit cleanup patch, then run PIPE-REAL-001 before production deploy.
