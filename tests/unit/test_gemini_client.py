@@ -59,7 +59,7 @@ def _chunk_response(summary: str) -> str:
         '"translated_summary":"translated",'
         '"summary_headline":"chunk headline",'
         '"summary_body":"chunk body",'
-        '"business_impact":"chunk impact",'
+        ''
         '"sentiment":"neutral",'
         '"risk_level":"medium",'
         '"confidence_score":0.75,'
@@ -79,7 +79,7 @@ def _final_response(*, summary_text: str = "final summary") -> str:
         '"translated_summary":"final summary",'
         '"summary_headline":"final headline",'
         '"summary_body":"final body",'
-        '"business_impact":"final impact",'
+        ''
         '"sentiment":"negative",'
         '"risk_level":"high",'
         '"confidence_score":0.91,'
@@ -119,7 +119,6 @@ def test_analyze_video_uses_chunk_map_reduce_pipeline():
     assert output.summary_text == "final summary"
     assert output.summary_headline == "final headline"
     assert output.summary_body == "final body"
-    assert output.business_impact == "final impact"
     assert output.risk_level.value == "high"
     assert len(output.praise_points) == 5
     assert len(output.criticism_points) == 5

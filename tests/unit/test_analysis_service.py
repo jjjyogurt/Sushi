@@ -44,7 +44,6 @@ class StubGeminiClient:
             translated_summary=f"{title} includes onboarding and reliability concerns.",
             summary_headline="Reliability concerns surfaced during influencer walkthrough.",
             summary_body="Sentiment is neutral with meaningful reliability and control friction noted in transcript evidence.",
-            business_impact="If repeated, reliability concerns may reduce buyer confidence in early funnel consideration.",
             sentiment=Sentiment.NEUTRAL,
             risk_level=RiskLevel.MEDIUM,
             confidence_score=0.84,
@@ -162,7 +161,6 @@ def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session,
     assert second.evidence_json != "[]"
     assert second.summary_headline.startswith("Reliability concerns")
     assert second.summary_body.startswith("Sentiment is neutral")
-    assert second.business_impact.startswith("If repeated")
     assert second.comment_summary_text.startswith("Comments are mixed")
     assert decode_json(second.comment_highlights_json, [])[0]["point"] == "Compact design is appreciated."
     assert decode_json(second.comment_lowlights_json, [])[0]["quote"] == "not sure it will last"
@@ -247,7 +245,6 @@ def test_force_rerun_failure_clears_previous_payload(db_session, discovered_vide
     assert failed.translated_summary == ""
     assert failed.summary_headline == ""
     assert failed.summary_body == ""
-    assert failed.business_impact == ""
     assert failed.evidence_json == "[]"
     assert failed.insights_json == "{}"
     assert failed.error_message

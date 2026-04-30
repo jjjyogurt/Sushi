@@ -4,6 +4,8 @@ from app.db_migrations import (
     cleanup_orphan_video_data,
     ensure_analysis_results_summary_columns,
     ensure_monitor_profiles_key_products_column,
+    ensure_project_insight_reports_portfolio_columns,
+    retire_legacy_business_impact_columns,
 )
 
 
@@ -65,7 +67,6 @@ def test_ensure_analysis_results_summary_columns_adds_missing_columns():
     columns = {column["name"] for column in inspect(engine).get_columns("analysis_results")}
     assert "summary_headline" in columns
     assert "summary_body" in columns
-    assert "business_impact" in columns
 
 
 def test_cleanup_orphan_video_data_removes_orphan_video_trees():
@@ -124,3 +125,78 @@ def test_cleanup_orphan_video_data_removes_orphan_video_trees():
     assert remaining_incident_video_ids == [2]
     assert remaining_comment_video_ids == [2]
     assert remaining_watchlist_video_ids == [2]
+
+
+def test_ensure_project_insight_reports_portfolio_columns_adds_missing_columns():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE project_insight_reports (
+                    id INTEGER PRIMARY KEY,
+                    monitor_profile_id INTEGER NOT NULL,
+                    analyzed_video_count INTEGER NOT NULL DEFAULT 0,
+                    total_video_count INTEGER NOT NULL DEFAULT 0,
+                    excluded_video_count INTEGER NOT NULL DEFAULT 0,
+                    coverage_pct FLOAT NOT NULL DEFAULT 0,
+                    overall_sentiment TEXT NOT NULL DEFAULT 'neutral',
+                    risk_level TEXT NOT NULL DEFAULT 'low',
+                    risk_score FLOAT NOT NULL DEFAULT 0,
+                    summary_headline TEXT NOT NULL DEFAULT '',
+                    summary_body TEXT NOT NULL DEFAULT '',
+                    praise_points_json TEXT NOT NULL DEFAULT '[]',
+                    criticism_points_json TEXT NOT NULL DEFAULT '[]',
+                    user_recommendations_json TEXT NOT NULL DEFAULT '[]',
+                    excluded_reasons_json TEXT NOT NULL DEFAULT '[]',
+                    report_markdown TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+        )
+
+    ensure_project_insight_reports_portfolio_columns(engine)
+    ensure_project_insight_reports_portfolio_columns(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("project_insight_reports")}
+    assert "sentiment_breakdown_json" in columns
+    assert "risk_breakdown_json" in columns
+    assert "reach_metrics_json" in columns
+    assert "top_negative_videos_json" in columns
+
+
+def test_retire_legacy_business_impact_columns_drops_legacy_columns():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE analysis_results (
+                    id INTEGER PRIMARY KEY,
+                    summary_headline TEXT NOT NULL DEFAULT '',
+                    summary_body TEXT NOT NULL DEFAULT '',
+                    business_impact TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE project_insight_reports (
+                    id INTEGER PRIMARY KEY,
+                    summary_headline TEXT NOT NULL DEFAULT '',
+                    summary_body TEXT NOT NULL DEFAULT '',
+                    business_impact TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+        )
+
+    retire_legacy_business_impact_columns(engine)
+    retire_legacy_business_impact_columns(engine)
+
+    analysis_columns = {column["name"] for column in inspect(engine).get_columns("analysis_results")}
+    insights_columns = {column["name"] for column in inspect(engine).get_columns("project_insight_reports")}
+    assert "business_impact" not in analysis_columns
+    assert "business_impact" not in insights_columns

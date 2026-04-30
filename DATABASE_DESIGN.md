@@ -140,6 +140,11 @@ erDiagram
   - stores transcript, summaries, sentiment/risk, evidence, insights, errors
 - `video_comments`: comments fetched for each video and used in analysis/comment summaries.
 - `project_insight_reports`: project-level rollups generated from latest completed video analyses.
+  - stores executive rollup metrics for portfolio reporting:
+    - `sentiment_breakdown_json` (positive/neutral/negative counts)
+    - `risk_breakdown_json` (low/medium/high/critical counts)
+    - `reach_metrics_json` (reach-weighted impact metrics)
+    - `top_negative_videos_json` (top 5 negative videos by reach)
 
 ### 3) Chat + Incident Workflow
 
@@ -218,10 +223,21 @@ Startup migration helpers currently ensure/repair:
 - analysis comment summary columns
 - `video_comments` table
 - video assignment columns
+- project insight portfolio metrics columns
 - default app users
 - orphan/stale cleanup across dependent tables
 
 Because this project uses imperative startup migrations, changes to models should also include corresponding migration helper updates when needed.
+
+### What Changed (2026-04-30)
+- What changed: Added four columns to `project_insight_reports`: `sentiment_breakdown_json`, `risk_breakdown_json`, `reach_metrics_json`, and `top_negative_videos_json`.
+- Why it changed: Support project-wide executive reporting with sentiment/risk distributions and reach-weighted impact (including top negative videos by views).
+- Impact on existing data and compatibility: Backward compatible. Existing rows default to empty JSON (`{}` / `[]`) and startup migration auto-adds missing columns without dropping or rewriting existing records.
+
+### What Changed (2026-04-30, legacy retirement)
+- What changed: Retired and dropped legacy `business_impact` columns from `analysis_results` and `project_insight_reports`. Removed all API/service/model references to `business_impact`; summary outputs now rely on headline/core insight/top risk trigger/immediate focus.
+- Why it changed: `business_impact` was no longer part of the desired insights template and created duplicate or low-signal output relative to `immediate_focus`.
+- Impact on existing data and compatibility: Startup migration now drops these columns if present. Historical values in `business_impact` are removed and are no longer returned by API responses. Existing insights behavior remains compatible via `immediate_focus` and recommendation fields.
 
 ---
 
@@ -255,4 +271,3 @@ Update this file whenever you change:
 - migration strategy
 - Cloud Run / Cloud SQL connection method
 - JSON field contracts (shape or encoding)
-

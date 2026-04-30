@@ -122,7 +122,6 @@ def map_analysis_response(model: AnalysisResult) -> AnalysisResponse:
         translated_summary=model.translated_summary,
         summary_headline=model.summary_headline,
         summary_body=model.summary_body,
-        business_impact=model.business_impact,
         comment_summary_text=model.comment_summary_text,
         comment_highlights=comment_highlights,
         comment_lowlights=comment_lowlights,
@@ -174,4 +173,3 @@ def map_alert_response(model: Alert) -> AlertResponse:
         message=model.message,
         is_sent=model.is_sent,
     )
-

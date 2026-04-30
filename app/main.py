@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,6 +24,8 @@ from app.db_migrations import (
     ensure_analysis_results_summary_columns,
     ensure_default_app_users,
     ensure_monitor_profiles_key_products_column,
+    ensure_project_insight_reports_portfolio_columns,
+    retire_legacy_business_impact_columns,
     ensure_video_candidate_assignment_columns,
     ensure_video_comments_table,
 )
@@ -33,16 +37,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Influencer Video Intelligence", version="0.1.0")
-templates = Jinja2Templates(directory="app/templates")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-
-@app.on_event("startup")
-def on_startup() -> None:
+@asynccontextmanager
+async def lifespan(_: FastAPI):
     # Get database engine with retry logic for Cloud SQL connections
     engine = get_db_engine(max_retries=15, retry_delay=2.0)
-    
+
     # Run database migrations - only runs after Cloud SQL proxy is ready
     Base.metadata.create_all(bind=engine)
     ensure_monitor_profiles_key_products_column(engine)
@@ -51,9 +51,22 @@ def on_startup() -> None:
     ensure_analysis_results_comment_columns(engine)
     ensure_video_comments_table(engine)
     ensure_video_candidate_assignment_columns(engine)
+    ensure_project_insight_reports_portfolio_columns(engine)
+    retire_legacy_business_impact_columns(engine)
     ensure_default_app_users(engine)
     cleanup_orphan_video_data(engine)
     logger.info("Application startup complete - all migrations finished")
+
+    yield
+
+
+app = FastAPI(
+    title="Influencer Video Intelligence",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+templates = Jinja2Templates(directory="app/templates")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -79,4 +92,3 @@ app.include_router(agent_settings_router)
 app.include_router(knowledge_router)
 app.include_router(voc_router)
 app.include_router(watchlist_router)
-

@@ -92,9 +92,9 @@ Provide a concise counter-narrative or reframing for one key negative claim
 
 Provide all 3 fields clearly:
 
-- **Summary Headline (1 line):** One-line high-signal insight
-- **Summary Body (3–4 sentences):** Cover core sentiment and main praise/risk driver
-- **Business Impact (1 sentence):** State likely business consequence
+- **Headline (1 line):** One-line decision tension (win vs risk)
+- **Core Insight (2–3 sentences):** What is happening, where sentiment shifts, and what evidence is shown on-camera
+- **Top Risk Trigger (1 line):** Single most important failure moment or category
 
 If risk is High/Critical, headline must prioritize safety or reliability impact.
 

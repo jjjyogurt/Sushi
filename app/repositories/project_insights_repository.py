@@ -25,11 +25,14 @@ class ProjectInsightsRepository:
         risk_score: float,
         summary_headline: str,
         summary_body: str,
-        business_impact: str,
         praise_points_json: str,
         criticism_points_json: str,
         user_recommendations_json: str,
         excluded_reasons_json: str,
+        sentiment_breakdown_json: str,
+        risk_breakdown_json: str,
+        reach_metrics_json: str,
+        top_negative_videos_json: str,
         report_markdown: str,
     ) -> ProjectInsightReport:
         report = ProjectInsightReport(
@@ -43,11 +46,14 @@ class ProjectInsightsRepository:
             risk_score=risk_score,
             summary_headline=summary_headline,
             summary_body=summary_body,
-            business_impact=business_impact,
             praise_points_json=praise_points_json,
             criticism_points_json=criticism_points_json,
             user_recommendations_json=user_recommendations_json,
             excluded_reasons_json=excluded_reasons_json,
+            sentiment_breakdown_json=sentiment_breakdown_json,
+            risk_breakdown_json=risk_breakdown_json,
+            reach_metrics_json=reach_metrics_json,
+            top_negative_videos_json=top_negative_videos_json,
             report_markdown=report_markdown,
         )
         self.session.add(report)

@@ -149,13 +149,14 @@ class GeminiClient:
             "Generate a project-level synthesis using only the evidence provided.\n"
             "This is a comprehensive multi-video project report, not a single-video review.\n"
             "Aggregate recurring themes across all included videos and prioritize cross-video patterns.\n"
+            "Output must align to an executive portfolio template (decision-first, no fluff).\n"
             "Follow these AGENTS.md instructions for evaluation style and quality bar:\n"
             f"{agent_instructions}\n"
             "Return strict JSON only with this exact shape:\n"
             '{'
             '"summary_headline":"string",'
-            '"summary_body":"string",'
-            '"business_impact":"string",'
+            '"core_insight":"string",'
+            '"top_risk_trigger":"string",'
             '"overall_sentiment":"positive|neutral|negative",'
             '"risk_level":"low|medium|high|critical",'
             '"risk_score":0.0,'
@@ -168,6 +169,15 @@ class GeminiClient:
             "- Keep lists concise and high-signal (max 5 each).\n"
             "- Do not fabricate incidents, timestamps, or failures.\n"
             "- Use critical/high risk wording only when evidence supports it.\n"
+            "- Do not include methodology, process notes, or snapshot-report style wording.\n"
+            "- `summary_headline`: one line, decision-first. If risk is high/critical, prioritize safety/reliability impact.\n"
+            "- `core_insight`: 2-3 sentences; include what is happening, where sentiment shifts, and evidence cues.\n"
+            "- `top_risk_trigger`: one short line naming the single most important failure moment/category.\n"
+            "- `praise_points`: include only repeatable strengths; prioritize Hoverair/V-Copter advantages when competitor comparisons exist.\n"
+            "- `criticism_points`: include only concrete failure/friction signals; prioritize competitor wins as criticism when directly compared.\n"
+            "- `user_recommendations`: tactical and executable by marketing/product teams in 24-72h.\n"
+            "- Prefer objective technical failures over subjective creative preference when both are present.\n"
+            "- When available in evidence, include brief proof qualifiers in list items (for example: repeated across multiple videos or explicit on-camera demonstration).\n"
             f"Project name: {project_name}\n"
             f"Total project videos: {total_video_count}\n"
             f"Analyzed videos included: {analyzed_video_count}\n"
@@ -228,7 +238,6 @@ class GeminiClient:
             translated_summary=analysis_output.translated_summary,
             summary_headline=analysis_output.summary_headline,
             summary_body=analysis_output.summary_body,
-            business_impact=analysis_output.business_impact,
             insights=analysis_output.insights,
             praise_points=analysis_output.praise_points,
             criticism_points=analysis_output.criticism_points,
@@ -247,7 +256,6 @@ class GeminiClient:
             translated_summary=translated_fields.get("translated_summary", analysis_output.translated_summary),
             summary_headline=translated_fields.get("summary_headline", analysis_output.summary_headline),
             summary_body=translated_fields.get("summary_body", analysis_output.summary_body),
-            business_impact=translated_fields.get("business_impact", analysis_output.business_impact),
             sentiment=analysis_output.sentiment,
             risk_level=analysis_output.risk_level,
             confidence_score=analysis_output.confidence_score,
@@ -537,7 +545,6 @@ class GeminiClient:
         translated_summary = str(parsed.get("translated_summary", "")).strip() or summary_text
         summary_headline = str(parsed.get("summary_headline", "")).strip()
         summary_body = str(parsed.get("summary_body", "")).strip()
-        business_impact = str(parsed.get("business_impact", "")).strip()
         sentiment = GeminiClient._safe_sentiment(parsed.get("sentiment"))
         risk_level = GeminiClient._safe_risk_level(parsed.get("risk_level"))
         confidence_score = GeminiClient._safe_confidence(parsed.get("confidence_score"), fallback=0.0)
@@ -548,7 +555,7 @@ class GeminiClient:
         action_recommendation = GeminiClient._normalize_action_recommendation(parsed.get("action_recommendation"))
 
         normalized_target = str(target_output_language or "").strip().lower()
-        text_bundle = "\n".join([summary_text, summary_headline, summary_body, business_impact])
+        text_bundle = "\n".join([summary_text, summary_headline, summary_body])
         if self._is_output_language_mismatch(text=text_bundle, target_output_language=normalized_target):
             translated_fields = self._translate_analysis_text_fields(
                 target_output_language=normalized_target,
@@ -556,7 +563,6 @@ class GeminiClient:
                 translated_summary=translated_summary,
                 summary_headline=summary_headline,
                 summary_body=summary_body,
-                business_impact=business_impact,
                 insights=insights,
                 praise_points=praise_points,
                 criticism_points=criticism_points,
@@ -566,7 +572,6 @@ class GeminiClient:
             translated_summary = translated_fields.get("translated_summary", translated_summary)
             summary_headline = translated_fields.get("summary_headline", summary_headline)
             summary_body = translated_fields.get("summary_body", summary_body)
-            business_impact = translated_fields.get("business_impact", business_impact)
             insights = translated_fields.get("insights", insights)
             praise_points = translated_fields.get("praise_points", praise_points)
             criticism_points = translated_fields.get("criticism_points", criticism_points)
@@ -578,7 +583,6 @@ class GeminiClient:
             translated_summary=translated_summary,
             summary_headline=summary_headline,
             summary_body=summary_body,
-            business_impact=business_impact,
             sentiment=sentiment,
             risk_level=risk_level,
             confidence_score=confidence_score,
@@ -597,7 +601,6 @@ class GeminiClient:
         translated_summary: str,
         summary_headline: str,
         summary_body: str,
-        business_impact: str,
         insights: List[str],
         praise_points: List[str],
         criticism_points: List[str],
@@ -611,7 +614,6 @@ class GeminiClient:
             "translated_summary": translated_summary,
             "summary_headline": summary_headline,
             "summary_body": summary_body,
-            "business_impact": business_impact,
             "insights": insights,
             "praise_points": praise_points,
             "criticism_points": criticism_points,
@@ -632,7 +634,6 @@ class GeminiClient:
                 or translated_summary,
                 "summary_headline": str(parsed.get("summary_headline", summary_headline)).strip() or summary_headline,
                 "summary_body": str(parsed.get("summary_body", summary_body)).strip() or summary_body,
-                "business_impact": str(parsed.get("business_impact", business_impact)).strip() or business_impact,
                 "insights": self._normalize_insights(parsed.get("insights")) or insights,
                 "praise_points": self._normalize_point_list(parsed.get("praise_points")) or praise_points,
                 "criticism_points": self._normalize_point_list(parsed.get("criticism_points")) or criticism_points,
@@ -763,8 +764,8 @@ class GeminiClient:
         risk_score = max(0.0, min(10.0, round(risk_score_raw, 1)))
         return {
             "summary_headline": str(parsed.get("summary_headline", "")).strip(),
-            "summary_body": str(parsed.get("summary_body", "")).strip(),
-            "business_impact": str(parsed.get("business_impact", "")).strip(),
+            "summary_body": str(parsed.get("core_insight", "")).strip(),
+            "top_risk_trigger": str(parsed.get("top_risk_trigger", "")).strip(),
             "overall_sentiment": sentiment,
             "risk_level": risk_level,
             "risk_score": risk_score,
@@ -864,7 +865,7 @@ class GeminiClient:
             "Follow these AGENTS.md instructions for evaluation style and content priorities:\n"
             f"{agent_instructions}\n"
             "Return strict JSON with keys: summary_text, translated_summary, summary_headline, summary_body, "
-            "business_impact, sentiment, risk_level, "
+            "sentiment, risk_level, "
             "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
@@ -897,7 +898,7 @@ class GeminiClient:
             "Follow these AGENTS.md instructions for evaluation style and content priorities:\n"
             f"{agent_instructions}\n"
             "Return strict JSON with keys: summary_text, translated_summary, summary_headline, summary_body, "
-            "business_impact, sentiment, risk_level, "
+            "sentiment, risk_level, "
             "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
@@ -929,7 +930,7 @@ class GeminiClient:
             "Follow these AGENTS.md instructions for evaluation style and content priorities:\n"
             f"{agent_instructions}\n"
             "Return strict JSON with keys: summary_text, translated_summary, summary_headline, summary_body, "
-            "business_impact, sentiment, risk_level, "
+            "sentiment, risk_level, "
             "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
@@ -952,6 +953,8 @@ class GeminiClient:
             "Only answer using provided context. If insufficient evidence, say so.\n"
             "Return strict JSON with keys: content, citations, confidence_score, insufficient_evidence.\n"
             "Rules: confidence_score in [0,1], citations as list of {timestamp, quote}.\n"
+            "Answer in the same language as the user's latest question unless the user explicitly asks for another language.\n"
+            "The context, transcript, source material, or video language must not determine the response language.\n"
             f"Preferred answer language: {language}\n"
             f"Context:\n{context}\n"
             f"Question: {question}\n"
@@ -979,4 +982,3 @@ class GeminiClient:
             f"Video title: {title}\n"
             f"Comments:\n{comments_bullets}\n"
         )
-

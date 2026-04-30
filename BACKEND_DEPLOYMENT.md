@@ -2,6 +2,8 @@
 
 This is the canonical backend deployment instruction for this repository.
 
+For web app OTA release gates, deployment decision rules, and post-release records, read `OTA_DEPLOYMENT.md` before deploying.
+
 If deployment method changes, update this file in the same PR before deploying.
 
 ---
@@ -167,4 +169,5 @@ Also add a short note in `DEPLOY_LOG.md`:
 
 - Source-based Cloud Run deploy (`gcloud run deploy --source .`) is the active method.
 - No `scripts/deploy_backend_dual_region.sh` script is currently part of this repo workflow.
+- Web app OTA releases are governed by `OTA_DEPLOYMENT.md`; Cloud Run remains the deploy path unless only Firebase Hosting config or `public/` changed.
 

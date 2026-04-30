@@ -34,7 +34,6 @@ class AnalysisResponse(TimestampedResponse):
     translated_summary: str
     summary_headline: str = ""
     summary_body: str = ""
-    business_impact: str = ""
     comment_summary_text: str = ""
     comment_highlights: List[CommentSentimentPoint] = Field(default_factory=list)
     comment_lowlights: List[CommentSentimentPoint] = Field(default_factory=list)
@@ -47,4 +46,3 @@ class AnalysisResponse(TimestampedResponse):
     criticism_points: List[str] = Field(default_factory=list)
     action_recommendation: str = ""
     error_message: str
-

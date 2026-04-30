@@ -12,6 +12,7 @@ from app.models.enums import AnalysisStatus
 from app.models.project_insight_report import ProjectInsightReport
 from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.project_insights_repository import ProjectInsightsRepository
+from app.services.youtube_video_stats_service import YouTubeVideoStatsService
 from app.utils.json_codec import decode_json, encode_json
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class ProjectInsightsService:
         self.settings = get_settings()
         self.agent_settings_service = AgentSettingsService()
         self.gemini_client = GeminiClient(self.settings)
+        self.youtube_video_stats_service = YouTubeVideoStatsService()
 
     def get_current_report(self, monitor_profile_id: int) -> Optional[ProjectInsightReport]:
         self._require_profile(monitor_profile_id)
@@ -49,6 +51,7 @@ class ProjectInsightsService:
 
         total_video_count = len(video_analysis_pairs)
         completed_results = []
+        completed_video_rows = []
         excluded_reason_counter: Counter[str] = Counter()
 
         for _video, analysis in video_analysis_pairs:
@@ -62,6 +65,7 @@ class ProjectInsightsService:
                 excluded_reason_counter["transcript_missing_in_db"] += 1
                 continue
             completed_results = [*completed_results, analysis]
+            completed_video_rows = [*completed_video_rows, (_video, analysis)]
 
         analyzed_video_count = len(completed_results)
         excluded_video_count = max(0, total_video_count - analyzed_video_count)
@@ -73,7 +77,7 @@ class ProjectInsightsService:
         if analyzed_video_count == 0:
             payload = self._empty_payload(total_video_count=total_video_count)
         else:
-            fallback_payload = self._build_payload(completed_results)
+            fallback_payload = self._build_payload(completed_video_rows)
             payload = self._build_payload_with_gemini(
                 profile_name=str(profile.name or "").strip() or f"Project {monitor_profile_id}",
                 total_video_count=total_video_count,
@@ -103,11 +107,14 @@ class ProjectInsightsService:
             risk_score=payload["risk_score"],
             summary_headline=payload["summary_headline"],
             summary_body=payload["summary_body"],
-            business_impact=payload["business_impact"],
             praise_points_json=encode_json(payload["praise_points"]),
             criticism_points_json=encode_json(payload["criticism_points"]),
             user_recommendations_json=encode_json(payload["user_recommendations"]),
             excluded_reasons_json=encode_json(excluded_reasons),
+            sentiment_breakdown_json=encode_json(payload["sentiment_breakdown"]),
+            risk_breakdown_json=encode_json(payload["risk_breakdown"]),
+            reach_metrics_json=encode_json(payload["reach_metrics"]),
+            top_negative_videos_json=encode_json(payload["top_negative_videos"]),
             report_markdown=report_markdown,
         )
 
@@ -140,7 +147,7 @@ class ProjectInsightsService:
             **fallback_payload,
             "summary_headline": generated.get("summary_headline") or fallback_payload.get("summary_headline", ""),
             "summary_body": generated.get("summary_body") or fallback_payload.get("summary_body", ""),
-            "business_impact": generated.get("business_impact") or fallback_payload.get("business_impact", ""),
+            "top_risk_trigger": generated.get("top_risk_trigger") or fallback_payload.get("top_risk_trigger", ""),
             "overall_sentiment": generated.get("overall_sentiment") or fallback_payload.get("overall_sentiment", "neutral"),
             "risk_level": generated.get("risk_level") or fallback_payload.get("risk_level", "medium"),
             "risk_score": generated.get("risk_score") if generated.get("risk_score") is not None else fallback_payload.get("risk_score", 0.0),
@@ -173,19 +180,48 @@ class ProjectInsightsService:
             raise ValueError("Monitor profile not found.")
         return profile
 
-    def _build_payload(self, completed_results) -> Dict[str, object]:
+    def _build_payload(self, completed_video_rows) -> Dict[str, object]:
         sentiment_counter: Counter[str] = Counter()
+        risk_counter: Counter[str] = Counter()
         praise_counter: Counter[str] = Counter()
         criticism_counter: Counter[str] = Counter()
         recommendation_counter: Counter[str] = Counter()
         headline_samples: List[str] = []
+        reached_by_sentiment: Dict[str, int] = {"positive": 0, "neutral": 0, "negative": 0}
+        reached_by_risk: Dict[str, int] = {"low": 0, "medium": 0, "high": 0, "critical": 0}
+        negative_videos_by_reach: List[dict] = []
+
+        youtube_video_ids = [video.youtube_video_id for video, _analysis in completed_video_rows]
+        view_counts_by_video_id: Dict[str, int] = {}
+        try:
+            view_counts_by_video_id = self.youtube_video_stats_service.fetch_view_counts(youtube_video_ids=youtube_video_ids)
+        except Exception as error:  # noqa: BLE001
+            logger.warning("project insights reach metrics fetch failed; continuing with zeroed view counts. error=%s", error)
 
         risk_total = 0.0
-        for result in completed_results:
+        for video, result in completed_video_rows:
             sentiment_value = getattr(result.sentiment, "value", str(result.sentiment or "neutral")).lower()
             risk_value = getattr(result.risk_level, "value", str(result.risk_level or "low")).lower()
             sentiment_counter[sentiment_value] += 1
+            risk_counter[risk_value] += 1
             risk_total += self.RISK_SCORE_BY_LEVEL.get(risk_value, 5.0)
+            view_count = max(0, int(view_counts_by_video_id.get(video.youtube_video_id, 0)))
+            if sentiment_value in reached_by_sentiment:
+                reached_by_sentiment[sentiment_value] += view_count
+            if risk_value in reached_by_risk:
+                reached_by_risk[risk_value] += view_count
+            if sentiment_value == "negative":
+                negative_videos_by_reach = [
+                    *negative_videos_by_reach,
+                    {
+                        "video_id": int(video.id),
+                        "youtube_video_id": video.youtube_video_id,
+                        "title": str(video.title or ""),
+                        "channel_name": str(video.channel_name or ""),
+                        "view_count": view_count,
+                        "risk_level": risk_value,
+                    },
+                ]
 
             insights_payload = decode_json(result.insights_json, {})
             parsed = self._parse_insights_payload(insights_payload)
@@ -200,7 +236,7 @@ class ProjectInsightsService:
             if summary_headline:
                 headline_samples = [*headline_samples, summary_headline]
 
-        analyzed_count = len(completed_results)
+        analyzed_count = len(completed_video_rows)
         overall_sentiment = self._top_label(sentiment_counter, fallback="neutral")
         average_risk_score = round((risk_total / analyzed_count), 1) if analyzed_count > 0 else 0.0
         risk_level = self._risk_level_from_score(average_risk_score)
@@ -222,7 +258,37 @@ class ProjectInsightsService:
             criticism_points=criticism_points,
             user_recommendations=user_recommendations,
         )
-        business_impact = self._build_business_impact(risk_level=risk_level, analyzed_count=analyzed_count)
+        top_risk_trigger = criticism_points[0] if criticism_points else "No recurring critical trigger identified yet."
+        sentiment_breakdown = {
+            "positive": int(sentiment_counter.get("positive", 0)),
+            "neutral": int(sentiment_counter.get("neutral", 0)),
+            "negative": int(sentiment_counter.get("negative", 0)),
+        }
+        risk_breakdown = {
+            "low": int(risk_counter.get("low", 0)),
+            "medium": int(risk_counter.get("medium", 0)),
+            "high": int(risk_counter.get("high", 0)),
+            "critical": int(risk_counter.get("critical", 0)),
+        }
+        total_reach_views = int(sum(reached_by_sentiment.values()))
+        negative_reach_views = int(reached_by_sentiment.get("negative", 0))
+        critical_risk_reach = int(reached_by_risk.get("high", 0) + reached_by_risk.get("critical", 0))
+        negative_reach_share_pct = round((negative_reach_views / total_reach_views) * 100, 1) if total_reach_views > 0 else 0.0
+        top_negative_videos = sorted(negative_videos_by_reach, key=lambda item: int(item.get("view_count", 0)), reverse=True)[:5]
+        action_required = "monitor"
+        if risk_breakdown["critical"] > 0 or risk_breakdown["high"] >= 3 or negative_reach_share_pct >= 35.0:
+            action_required = "act_now"
+        elif risk_breakdown["high"] > 0 or risk_breakdown["medium"] >= 3:
+            action_required = "monitor"
+        else:
+            action_required = "no_action"
+        reach_metrics = {
+            "total_reach_views": total_reach_views,
+            "negative_reach_views": negative_reach_views,
+            "negative_reach_share_pct": negative_reach_share_pct,
+            "critical_risk_reach": critical_risk_reach,
+            "action_required": action_required,
+        }
 
         return {
             "overall_sentiment": overall_sentiment,
@@ -230,10 +296,14 @@ class ProjectInsightsService:
             "risk_score": average_risk_score,
             "summary_headline": summary_headline,
             "summary_body": summary_body,
-            "business_impact": business_impact,
+            "top_risk_trigger": top_risk_trigger,
             "praise_points": praise_points,
             "criticism_points": criticism_points,
             "user_recommendations": user_recommendations,
+            "sentiment_breakdown": sentiment_breakdown,
+            "risk_breakdown": risk_breakdown,
+            "reach_metrics": reach_metrics,
+            "top_negative_videos": top_negative_videos,
         }
 
     @staticmethod
@@ -258,7 +328,6 @@ class ProjectInsightsService:
                 "video_id": int(result.video_candidate_id),
                 "summary_headline": str(result.summary_headline or "").strip(),
                 "summary_body": str(result.summary_body or "").strip(),
-                "business_impact": str(result.business_impact or "").strip(),
                 "sentiment": getattr(result.sentiment, "value", str(result.sentiment or "neutral")).lower(),
                 "risk_level": getattr(result.risk_level, "value", str(result.risk_level or "medium")).lower(),
                 "praise_points": parsed["praise_points"],
@@ -295,6 +364,16 @@ class ProjectInsightsService:
             "praise_points": [],
             "criticism_points": [],
             "user_recommendations": [],
+            "sentiment_breakdown": {"positive": 0, "neutral": 0, "negative": 0},
+            "risk_breakdown": {"low": 0, "medium": 0, "high": 0, "critical": 0},
+            "reach_metrics": {
+                "total_reach_views": 0,
+                "negative_reach_views": 0,
+                "negative_reach_share_pct": 0.0,
+                "critical_risk_reach": 0,
+                "action_required": "no_action",
+            },
+            "top_negative_videos": [],
         }
 
     @staticmethod
@@ -346,23 +425,6 @@ class ProjectInsightsService:
         )
 
     @staticmethod
-    def _build_business_impact(*, risk_level: str, analyzed_count: int) -> str:
-        if risk_level in {"high", "critical"}:
-            return (
-                f"High-severity issues across {analyzed_count} analyzed videos can reduce conversion and increase"
-                " PR risk if not addressed quickly."
-            )
-        if risk_level == "medium":
-            return (
-                f"Mixed sentiment across {analyzed_count} analyzed videos may slow growth unless messaging and product"
-                " fixes are aligned."
-            )
-        return (
-            f"Current signals across {analyzed_count} analyzed videos are mostly stable; amplify strengths while"
-            " monitoring for emerging risks."
-        )
-
-    @staticmethod
     def _build_markdown_report(
         *,
         generated_at: datetime,
@@ -392,10 +454,28 @@ class ProjectInsightsService:
             f"- Coverage: {coverage_pct}%",
             f"- Excluded reasons: {excluded_text}",
             "",
-            "## Sentiment & Risk",
+            "## Executive Dashboard",
             f"- Overall sentiment: {payload.get('overall_sentiment', 'neutral')}",
             f"- Risk level: {payload.get('risk_level', 'low')}",
             f"- Risk score: {payload.get('risk_score', 0.0)} / 10",
+            (
+                "- Sentiment distribution: "
+                f"positive {payload.get('sentiment_breakdown', {}).get('positive', 0)}, "
+                f"neutral {payload.get('sentiment_breakdown', {}).get('neutral', 0)}, "
+                f"negative {payload.get('sentiment_breakdown', {}).get('negative', 0)}"
+            ),
+            (
+                "- Risk distribution: "
+                f"low {payload.get('risk_breakdown', {}).get('low', 0)}, "
+                f"medium {payload.get('risk_breakdown', {}).get('medium', 0)}, "
+                f"high {payload.get('risk_breakdown', {}).get('high', 0)}, "
+                f"critical {payload.get('risk_breakdown', {}).get('critical', 0)}"
+            ),
+            (
+                "- Reach-weighted impact: "
+                f"negative reach share {payload.get('reach_metrics', {}).get('negative_reach_share_pct', 0.0)}%, "
+                f"critical risk reach {payload.get('reach_metrics', {}).get('critical_risk_reach', 0)} views"
+            ),
             "",
             "## Praise",
             *praise_lines,
@@ -411,16 +491,10 @@ class ProjectInsightsService:
             f"- Product Marketing: Amplify top proof point -> {praise_points[0] if praise_points else 'No recurring praise signal yet.'}",
             f"- Marketing: Prioritize creator follow-up using top recommendation -> {user_recommendations[0] if user_recommendations else 'No recurring recommendation yet.'}",
             "",
-            "## Methodology",
-            "- Source scope: latest completed video analyses in this project only.",
-            "- Inclusion criteria: completed analysis with transcript stored in DB.",
-            "- Transcript policy: no external transcript API calls during insights generation.",
-            f"- Coverage note: {analyzed_video_count}/{total_video_count} videos included.",
-            "",
             "## Summary",
             f"- Headline: {payload.get('summary_headline', '')}",
-            f"- Body: {payload.get('summary_body', '')}",
-            f"- Business impact: {payload.get('business_impact', '')}",
+            f"- Core insight: {payload.get('summary_body', '')}",
+            f"- Top risk trigger: {payload.get('top_risk_trigger', '')}",
         ]
         return "\n".join(lines)
 
@@ -435,7 +509,7 @@ class ProjectInsightsService:
                 f"The project currently has {total_video_count} videos but none with completed analysis and stored"
                 " transcript data, so insights cannot be generated yet."
             ),
-            "business_impact": "Run analysis on project videos to unlock reliable sentiment and risk signals.",
+            "top_risk_trigger": "No trigger available until at least one video is analyzed.",
             "praise_points": [],
             "criticism_points": [],
             "user_recommendations": [],

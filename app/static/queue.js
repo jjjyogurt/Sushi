@@ -553,6 +553,13 @@ export function createQueueController({
       throw new Error(t("errorNoVideosToAnalyze"));
     }
 
+    const videosToAnalyze = videos.filter(
+      (video) => String(video.latest_analysis_status || "").toLowerCase() !== "completed"
+    );
+    if (videosToAnalyze.length === 0) {
+      return;
+    }
+
     const button = runAllButton || getElement("run-all-analysis-btn");
     const originalLabel = button ? button.textContent : t("runAllAnalysis");
     if (button) {
@@ -564,15 +571,15 @@ export function createQueueController({
     const failures = [];
 
     try {
-      for (let index = 0; index < videos.length; index += 1) {
-        const video = videos[index];
+      for (let index = 0; index < videosToAnalyze.length; index += 1) {
+        const video = videosToAnalyze[index];
         if (button) {
-          button.textContent = t("analyzingProgress", { current: index + 1, total: videos.length });
+          button.textContent = t("analyzingProgress", { current: index + 1, total: videosToAnalyze.length });
         }
         try {
           await request(`/videos/${video.id}/analyze`, {
             method: "POST",
-            body: JSON.stringify({ force_reanalyze: true }),
+            body: JSON.stringify({ force_reanalyze: false }),
           });
           videoDetailController.invalidateVideoCache(video.id);
           successCount += 1;

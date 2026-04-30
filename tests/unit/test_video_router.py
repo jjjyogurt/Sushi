@@ -337,7 +337,6 @@ def test_get_latest_analysis_supports_legacy_insights_list(client, api_db_sessio
     assert payload["action_recommendation"] == ""
     assert payload["summary_headline"] == ""
     assert payload["summary_body"] == ""
-    assert payload["business_impact"] == ""
 
 
 def test_get_latest_analysis_supports_structured_insights_payload(client, api_db_session, api_monitor_profile):
@@ -363,7 +362,6 @@ def test_get_latest_analysis_supports_structured_insights_payload(client, api_db
         translated_summary="structured summary",
         summary_headline="High-signal structured headline",
         summary_body="Core sentiment is negative due to repeatable reliability concerns and friction in controls.",
-        business_impact="This can degrade trust and conversion among performance-focused buyers.",
         sentiment=Sentiment.NEGATIVE,
         risk_level=RiskLevel.HIGH,
         confidence_score="0.9",
@@ -398,7 +396,6 @@ def test_get_latest_analysis_supports_structured_insights_payload(client, api_db
     assert payload["action_recommendation"].startswith("Explain signal expectations")
     assert payload["summary_headline"] == "High-signal structured headline"
     assert payload["summary_body"].startswith("Core sentiment is negative")
-    assert payload["business_impact"].startswith("This can degrade trust")
 
 
 def test_discover_rejects_invalid_publish_window(client, api_monitor_profile):

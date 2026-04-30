@@ -14,6 +14,10 @@ router = APIRouter(prefix="/monitor-profiles/{monitor_profile_id}/insights", tag
 
 
 def _map_report(model) -> ProjectInsightReportResponse:
+    praise_points = decode_json(model.praise_points_json, [])
+    criticism_points = decode_json(model.criticism_points_json, [])
+    user_recommendations = decode_json(model.user_recommendations_json, [])
+    top_risk_trigger = criticism_points[0] if isinstance(criticism_points, list) and criticism_points else ""
     return ProjectInsightReportResponse(
         id=model.id,
         created_at=model.created_at,
@@ -28,11 +32,15 @@ def _map_report(model) -> ProjectInsightReportResponse:
         risk_score=model.risk_score,
         summary_headline=model.summary_headline,
         summary_body=model.summary_body,
-        business_impact=model.business_impact,
-        praise_points=decode_json(model.praise_points_json, []),
-        criticism_points=decode_json(model.criticism_points_json, []),
-        user_recommendations=decode_json(model.user_recommendations_json, []),
+        top_risk_trigger=top_risk_trigger,
+        praise_points=praise_points,
+        criticism_points=criticism_points,
+        user_recommendations=user_recommendations,
         excluded_reasons=decode_json(model.excluded_reasons_json, []),
+        sentiment_breakdown=decode_json(getattr(model, "sentiment_breakdown_json", "{}"), {}),
+        risk_breakdown=decode_json(getattr(model, "risk_breakdown_json", "{}"), {}),
+        reach_metrics=decode_json(getattr(model, "reach_metrics_json", "{}"), {}),
+        top_negative_videos=decode_json(getattr(model, "top_negative_videos_json", "[]"), []),
         report_markdown=model.report_markdown,
     )
 

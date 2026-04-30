@@ -537,3 +537,108 @@
 - Changes: Documented that `DATABASE_URL` is a Cloud Run env var and should not use missing Secret Manager entry `DATABASE_URL:latest`.
 - Check: `ReadLints` clean on updated markdown files.
 - Next: Keep future deploys preserving env vars unless runtime config changes.
+
+## 2026-04-28 18:13
+
+- Task: Deploy exact backend commit to Cloud Run.
+- Changes: Deployed detached commit `05cf4a53a5971d28ab0a86e1b1e4e0b1c505348c` from a temporary worktree.
+- Check: `python3 -m pytest tests/unit -q` passed; revision `sushi-backend-00023-wbj` serves 100%; `/health` and root returned 200.
+- Next: Use this revision as rollback target if later local dirty-tree deploys regress.
+
+## 2026-04-28 18:15
+
+- Task: Add OTA web app deployment playbook.
+- Changes: Created `OTA_DEPLOYMENT.md` and linked it from `BACKEND_DEPLOYMENT.md`.
+- Check: Read back updated docs and checked git status for changed files.
+- Next: Use the OTA playbook before future web app releases.
+
+## 2026-04-29 11:30
+
+- Task: Make Video AI chat follow the user's question language.
+- Changes: Added chat prompt rules so context/transcript/video language does not override the user's latest question language.
+- Check: `ReadLints` clean on `app/services/gemini_client.py`.
+- Next: Test with a Chinese question over non-Chinese transcript content before release.
+
+## 2026-04-29 11:36
+- Task: Expand alpha release test plan with full real-world pipeline validation.
+- Changes: Updated ALPHA_RELEASE_TEST_CASES.md with end-to-end single-video scenario and added analysis/report/chatbot reliability cases.
+- Check: not run (documentation update only).
+- Next: Execute PIPE-REAL-001 and mark pass/fail with defects.
+
+## 2026-04-29 11:39
+- Task: Add DB/account integrity tests to alpha release checklist.
+- Changes: Added DB-ACC-001, DB-ACC-002, and DB-DATA-001 in ALPHA_RELEASE_TEST_CASES.md for ownership, access control, and idempotency validation.
+- Check: not run (documentation update only).
+- Next: Convert new DB cases into executable integration tests and SQL verification script.
+
+## 2026-04-29 11:44
+- Task: Run full unit regression and report alpha readiness test status.
+- Changes: Executed complete pytest suite for tests/unit and collected summary.
+- Check: 112 passed, 0 failed, 2 deprecation warnings.
+- Next: Run PIPE-REAL-001 manual E2E scenario with one new YouTube video.
+
+## 2026-04-29 11:47
+- Task: Migrate FastAPI startup event hook to lifespan and verify no regressions.
+- Changes: Replaced @app.on_event("startup") with FastAPI lifespan context in app/main.py; preserved migration/init sequence.
+- Check: full unit suite passed (112 passed, 0 failed).
+- Next: Optional smoke test app boot in deployed-like runtime.
+
+## 2026-04-30 10:28
+- Task: Implement the new project-level insights template with portfolio metrics and reach-weighted impact.
+- Changes: Added sentiment/risk/reach/top-negative fields to project insights persistence/API, integrated YouTube view-count aggregation, removed Methodology/Snapshot UI blocks, and rendered new executive dashboard sections.
+- Check: `python3 -m pytest tests/unit/test_project_insights_router.py tests/unit/test_db_migrations.py`; `node --check app/static/insights.js && node --check app/static/i18n.js`.
+- Next: Optional: persist periodic view-count snapshots per video to enable period-over-period reach trend charts.
+
+## 2026-04-30 10:34
+- Task: Tighten project insights LLM prompt schema to align output with new executive template.
+- Changes: Updated `generate_project_insights_report` prompt with explicit field-level rules (decision-first summary, no methodology/snapshot language, competitor-win handling, tactical recommendations).
+- Check: `python3 -m pytest tests/unit/test_project_insights_router.py -q`.
+- Next: Evaluate one live refresh output and tune wording constraints if needed.
+
+## 2026-04-30 11:05
+- Task: Improve Insights distribution cards UI clarity.
+- Changes: Replaced shorthand symbols/codes with explicit labels, counts, and percentages for sentiment and risk distribution cards.
+- Check: `node --check app/static/insights.js && node --check app/static/i18n.js`.
+- Next: Optionally add color badges/icons per risk tier for faster scanning.
+
+## 2026-04-30 11:22
+- Task: Redesign insights distribution UI with visual charts and reposition reach-weighted impact.
+- Changes: Added three-card visual summary block (sentiment pie, risk pie, reach impact at right), removed old textual distribution cards and duplicate reach section.
+- Check: `node --check app/static/insights.js && node --check app/static/i18n.js`; `python3 -m pytest tests/unit/test_project_insights_router.py -q`.
+- Next: Optionally add tooltip hover for each pie segment to show exact count and percent.
+
+## 2026-04-30 13:46
+- Task: Refine insights visual typography, alignment, and spacing quality.
+- Changes: Upgraded chart cards with stronger hierarchy, larger pie size, aligned legend label/value columns, tabular-number values, and structured reach rows with right-aligned metrics.
+- Check: `node --check app/static/insights.js && node --check app/static/i18n.js`.
+- Next: Optional final polish: add subtle hover state and micro-animation for chart cards.
+
+## 2026-04-30 14:02
+- Task: Redesign Insights history from fixed side panel to icon-triggered drawer.
+- Changes: Removed persistent right history pane, added history icon beside Refresh, implemented right-side history drawer with backdrop, close button, and version selection/clear actions.
+- Check: `node --check app/static/insights.js && node --check app/static/i18n.js`.
+- Next: Optional: add keyboard Escape-to-close support for drawer.
+
+## 2026-04-30 17:40
+- Task: Replace executive summary with insights-first template and de-emphasize business impact.
+- Changes: Updated AGENTS instructions, Gemini project-insights JSON contract, payload mapping, and UI labels/rendering for Headline/Core Insight/Top Risk Trigger/Immediate Focus.
+- Check: python3 -m py_compile app/services/gemini_client.py app/services/project_insights_service.py app/api/project_insights_router.py app/schemas/project_insights.py
+- Next: Refresh Insights for one project and confirm new fields render correctly.
+
+## 2026-04-30 18:05
+- Task: Retire legacy business_impact field end-to-end.
+- Changes: Removed business_impact from models/schemas/services/UI/tests, added startup migration to drop legacy columns, and updated DATABASE_DESIGN.md with a What Changed note.
+- Check: python3 -m py_compile app/main.py app/db_migrations.py app/services/gemini_client.py app/services/analysis_service.py app/repositories/project_insights_repository.py app/services/project_insights_service.py app/api/project_insights_router.py app/api/mappers.py app/schemas/analysis.py app/schemas/project_insights.py app/models/analysis_result.py app/models/project_insight_report.py tests/unit/test_db_migrations.py tests/unit/test_gemini_client.py tests/unit/test_analysis_service.py tests/unit/test_api_mappers.py tests/unit/test_project_insights_router.py tests/unit/test_video_router.py
+- Next: Run full pytest suite in CI/local env with pytest installed.
+
+## 2026-04-30 18:18
+- Task: Remove sentiment/exclusion line and Immediate Focus from executive summary display.
+- Changes: Updated AGENTS summary contract to 3 fields, removed immediate_focus from project insights payload/schema/API, and removed summary meta lines from insights/video detail UI.
+- Check: python3 -m py_compile app/services/gemini_client.py app/services/project_insights_service.py app/schemas/project_insights.py app/api/project_insights_router.py
+- Next: Refresh Insights UI and confirm summary now shows only Headline/Core Insight/Top Risk Trigger.
+
+## 2026-04-30 18:28
+- Task: Production-readiness testing for summary-template feature changes.
+- Changes: Installed pytest and executed targeted + full unit suites covering migrations, mappers, analysis, Gemini parsing, video/router, and project insights.
+- Check: 114 passed, 0 failed (tests/unit), plus targeted 35 passed.
+- Next: Add integration smoke tests for UI rendering and startup migration against production-like PostgreSQL.

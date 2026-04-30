@@ -404,7 +404,6 @@ class AnalysisService:
         result.translated_summary = ""
         result.summary_headline = ""
         result.summary_body = ""
-        result.business_impact = ""
         result.comment_summary_text = ""
         result.comment_highlights_json = "[]"
         result.comment_lowlights_json = "[]"
@@ -423,7 +422,6 @@ class AnalysisService:
         result.translated_summary = output.translated_summary
         result.summary_headline = output.summary_headline
         result.summary_body = output.summary_body
-        result.business_impact = output.business_impact
         result.comment_summary_text = comments_analysis.summary
         result.comment_highlights_json = encode_json(comments_analysis.highlights)
         result.comment_lowlights_json = encode_json(comments_analysis.lowlights)
@@ -467,7 +465,6 @@ class AnalysisService:
             translated_summary=result.translated_summary,
             summary_headline=result.summary_headline,
             summary_body=result.summary_body,
-            business_impact=result.business_impact,
             sentiment=result.sentiment,
             risk_level=result.risk_level,
             confidence_score=float(result.confidence_score or "0"),
@@ -495,7 +492,6 @@ class AnalysisService:
         target.translated_summary = source.translated_summary
         target.summary_headline = source.summary_headline
         target.summary_body = source.summary_body
-        target.business_impact = source.business_impact
         target.comment_summary_text = source.comment_summary_text
         target.comment_highlights_json = source.comment_highlights_json
         target.comment_lowlights_json = source.comment_lowlights_json
@@ -595,4 +591,3 @@ class AnalysisService:
                 error,
             )
         return self.video_comment_repository.list_texts_for_video(video_candidate_id=video_id, max_items=5000)
-

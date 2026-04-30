@@ -33,8 +33,6 @@ def ensure_analysis_results_summary_columns(engine: Engine) -> None:
         statements = [*statements, "ALTER TABLE analysis_results ADD COLUMN summary_headline TEXT NOT NULL DEFAULT ''"]
     if "summary_body" not in columns:
         statements = [*statements, "ALTER TABLE analysis_results ADD COLUMN summary_body TEXT NOT NULL DEFAULT ''"]
-    if "business_impact" not in columns:
-        statements = [*statements, "ALTER TABLE analysis_results ADD COLUMN business_impact TEXT NOT NULL DEFAULT ''"]
     if not statements:
         return
 
@@ -128,6 +126,49 @@ def ensure_video_candidate_assignment_columns(engine: Engine) -> None:
         statements = [*statements, "ALTER TABLE video_candidates ADD COLUMN assigned_by VARCHAR(80) NOT NULL DEFAULT ''"]
     if "assigned_at" not in columns:
         statements = [*statements, "ALTER TABLE video_candidates ADD COLUMN assigned_at DATETIME NULL"]
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+def ensure_project_insight_reports_portfolio_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    if "project_insight_reports" not in table_names:
+        return
+    columns = {column["name"] for column in inspector.get_columns("project_insight_reports")}
+    statements = []
+    if "sentiment_breakdown_json" not in columns:
+        statements = [*statements, "ALTER TABLE project_insight_reports ADD COLUMN sentiment_breakdown_json TEXT NOT NULL DEFAULT '{}'"]
+    if "risk_breakdown_json" not in columns:
+        statements = [*statements, "ALTER TABLE project_insight_reports ADD COLUMN risk_breakdown_json TEXT NOT NULL DEFAULT '{}'"]
+    if "reach_metrics_json" not in columns:
+        statements = [*statements, "ALTER TABLE project_insight_reports ADD COLUMN reach_metrics_json TEXT NOT NULL DEFAULT '{}'"]
+    if "top_negative_videos_json" not in columns:
+        statements = [*statements, "ALTER TABLE project_insight_reports ADD COLUMN top_negative_videos_json TEXT NOT NULL DEFAULT '[]'"]
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+def retire_legacy_business_impact_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    statements = []
+    if "analysis_results" in table_names:
+        analysis_columns = {column["name"] for column in inspector.get_columns("analysis_results")}
+        if "business_impact" in analysis_columns:
+            statements = [*statements, "ALTER TABLE analysis_results DROP COLUMN business_impact"]
+    if "project_insight_reports" in table_names:
+        insight_columns = {column["name"] for column in inspector.get_columns("project_insight_reports")}
+        if "business_impact" in insight_columns:
+            statements = [*statements, "ALTER TABLE project_insight_reports DROP COLUMN business_impact"]
     if not statements:
         return
 

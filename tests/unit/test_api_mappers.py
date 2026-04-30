@@ -19,7 +19,6 @@ def _build_analysis_model():
         translated_summary="summary",
         summary_headline="headline",
         summary_body="body",
-        business_impact="impact",
         sentiment=Sentiment.NEUTRAL,
         risk_level=RiskLevel.LOW,
         confidence_score="0.75",

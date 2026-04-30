@@ -2208,20 +2208,65 @@ body {
 
 .insights-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 
-.insights-main-pane,
-.insights-history-pane {
+.insights-main-pane {
   padding: 12px;
   display: grid;
   gap: 12px;
 }
 
+.insights-history-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.22);
+  z-index: 45;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 180ms ease, visibility 180ms ease;
+}
+
+.insights-history-drawer-backdrop.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.insights-history-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(420px, 92vw);
+  height: 100vh;
+  background: #ffffff;
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 28px rgba(15, 23, 42, 0.16);
+  z-index: 50;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  overflow: auto;
+  transform: translateX(100%);
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 220ms ease, visibility 220ms ease;
+}
+
+.insights-history-drawer.is-open {
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+}
+
 .insights-history-list {
   display: grid;
   gap: 8px;
+  align-content: start;
+  grid-auto-rows: max-content;
 }
 
 .insights-history-item {
@@ -2292,13 +2337,151 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.insights-visual-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .insights-meta-card {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: #ffffff;
-  padding: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.insights-meta-card .meta {
+  font-size: 0.8rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.insights-meta-card strong {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.insights-chart-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.insights-chart-card .meta {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.insights-chart-title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.insights-chart-body {
   display: grid;
-  gap: 4px;
+  grid-template-columns: 132px 1fr;
+  align-items: center;
+  gap: 14px;
+}
+
+.insights-pie-chart {
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #f4f5f7;
+  justify-self: center;
+}
+
+.insights-chart-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insights-chart-legend li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.insights-legend-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.insights-legend-label {
+  font-weight: 500;
+  color: #374151;
+}
+
+.insights-legend-value {
+  font-variant-numeric: tabular-nums;
+  color: #111827;
+  font-weight: 600;
+}
+
+.insights-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.insights-reach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insights-reach-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 8px;
+}
+
+.insights-reach-list li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.insights-reach-label {
+  color: #4b5563;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.insights-reach-value {
+  color: #111827;
+  font-weight: 600;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .insights-rich-content {
@@ -2383,6 +2566,10 @@ body {
 
   .insights-meta-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .insights-visual-grid {
+    grid-template-columns: 1fr;
   }
 }
 

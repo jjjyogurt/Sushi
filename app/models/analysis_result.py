@@ -28,7 +28,6 @@ class AnalysisResult(TimestampMixin, Base):
     translated_summary: Mapped[str] = mapped_column(Text, default="")
     summary_headline: Mapped[str] = mapped_column(Text, default="")
     summary_body: Mapped[str] = mapped_column(Text, default="")
-    business_impact: Mapped[str] = mapped_column(Text, default="")
     comment_summary_text: Mapped[str] = mapped_column(Text, default="")
     comment_highlights_json: Mapped[str] = mapped_column(Text, default="[]")
     comment_lowlights_json: Mapped[str] = mapped_column(Text, default="[]")
@@ -40,4 +39,3 @@ class AnalysisResult(TimestampMixin, Base):
     error_message: Mapped[str] = mapped_column(Text, default="")
 
     video_candidate = relationship("VideoCandidate")
-

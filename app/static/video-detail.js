@@ -95,8 +95,8 @@ function summaryMarkup(analysis) {
   }
   const headline = String(analysis.summary_headline || "").trim();
   const body = String(analysis.summary_body || "").trim();
-  const businessImpact = String(analysis.business_impact || "").trim();
-  if (!headline && !body && !businessImpact) {
+  const topRiskTrigger = String(analysis.top_risk_trigger || "").trim();
+  if (!headline && !body && !topRiskTrigger) {
     return escapeHtml(String(analysis.summary_text || "").trim() || t("noAnalysisYet"));
   }
 
@@ -104,13 +104,7 @@ function summaryMarkup(analysis) {
     <div class="summary-structured">
       ${headline ? `<div class="summary-headline">${escapeHtml(headline)}</div>` : ""}
       ${body ? `<div class="summary-body">${escapeHtml(body)}</div>` : ""}
-      ${
-        businessImpact
-          ? `<div class="summary-impact"><strong>${escapeHtml(t("businessImpact"))}:</strong> ${escapeHtml(
-              businessImpact
-            )}</div>`
-          : ""
-      }
+      ${topRiskTrigger ? `<div class="summary-impact"><strong>${escapeHtml(t("insightsTopRiskTrigger"))}:</strong> ${escapeHtml(topRiskTrigger)}</div>` : ""}
     </div>
   `;
 }

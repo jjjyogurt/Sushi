@@ -30,7 +30,6 @@ class AnalysisOutput:
     translated_summary: str
     summary_headline: str
     summary_body: str
-    business_impact: str
     sentiment: Sentiment
     risk_level: RiskLevel
     confidence_score: float
@@ -54,4 +53,3 @@ class ChatOutput:
     citations: List[dict]
     confidence_score: float
     insufficient_evidence: bool
-

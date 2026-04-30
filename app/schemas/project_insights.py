@@ -16,11 +16,15 @@ class ProjectInsightReportResponse(TimestampedResponse):
     risk_score: float
     summary_headline: str
     summary_body: str
-    business_impact: str
+    top_risk_trigger: str = ""
     praise_points: List[str]
     criticism_points: List[str]
     user_recommendations: List[str]
     excluded_reasons: List[str]
+    sentiment_breakdown: dict
+    risk_breakdown: dict
+    reach_metrics: dict
+    top_negative_videos: List[dict]
     report_markdown: str
 
 

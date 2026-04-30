@@ -14,6 +14,7 @@ from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
 from app.models.monitor_profile import MonitorProfile
 from app.repositories.video_repository import VideoRepository
 from app.services.project_insights_service import ProjectInsightsService
+from app.services.youtube_video_stats_service import YouTubeVideoStatsService
 from app.utils.json_codec import encode_json
 
 
@@ -55,6 +56,7 @@ def client(insights_db_session, monkeypatch):
         return kwargs["fallback_payload"]
 
     monkeypatch.setattr(ProjectInsightsService, "_build_payload_with_gemini", use_fallback_payload)
+    monkeypatch.setattr(YouTubeVideoStatsService, "fetch_view_counts", lambda self, youtube_video_ids: {})
 
     def override_db():
         yield insights_db_session
@@ -99,7 +101,6 @@ def test_refresh_insights_uses_only_completed_with_db_transcripts(client, insigh
                 translated_summary="solid",
                 summary_headline="Strong positive creator signal.",
                 summary_body="The product performed as expected in core tasks.",
-                business_impact="Supports conversion messaging.",
                 sentiment=Sentiment.POSITIVE,
                 risk_level=RiskLevel.LOW,
                 confidence_score="0.92",
@@ -162,6 +163,11 @@ def test_refresh_insights_uses_only_completed_with_db_transcripts(client, insigh
     assert payload["praise_points"] == ["Stable tracking in windy conditions."]
     assert payload["criticism_points"] == ["Battery life is shorter than expected."]
     assert payload["user_recommendations"] == ["Publish realistic battery guidance in campaign copy."]
+    assert payload["sentiment_breakdown"]["positive"] == 1
+    assert payload["sentiment_breakdown"]["negative"] == 0
+    assert payload["risk_breakdown"]["low"] == 1
+    assert payload["reach_metrics"]["negative_reach_share_pct"] == 0.0
+    assert payload["top_negative_videos"] == []
 
 
 def test_insights_history_tracks_snapshots_in_latest_first_order(client, insights_db_session):

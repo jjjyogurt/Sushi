@@ -152,7 +152,6 @@ class AnalysisRepository:
         result.translated_summary = ""
         result.summary_headline = ""
         result.summary_body = ""
-        result.business_impact = ""
         result.comment_summary_text = ""
         result.comment_highlights_json = "[]"
         result.comment_lowlights_json = "[]"
@@ -162,4 +161,3 @@ class AnalysisRepository:
         result.error_message = ""
         result.evidence_json = "[]"
         result.insights_json = "{}"
-
