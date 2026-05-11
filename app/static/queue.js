@@ -641,13 +641,20 @@ export function createQueueController({
       button.disabled = true;
       button.textContent = t("analyzingProgress", { current: 0, total: videos.length });
     }
-    const batch = await request("/analysis/batches", {
-      method: "POST",
-      body: JSON.stringify({
-        monitor_profile_id: getState().selectedProfileId,
-      }),
-    });
-    await pollBatchUntilFinished(batch.id, button);
+    try {
+      const batch = await request("/analysis/batches", {
+        method: "POST",
+        body: JSON.stringify({
+          monitor_profile_id: getState().selectedProfileId,
+        }),
+      });
+      await pollBatchUntilFinished(batch.id, button);
+    } finally {
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = false;
+        button.textContent = t("runAllAnalysis");
+      }
+    }
   }
 
   async function deleteVideo(videoId) {

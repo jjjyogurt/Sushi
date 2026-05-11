@@ -101,7 +101,7 @@ export function createAuthController({ request, setState }) {
           select.innerHTML = "";
         }
         if (idInput instanceof HTMLInputElement) {
-          idInput.value = "";
+          idInput.value = "Sushi_1";
           idInput.focus();
         }
         return;

@@ -149,9 +149,10 @@ function getVideoConflictPayload(error) {
 async function runTask(task, successMessage = "") {
   try {
     clearMessage();
-    await task();
-    if (successMessage) {
-      showMessage(successMessage, "success");
+    const resultMessage = await task();
+    const message = typeof resultMessage === "string" && resultMessage.trim() ? resultMessage : successMessage;
+    if (message) {
+      showMessage(message, "success");
     }
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
@@ -375,12 +376,34 @@ async function loadAlerts() {
     .map(
       (alert) => `
         <li class="alert-item">
-          <div style="font-weight: 600;">${escapeHtml(alert.message)}</div>
-          <div class="meta">${escapeHtml(t("channel"))}: ${escapeHtml(alert.channel)}</div>
+          <div class="alert-item-header">
+            <span class="badge ${escapeHtml(String(alert.severity || "").toLowerCase())}">
+              ${escapeHtml(String(alert.severity || "").toUpperCase())}
+            </span>
+            <span class="meta">${escapeHtml(formatAlertDate(alert.created_at))}</span>
+          </div>
+          <div class="alert-title">${escapeHtml(alert.video_title || t("unknownVideo"))}</div>
+          <div class="alert-message">${escapeHtml(alert.message)}</div>
+          <div class="meta">
+            ${escapeHtml(t("owner"))}: ${escapeHtml(alert.owner || t("unassigned"))}
+            · ${escapeHtml(t("channel"))}: ${escapeHtml(alert.channel)}
+            · ${escapeHtml(t("videoId"))}: ${escapeHtml(String(alert.video_candidate_id || ""))}
+          </div>
         </li>
       `
     )
     .join("");
+}
+
+function formatAlertDate(rawValue) {
+  if (!rawValue) {
+    return "";
+  }
+  const parsed = new Date(rawValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(rawValue);
+  }
+  return parsed.toLocaleString();
 }
 
 function bindAlertsControls() {

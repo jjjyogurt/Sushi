@@ -2,7 +2,7 @@
 
 
 
-April 28 2026
+May 6 2026
 
 
 
@@ -14,7 +14,7 @@ This document explains how data is stored in the backend so new team members can
 
 - ORM: SQLAlchemy 2.x models under `app/models/`.
 - Local DB default: SQLite (`sqlite:///./sushi.db`).
-- Production DB: Cloud SQL PostgreSQL via `DATABASE_URL`.
+- Production DB: Supabase PostgreSQL via `DATABASE_URL`.
 - Tables are auto-created at startup (`Base.metadata.create_all`) and then patched by imperative migrations in `app/db_migrations.py`.
 - Analysis transcripts are stored directly in `analysis_results.transcript_text` (full timestamped text), not in a separate transcript table.
 - Many list/object fields are stored as JSON-encoded `TEXT` columns.
@@ -27,7 +27,7 @@ This document explains how data is stored in the backend so new team members can
 flowchart LR
     A[User / Firebase Hosting] --> B[Cloud Run: sushi-backend]
     B --> C[FastAPI + SQLAlchemy]
-    C --> D[(Cloud SQL PostgreSQL)]
+    C --> D[(Supabase PostgreSQL)]
 
     C --> E[YouTube Transcript Provider]
     C --> F[YouTube Data API Comments]
@@ -50,7 +50,7 @@ flowchart LR
 ## Runtime Connection Model
 
 1. App reads env vars from `Settings` (`DATABASE_URL`, `ENVIRONMENT`, etc.).
-2. `get_db_engine()` builds SQLAlchemy engine and retries connection for Cloud SQL readiness.
+2. `get_db_engine()` builds SQLAlchemy engine and retries connection for managed Postgres readiness.
 3. Startup runs:
   - `Base.metadata.create_all(bind=engine)`
   - migration helpers in `app/db_migrations.py`
@@ -58,10 +58,10 @@ flowchart LR
 
 Production deploy config uses:
 
-- `--add-cloudsql-instances sushi-d9036:asia-southeast1:sushi-d9036-instance`
-- Cloud Run env var `DATABASE_URL` with the Unix socket DSN
+- No Cloud SQL attachment on Cloud Run.
+- Cloud Run env var `DATABASE_URL` with the Supabase session pooler DSN.
 
-The `DATABASE_URL` Secret Manager entry is not available in current production, so deployments should preserve or update the plain Cloud Run env var instead of using `--set-secrets DATABASE_URL=DATABASE_URL:latest`.
+The legacy Cloud SQL instance `sushi-d9036:asia-southeast1:sushi-d9036-instance` was stopped after the 2026-05-06 Supabase migration and should be treated as rollback-only infrastructure until deleted.
 
 ---
 
@@ -247,6 +247,11 @@ Because this project uses imperative startup migrations, changes to models shoul
 - Why it changed: Replace in-browser sequential analysis loop with durable backend job execution so progress survives page refresh and supports production-safe long-running analysis.
 - Impact on existing data and compatibility: Backward compatible for existing `analysis_results`/video data. New batch tables are additive; old single-video `/videos/{id}/analyze` API remains available. Deletion cleanup now also removes orphaned batch rows/items tied to deleted videos/projects.
 
+### What Changed (2026-05-06, Supabase migration)
+- What changed: Production database moved from Cloud SQL PostgreSQL to Supabase PostgreSQL using the Supabase session pooler. Cloud Run now uses the Supabase `DATABASE_URL`, has no Cloud SQL attachment, and the legacy Cloud SQL instance is stopped for rollback only.
+- Why it changed: Current production traffic is very low, and Cloud SQL created an always-on fixed monthly cost that was too high for the project stage.
+- Impact on existing data and compatibility: Schema shape is unchanged. Data was exported from Cloud SQL and imported into Supabase; key verification counts after migration were 28 tables, 2 monitor profiles, 42 video candidates, 84 analysis results, 1,157 video comments, 15 app users, and 75 audit logs.
+
 ---
 
 ## Deletion / Cascade Strategy
@@ -261,10 +266,10 @@ Because this project uses imperative startup migrations, changes to models shoul
 
 - Confirm DB target:
   - local: `DATABASE_URL=sqlite:///./sushi.db`
-  - prod: PostgreSQL Cloud SQL socket DSN via Cloud Run env var
+  - prod: Supabase PostgreSQL session pooler DSN via Cloud Run env var
 - Confirm Cloud Run wiring:
-  - `--add-cloudsql-instances ...`
-  - `DATABASE_URL` env var targets `sushi-d9036-database`
+  - no Cloud SQL attachment
+  - `DATABASE_URL` env var targets the Supabase pooler host
 - Confirm hosting route:
   - Firebase rewrites all paths to Cloud Run service `sushi-backend` in `asia-southeast1`.
 
@@ -277,5 +282,5 @@ Update this file whenever you change:
 - table names/columns/indexes
 - transcript/analysis storage behavior
 - migration strategy
-- Cloud Run / Cloud SQL connection method
+- Cloud Run / production database connection method
 - JSON field contracts (shape or encoding)

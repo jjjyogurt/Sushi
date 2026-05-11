@@ -264,7 +264,9 @@
               </form>
             </div>
 
-            <div id="profile-grid" class="project-grid"></div>
+            <div id="profile-grid" class="project-grid">
+              <div class="video-detail-empty">Loading projects...</div>
+            </div>
           </section>
 
           <section id="voc" class="panel">
@@ -704,12 +706,16 @@
                 </div>
               </div>
             </details>
-            <section id="agent-settings-pane" class="pane settings-pane" style="margin-top: 20px;">
-              <div class="pane-header">
-                <h3>Agent Settings</h3>
+            <details id="agent-settings-pane" class="pane settings-pane advanced-settings-details" style="margin-top: 20px;">
+              <summary class="advanced-settings-summary">
+                <span class="material-symbols-outlined advanced-settings-chevron" aria-hidden="true">expand_more</span>
+                <span>Advanced Agent Prompt</span>
                 <span id="agent-settings-meta" class="meta">Loading...</span>
-              </div>
+              </summary>
               <div class="settings-body">
+                <p class="settings-help-text">
+                  Edit the global video-analysis prompt only when the default reviewer behavior needs to change.
+                </p>
                 <label class="settings-label" for="agent-settings-input">AGENTS.md Instructions</label>
                 <textarea
                   id="agent-settings-input"
@@ -722,7 +728,7 @@
                   <button id="reset-agent-settings-btn" class="btn btn-secondary" type="button">Reset to Default</button>
                 </div>
               </div>
-            </section>
+            </details>
             <section id="knowledge-settings-pane" class="pane settings-pane" style="margin-top: 20px;">
               <div class="pane-header">
                 <h3>Project Brain</h3>
@@ -836,12 +842,16 @@
                 </div>
               </div>
             </section>
-            <section id="voc-settings-pane" class="pane settings-pane" style="margin-top: 20px;">
-              <div class="pane-header">
-                <h3>VOC Settings</h3>
-                <span class="meta">Configure Cleaner and Analyzer skills</span>
-              </div>
+            <details id="voc-settings-pane" class="pane settings-pane advanced-settings-details" style="margin-top: 20px;">
+              <summary class="advanced-settings-summary">
+                <span class="material-symbols-outlined advanced-settings-chevron" aria-hidden="true">expand_more</span>
+                <span>Advanced VOC Prompts</span>
+                <span class="meta">Cleaner and Analyzer skills</span>
+              </summary>
               <div class="settings-body">
+                <p class="settings-help-text">
+                  These prompts control VOC cleanup and report generation. Keep them collapsed during normal setup.
+                </p>
                 <div class="settings-block">
                   <label class="settings-label" for="voc-cleaner-skill-input">VOC Data Cleaner Skills</label>
                   <textarea
@@ -872,7 +882,7 @@
                   <div id="voc-analyzer-skill-meta" class="meta"></div>
                 </div>
               </div>
-            </section>
+            </details>
           </section>
         </main>
 
@@ -901,6 +911,7 @@
             Account ID
             <input id="auth-user-id" type="text" autocomplete="username" />
           </label>
+          <p id="auth-demo-hint" class="auth-hint">Demo account: Sushi_1 / 1234</p>
           <label>
             Password
             <input id="auth-password" type="password" value="1234" required />

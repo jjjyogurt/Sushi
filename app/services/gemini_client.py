@@ -131,6 +131,8 @@ class GeminiClient:
         self,
         *,
         project_name: str,
+        brand_keywords: List[str],
+        key_products: List[str],
         total_video_count: int,
         analyzed_video_count: int,
         records: List[dict],
@@ -144,14 +146,14 @@ class GeminiClient:
         max_records = 80
         records_for_prompt = normalized_records[:max_records]
         payload = json.dumps(records_for_prompt, ensure_ascii=True)
+        brand_keywords_csv = ", ".join([item for item in [str(raw or "").strip() for raw in brand_keywords] if item]) or "none"
+        key_products_csv = ", ".join([item for item in [str(raw or "").strip() for raw in key_products] if item]) or "none"
         prompt = (
             "You are a professional product-insights researcher for consumer electronics.\n"
             "Generate a project-level synthesis using only the evidence provided.\n"
             "This is a comprehensive multi-video project report, not a single-video review.\n"
             "Aggregate recurring themes across all included videos and prioritize cross-video patterns.\n"
             "Output must align to an executive portfolio template (decision-first, no fluff).\n"
-            "Follow these AGENTS.md instructions for evaluation style and quality bar:\n"
-            f"{agent_instructions}\n"
             "Return strict JSON only with this exact shape:\n"
             '{'
             '"summary_headline":"string",'
@@ -166,12 +168,17 @@ class GeminiClient:
             '}\n'
             "Rules:\n"
             "- Base all claims on provided records only.\n"
+            "- Treat this as a strict single-project analysis scope. Do not mix in data from other projects.\n"
+            "- The focus products for this project are listed below; anchor the analysis to these products.\n"
+            "- Brand keywords are provided as lexical guides for entity resolution and product references.\n"
+            "- Do not mention competitor models, brands, or benchmarks unless they are explicitly present in this project's records.\n"
+            "- If no valid direct comparison appears in this project's records, do not invent one.\n"
             "- Keep lists concise and high-signal (max 5 each).\n"
             "- Do not fabricate incidents, timestamps, or failures.\n"
             "- Use critical/high risk wording only when evidence supports it.\n"
             "- Do not include methodology, process notes, or snapshot-report style wording.\n"
             "- `summary_headline`: one line, decision-first. If risk is high/critical, prioritize safety/reliability impact.\n"
-            "- `core_insight`: 2-3 sentences; include what is happening, where sentiment shifts, and evidence cues.\n"
+            "- `core_insight`: 3-4 sentences with richer synthesis; include what is happening, where sentiment shifts, concrete evidence cues, and why it matters for product/marketing decisions.\n"
             "- `top_risk_trigger`: one short line naming the single most important failure moment/category.\n"
             "- `praise_points`: include only repeatable strengths; prioritize Hoverair/V-Copter advantages when competitor comparisons exist.\n"
             "- `criticism_points`: include only concrete failure/friction signals; prioritize competitor wins as criticism when directly compared.\n"
@@ -179,6 +186,8 @@ class GeminiClient:
             "- Prefer objective technical failures over subjective creative preference when both are present.\n"
             "- When available in evidence, include brief proof qualifiers in list items (for example: repeated across multiple videos or explicit on-camera demonstration).\n"
             f"Project name: {project_name}\n"
+            f"Project brand keywords: {brand_keywords_csv}\n"
+            f"Project key products to monitor: {key_products_csv}\n"
             f"Total project videos: {total_video_count}\n"
             f"Analyzed videos included: {analyzed_video_count}\n"
             f"Records JSON:\n{payload}\n"

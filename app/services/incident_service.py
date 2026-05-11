@@ -1,11 +1,19 @@
 from sqlalchemy.orm import Session
+from dataclasses import dataclass
 
 from app.models.enums import RiskLevel
+from app.models.incident import Incident
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.incident_repository import IncidentRepository
 from app.repositories.video_repository import VideoRepository
 from app.services.notification_service import NotificationService
+
+
+@dataclass(frozen=True)
+class EscalationResult:
+    incident: Incident
+    alert_created: bool
 
 
 class IncidentService:
@@ -32,6 +40,7 @@ class IncidentService:
             owner=owner,
             notes=notes,
         )
+        alert_created = False
         if latest.risk_level in (RiskLevel.CRITICAL, RiskLevel.HIGH, RiskLevel.MEDIUM):
             alert_text = self.notification_service.build_alert_message(
                 title=candidate.title,
@@ -39,6 +48,7 @@ class IncidentService:
                 summary=latest.summary_text,
             )
             self.incident_repository.create_alert(incident_id=incident.id, channel="inbox", message=alert_text)
+            alert_created = True
         self.audit_repository.record(
             actor="marketing-owner",
             action="incident_escalated",
@@ -46,8 +56,7 @@ class IncidentService:
             resource_id=str(video_id),
             details=f"severity={latest.risk_level.value}",
         )
-        return incident
+        return EscalationResult(incident=incident, alert_created=alert_created)
 
     def list_alerts(self):
         return self.incident_repository.list_alerts()
-

@@ -103,7 +103,6 @@ function renderVisualSummary(report) {
         <div class="insights-pie-chart" style="background:${escapeHtml(riskPie.background)}" aria-label="${escapeHtml(t("insightsRiskDistribution"))}"></div>
         <ul class="insights-chart-legend">${renderLegend(riskPie.legend)}</ul>
       </div>
-      <div class="meta">${escapeHtml(t("insightsRiskLevel"))}: ${escapeHtml(String(report.risk_level || "-").charAt(0).toUpperCase() + String(report.risk_level || "-").slice(1))}</div>
     </section>
     <section class="insights-chart-card">
       <h4 class="insights-chart-title">${escapeHtml(t("insightsReachImpact"))}</h4>
@@ -145,11 +144,9 @@ function buildReachImpactNotes(report) {
   const totalReach = Number(metrics.total_reach_views || 0);
   const negativeReach = Number(metrics.negative_reach_views || 0);
   const negativeShare = Number(metrics.negative_reach_share_pct || 0).toFixed(1);
-  const criticalReach = Number(metrics.critical_risk_reach || 0);
   return [
     t("insightsTotalReachViews", { value: String(totalReach) }),
     t("insightsNegativeReachShare", { value: `${negativeShare}%` }),
-    t("insightsCriticalRiskReach", { value: String(criticalReach) }),
     t("insightsNegativeReachViews", { value: String(negativeReach) }),
   ];
 }
@@ -348,10 +345,6 @@ export function createInsightsController({
       <div class="insights-meta-card">
         <div class="meta">${escapeHtml(t("insightsCoverage"))}</div>
         <strong>${escapeHtml(formatPercent(report.coverage_pct || 0))}</strong>
-      </div>
-      <div class="insights-meta-card">
-        <div class="meta">${escapeHtml(t("insightsRiskLevel"))}</div>
-        <strong>${escapeHtml(String(report.risk_level || "-").charAt(0).toUpperCase() + String(report.risk_level || "-").slice(1))}</strong>
       </div>
     `;
     renderVisualSummary(report);

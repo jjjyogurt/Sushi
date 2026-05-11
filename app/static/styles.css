@@ -15,7 +15,7 @@
   --surface-container-highest: #dde4e5;
   --on-surface-variant: #5a6061;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  --queue-list-pane-height: clamp(1120px, 144vh, 1640px);
+  --queue-list-pane-height: calc(100vh - 248px);
 }
 
 .is-hidden {
@@ -886,6 +886,25 @@ body {
   border-radius: 10px;
   padding: 10px 12px;
   background: #fff8f7;
+}
+
+.alert-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.alert-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.alert-message {
+  margin-bottom: 8px;
+  color: var(--text);
+  line-height: 1.45;
 }
 
 .knowledge-source-item {
@@ -1803,8 +1822,8 @@ body {
 
 .queue-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(0, 1.7fr);
-  gap: 14px;
+  grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
+  gap: 18px;
   min-height: 620px;
   align-items: start;
 }
@@ -1813,12 +1832,19 @@ body {
 .queue-detail-pane {
   display: grid;
   grid-template-rows: auto auto 1fr;
-  overflow: visible !important;
+  min-height: 0;
 }
 
 .queue-list-pane {
-  height: var(--queue-list-pane-height);
+  height: max(560px, var(--queue-list-pane-height));
+  max-height: calc(100vh - 160px);
+  position: sticky;
+  top: 84px;
   z-index: 5;
+}
+
+.queue-detail-pane {
+  min-height: max(560px, var(--queue-list-pane-height));
 }
 
 .pane-header {
@@ -1998,6 +2024,16 @@ body {
   font-size: 0.9rem;
 }
 
+.auth-card .auth-hint {
+  margin: -4px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 0.84rem;
+}
+
 .voc-toolbar {
   display: grid;
   gap: 12px;
@@ -2174,6 +2210,45 @@ body {
 .settings-block {
   display: grid;
   gap: 8px;
+}
+
+.advanced-settings-details {
+  overflow: hidden;
+}
+
+.advanced-settings-summary {
+  min-height: 48px;
+  padding: 0 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+  border-bottom: 1px solid transparent;
+}
+
+.advanced-settings-summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-settings-details[open] .advanced-settings-summary {
+  border-bottom-color: var(--border);
+}
+
+.advanced-settings-chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.advanced-settings-details[open] .advanced-settings-chevron {
+  transform: rotate(180deg);
+}
+
+.settings-help-text {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 .insights-panel-header .insights-header-row {

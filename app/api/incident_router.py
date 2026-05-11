@@ -13,8 +13,10 @@ router = APIRouter(tags=["incidents"])
 def escalate(video_id: int, payload: IncidentCreateRequest, db: Session = Depends(get_db_session)):
     service = IncidentService(db)
     try:
-        incident = service.escalate(video_id=video_id, owner=payload.owner, notes=payload.notes)
-        return map_incident_response(incident)
+        result = service.escalate(video_id=video_id, owner=payload.owner, notes=payload.notes)
+        response = map_incident_response(result.incident)
+        response.alert_created = result.alert_created
+        return response
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -25,4 +27,3 @@ def list_alerts(db: Session = Depends(get_db_session)):
     alerts = service.list_alerts()
     mapped = [map_alert_response(item) for item in alerts]
     return AlertListResponse(items=mapped, total=len(mapped))
-

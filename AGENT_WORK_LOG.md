@@ -714,3 +714,44 @@
 - Changes: Executed full `tests/unit` run and added async analysis batch test cases plus latest regression evidence in `ALPHA_RELEASE_TEST_CASES.md`.
 - Check: `python3 -m pytest -q tests/unit` (117 passed, 1 warning).
 - Next: Add dedicated unit/API tests for `/analysis/batches` endpoints and worker claim/cancel race conditions.
+
+## 2026-05-06 10:20
+- Task: Align insights generation with project scope and remove misleading risk-level UI.
+- Changes: Switched project-insights Gemini input from transcript excerpts to full per-video transcripts; added strict prompt guardrails with project `brand_keywords` and `key_products`; removed insights Risk Level cards while keeping risk distribution visuals.
+- Check: `python3 -m pytest -q tests/unit/test_project_insights_router.py tests/unit/test_gemini_client.py` (9 passed).
+- Next: Refresh one Aqua insights report in UI to confirm summary stays project-focused and no off-scope competitor references appear.
+
+## 2026-05-06 13:39
+- Task: Redeploy backend with project-insights transcript/prompt scope updates.
+- Changes: Deployed Cloud Run revision `sushi-backend-00027-llb` for service `sushi-backend` in `asia-southeast1`.
+- Check: `python3 -m pytest tests/unit -q` (117 passed); `/health` returned `{"status":"ok","service":"sushi-backend"}`; revision serves 100% traffic; startup logs clean.
+- Next: Trigger an Aqua insights refresh and verify summary references only project-scoped products/competitors.
+
+## 2026-05-06 14:55
+- Task: Migrate production database from Cloud SQL to Supabase to reduce fixed backend cost.
+- Changes: Exported Cloud SQL, imported into Supabase, updated Cloud Run revision `sushi-backend-00028-86k`, cleared Cloud SQL attachment, stopped Cloud SQL, and updated backend/database docs.
+- Check: Supabase table counts verified; `/health` and `/monitor-profiles` returned live data; Cloud Run logs had no revision errors.
+- Next: Rotate exposed credentials and delete Cloud SQL after a short rollback window.
+
+## 2026-05-06 16:10
+- Task: Fix run-all analysis for discovered videos and deploy async worker.
+- Changes: Removed approved-only batch filter, reset run-all button on create failure, added worker health server, deployed backend `00029-s8h` and worker `00001-lb6`.
+- Check: `python -m pytest -q tests/unit` (119 passed); `/health` OK for backend/worker; live batch `1` completed `9/11`, with 2 transcript/ASR availability failures.
+- Next: Add ASR fallback or clearer per-video transcript failure messaging, and rotate exposed API/database credentials.
+
+## 2026-05-07 16:30
+- Task: Remove Critical Risk Reach from project insights impact UI.
+- Changes: Updated `app/static/insights.js` so the Impact card keeps Negative Reach while no longer rendering Critical Risk Reach.
+- Check: `node --check app/static/insights.js`.
+- Next: Refresh a project Insights report in the browser to visually confirm the Impact card layout.
+## 2026-05-09 14:53
+- Task: Improve first-run auth, dashboard visibility, queue layout, and settings clarity.
+- Changes: Added demo login hint/fallback, dashboard loading state, desktop queue split layout, and collapsed advanced prompt settings.
+- Check: `pytest tests/unit/test_auth_list_users.py tests/unit/test_auth_watchlist_router.py`; local Chrome visual verification.
+- Next: Deploy updated static assets and verify the Cloud Run site after release.
+
+## 2026-05-09 15:22
+- Task: Fix misleading escalation and alerts behavior.
+- Changes: Escalation now returns whether an alert was created; low-risk escalation shows follow-up copy; alerts include video, severity, owner, channel, and time.
+- Check: `pytest tests/unit/test_incident_service.py tests/unit/test_incident_router.py tests/unit/test_video_router.py -q`; JS syntax checks; local browser/API verification.
+- Next: Deploy and verify the production Alerts page after release.

@@ -1,6 +1,6 @@
 # Backend setup
 
-**Document date:** 2026-04-28
+**Document date:** 2026-05-06
 **Scope:** Backend runtime, persistence, integrations, and deployment as implemented in this repository.
 
 ---
@@ -13,7 +13,7 @@
 | **Language**             | Python 3.12 (see `Dockerfile`)                                                                        |
 | **Framework**            | FastAPI on Starlette (ASGI)                                                                           |
 | **Server**               | Uvicorn                                                                                               |
-| **ORM / DB**             | SQLAlchemy 2.x · SQLite locally (`./sushi.db` default) · PostgreSQL in production (`psycopg2-binary`) |
+| **ORM / DB**             | SQLAlchemy 2.x · SQLite locally (`./sushi.db` default) · Supabase PostgreSQL in production (`psycopg2-binary`) |
 | **Settings**             | `pydantic-settings` + `.env` (`python-dotenv`)                                                        |
 | **Validation / schemas** | Pydantic v2 (`app/schemas/`)                                                                          |
 | **HTTP client**          | `httpx`                                                                                               |
@@ -47,7 +47,7 @@
 ## Runtime
 
 - **Entry:** `uvicorn app.main:app` (locally `--reload`; Docker/cmd uses `--host 0.0.0.0`).
-- **Async analysis worker:** Run a separate process `python -m app.workers.analysis_batch_worker` in production to consume queued analysis batch items.
+- **Async analysis worker:** Production runs `sushi-analysis-worker` with `python -m app.workers.analysis_batch_worker` to consume queued analysis batch items. The worker exposes a small HTTP health endpoint on `$PORT` for Cloud Run startup probes.
 - **App identity:** `FastAPI(title="Influencer Video Intelligence", version="0.1.0")` in `app/main.py`.
 - **Startup:** After DB connection (with retries for managed databases), SQLAlchemy `Base.metadata.create_all` runs, then helpers in `app/db_migrations.py`.
 
@@ -58,7 +58,7 @@
 - **Engine:** `sqlalchemy.create_engine` from `DATABASE_URL`.
 - **Sessions:** Request-scoped `Session` via `get_db_session()` (`sessionmaker`, `autocommit=False`).
 - **SQLite:** `check_same_thread=False` when URL starts with `sqlite`.
-- **PostgreSQL:** `pool_pre_ping=True`; connection retries in `get_db_engine()` help Cloud SQL / cold starts.
+- **PostgreSQL:** `pool_pre_ping=True`; connection retries in `get_db_engine()` help managed Postgres / cold starts.
 - **Schema evolution:** `create_all` + imperative migrations in code (no Alembic in dependencies).
 
 ---
@@ -95,8 +95,9 @@ Deployments are described in `DEPLOY_LOG.md` and implied by `firebase.json` and 
 | Piece                           | Typical setup                                                                                                                        |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **Cloud Run**                   | Service name `**sushi-backend`**, region `**asia-southeast1`**, listens on `**PORT**` (8080).                                        |
-| **Cloud SQL**                   | PostgreSQL; instance attached via `**--add-cloudsql-instances PROJECT:REGION:INSTANCE`**.                                            |
-| `**DATABASE_URL` on Cloud Run** | Uses Unix socket via `postgresql+psycopg2://USER:PASSWORD@/DBNAME?host=/cloudsql/PROJECT:REGION:INSTANCE` (see `.env.example`).      |
+| **Cloud Run worker**            | Service name `**sushi-analysis-worker`**, command `python -m app.workers.analysis_batch_worker`, one always-on instance.              |
+| **Supabase PostgreSQL**         | Production database accessed through the Supabase session pooler.                                                                     |
+| `**DATABASE_URL` on Cloud Run** | Uses TCP/TLS DSN via `postgresql+psycopg2://postgres.PROJECT_REF:PASSWORD@HOST:5432/postgres?sslmode=require`.                       |
 | **Artifact Registry**           | Docker image builds (example path in deploy docs: `asia-southeast1-docker.pkg.dev/.../sushi-backend/...`).                           |
 | **Firebase Hosting**            | Serves static `public/`; `**rewrites`** send all routes to Cloud Run `**sushi-backend`** in `**asia-southeast1**` (`firebase.json`). |
 | **IAM**                         | Unauthenticated hosting often uses `**allUsers`** with `**roles/run.invoker`** on Cloud Run (document only; confirm in GCP console). |
@@ -104,7 +105,7 @@ Deployments are described in `DEPLOY_LOG.md` and implied by `firebase.json` and 
 
 **Build/deploy commands** (adapt project/region/instance):
 
-- `gcloud builds submit ...` or `gcloud run deploy sushi-backend --source ...` with `--add-cloudsql-instances`, `--set-env-vars`, `--allow-unauthenticated` as needed.
+- `gcloud builds submit ...` or `gcloud run deploy sushi-backend --source ...` with `--clear-cloudsql-instances`, `--set-env-vars`, `--allow-unauthenticated` as needed.
 - `firebase deploy --only hosting` after Hosting config changes.
 
 Store secrets (API keys, DB passwords) in **Secret Manager** or Cloud Run secrets — not in markdown or git.

@@ -12,8 +12,10 @@ If deployment method changes, update this file in the same PR before deploying.
 
 - GCP project: `sushi-d9036`
 - Cloud Run service: `sushi-backend`
+- Cloud Run worker service: `sushi-analysis-worker`
 - Cloud Run region: `asia-southeast1`
-- Cloud SQL instance connection: `sushi-d9036:asia-southeast1:sushi-d9036-instance`
+- Production database: Supabase PostgreSQL session pooler (`aws-1-ap-southeast-2.pooler.supabase.com`)
+- Legacy Cloud SQL rollback instance: `sushi-d9036:asia-southeast1:sushi-d9036-instance` (stopped after 2026-05-06 migration)
 - Firebase Hosting project: `sushi-d9036` (rewrites to `sushi-backend`)
 
 ---
@@ -22,7 +24,7 @@ If deployment method changes, update this file in the same PR before deploying.
 
 1. Deploy only from the intended branch/commit.
 2. Do not put secrets in command history, docs, or source files.
-3. Do not use `--set-secrets DATABASE_URL=DATABASE_URL:latest`; that Secret Manager entry is not available in current production.
+3. Do not put Supabase database passwords in markdown, git, or shell history.
 4. Run tests before deploy.
 5. Verify health immediately after deploy.
 6. If verification fails, rollback traffic to previous stable revision.
@@ -31,15 +33,17 @@ If deployment method changes, update this file in the same PR before deploying.
 
 ## 3) Required runtime config
 
-Current production stores the Cloud SQL DSN as a plain Cloud Run environment variable:
+Current production stores the Supabase PostgreSQL DSN as a Cloud Run environment variable:
 
 - `DATABASE_URL`
 
-This is acceptable for current deployments. Preserve the existing value during code-only deploys, or update it directly as a Cloud Run env var when the DB user/password/name changes. The expected production shape is:
+Preserve the existing value during code-only deploys. If runtime config must change, update it directly as a Cloud Run env var or move it to Secret Manager first. The expected production shape is:
 
 ```text
-postgresql+psycopg2://APP_USER:PASSWORD@/sushi-d9036-database?host=/cloudsql/sushi-d9036:asia-southeast1:sushi-d9036-instance
+postgresql+psycopg2://postgres.PROJECT_REF:PASSWORD@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres?sslmode=require
 ```
+
+Do not attach Cloud SQL for normal deploys. The previous Cloud SQL instance is retained only as a short-term rollback source after the 2026-05-06 Supabase migration.
 
 Other sensitive values may be plain env vars or Secret Manager-backed depending on the current service configuration:
 
@@ -84,10 +88,10 @@ gcloud run deploy sushi-backend \
   --platform managed \
   --region asia-southeast1 \
   --allow-unauthenticated \
-  --add-cloudsql-instances sushi-d9036:asia-southeast1:sushi-d9036-instance
+  --clear-cloudsql-instances
 ```
 
-For code-only deploys, preserve the service's existing env vars. If runtime config must change, update only the specific keys with `--update-env-vars`; do not replace `DATABASE_URL` with a Secret Manager reference unless that secret has first been created and verified.
+For code-only deploys, preserve the service's existing env vars. If runtime config must change, update only the specific keys with `--update-env-vars`; do not replace `DATABASE_URL` unless the Supabase connection string has first been verified.
 
 ### Step C - Post-deploy verification
 
@@ -115,6 +119,27 @@ Only run when `firebase.json` or `public/` changed.
 ```bash
 firebase deploy --only hosting
 ```
+
+### Step E - Deploy analysis worker after batch/analysis changes
+
+The async "Run all analysis" flow requires one always-on worker process. Deploy it from the same backend image or source revision and override the command:
+
+```bash
+gcloud run deploy sushi-analysis-worker \
+  --image IMAGE_FROM_LATEST_BACKEND_REVISION \
+  --platform managed \
+  --region asia-southeast1 \
+  --command python \
+  --args=-m,app.workers.analysis_batch_worker \
+  --clear-cloudsql-instances \
+  --cpu 1 \
+  --memory 512Mi \
+  --min-instances 1 \
+  --max-instances 1 \
+  --no-cpu-throttling
+```
+
+The worker uses the same runtime env vars as `sushi-backend`, including `DATABASE_URL`, Gemini keys, YouTube transcript keys, and YouTube Data API keys. Do not run the worker without `--no-cpu-throttling`; it must keep polling even when it is not serving HTTP requests.
 
 ---
 
@@ -170,4 +195,3 @@ Also add a short note in `DEPLOY_LOG.md`:
 - Source-based Cloud Run deploy (`gcloud run deploy --source .`) is the active method.
 - No `scripts/deploy_backend_dual_region.sh` script is currently part of this repo workflow.
 - Web app OTA releases are governed by `OTA_DEPLOYMENT.md`; Cloud Run remains the deploy path unless only Firebase Hosting config or `public/` changed.
-

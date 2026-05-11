@@ -633,12 +633,13 @@ export function createVideoDetailController({
         runTask(async () => {
           onAnyVideoAction?.();
           const userId = currentUserIdFromState(getState());
-          await request(`/videos/${videoId}/escalate`, {
+          const payload = await request(`/videos/${videoId}/escalate`, {
             method: "POST",
             body: JSON.stringify({ owner: userId, notes: "Escalated from dashboard" }),
           });
           await onAlertsChanged();
-        }, t("escalatedAndAlertGenerated"));
+          return payload?.alert_created ? t("escalatedAndAlertGenerated") : t("escalatedWithoutAlert");
+        });
     }
 
     const toggleBookmarkButton = getElement("toggle-bookmark-btn");

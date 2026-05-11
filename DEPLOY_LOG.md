@@ -1,5 +1,36 @@
 # Deployment Log - Sushi App to Firebase + Cloud Run
 
+## Date: 2026-05-06
+
+### Run-All Analysis Fix
+
+- Updated batch creation so "Run all analysis" includes all project videos in the current video list, not only `APPROVED` videos.
+- Added frontend button cleanup so failed batch creation does not leave the button stuck at `Analyzing 0/N`.
+- Added a Cloud Run health listener to `app.workers.analysis_batch_worker`.
+- Deployed backend revision `sushi-backend-00029-s8h`.
+- Deployed worker service `sushi-analysis-worker` revision `sushi-analysis-worker-00001-lb6` with `minScale=1`, `maxScale=1`, and CPU throttling disabled.
+- Verified a live VCOPTER batch was created for 11 discovered videos and completed with `9/11` successes. The 2 failures were per-video transcript availability failures where the provider reported no captions and required ASR.
+
+### Supabase Cost-Down Migration
+
+- Exported Cloud SQL database `sushi-d9036-database` to `gs://run-sources-sushi-d9036-asia-southeast1/db-backups/sushi-cloudsql-20260506-143816.sql`.
+- Imported the dump into Supabase PostgreSQL after filtering Cloud SQL-only ACL grants for `cloudsqlsuperuser` and `cloudsqlimportexport`.
+- Updated Cloud Run revision `sushi-backend-00028-86k` to use the Supabase session pooler `DATABASE_URL`.
+- Cleared the Cloud SQL attachment from Cloud Run and reduced Cloud Run limits to `1 CPU`, `1Gi`, `maxScale=2`.
+- Verified `/health`, startup logs, and `/monitor-profiles` against the migrated database.
+- Stopped the legacy Cloud SQL instance as rollback-only infrastructure.
+
+Verification counts after import:
+
+| Table | Count |
+| --- | ---: |
+| `monitor_profiles` | 2 |
+| `video_candidates` | 42 |
+| `analysis_results` | 84 |
+| `video_comments` | 1,157 |
+| `app_users` | 15 |
+| `audit_logs` | 75 |
+
 ## Date: 2026-04-24
 
 ---

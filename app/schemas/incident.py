@@ -17,10 +17,15 @@ class IncidentResponse(TimestampedResponse):
     status: IncidentStatus
     owner: str
     notes: str
+    alert_created: bool = False
 
 
 class AlertResponse(TimestampedResponse):
     incident_id: int
+    video_candidate_id: int
+    video_title: str
+    severity: RiskLevel
+    owner: str
     channel: str
     message: str
     is_sent: bool
@@ -29,4 +34,3 @@ class AlertResponse(TimestampedResponse):
 class AlertListResponse(BaseModel):
     items: List[AlertResponse]
     total: int
-

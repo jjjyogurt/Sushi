@@ -31,12 +31,27 @@ def test_escalation_creates_alert_for_medium_or_high(db_session, discovered_vide
     _seed_analysis(db_session, discovered_video.id, RiskLevel.HIGH)
 
     service = IncidentService(db_session)
-    incident = service.escalate(video_id=discovered_video.id, owner="owner-a", notes="watch")
+    result = service.escalate(video_id=discovered_video.id, owner="owner-a", notes="watch")
     alerts = service.list_alerts()
 
-    assert incident.severity == RiskLevel.HIGH
+    assert result.incident.severity == RiskLevel.HIGH
+    assert result.alert_created is True
     assert len(alerts) == 1
     assert "requires attention" in alerts[0].message
+
+
+def test_escalation_low_risk_creates_incident_without_alert(db_session, discovered_video):
+    discovered_video.queue_state = QueueState.APPROVED
+    db_session.commit()
+    _seed_analysis(db_session, discovered_video.id, RiskLevel.LOW)
+
+    service = IncidentService(db_session)
+    result = service.escalate(video_id=discovered_video.id, owner="owner-a", notes="watch")
+    alerts = service.list_alerts()
+
+    assert result.incident.severity == RiskLevel.LOW
+    assert result.alert_created is False
+    assert len(alerts) == 0
 
 
 def test_escalation_without_analysis_raises_error(db_session, discovered_video):
@@ -47,4 +62,3 @@ def test_escalation_without_analysis_raises_error(db_session, discovered_video):
         assert "without completed analysis" in str(error).lower()
     else:
         raise AssertionError("Expected ValueError when escalating without analysis.")
-

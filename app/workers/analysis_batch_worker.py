@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from app.db import get_db_engine
 from app.db_migrations import (
@@ -22,6 +25,25 @@ from sqlalchemy.orm import sessionmaker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):  # noqa: N802
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b'{"status":"ok","service":"sushi-analysis-worker"}')
+
+    def log_message(self, format, *args):  # noqa: A002
+        return
+
+
+def start_health_server() -> None:
+    port = int(os.environ.get("PORT", "8080"))
+    server = ThreadingHTTPServer(("0.0.0.0", port), HealthHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    logger.info("analysis worker health server listening port=%s", port)
 
 
 def bootstrap_db() -> None:
@@ -54,5 +76,6 @@ def run_forever(poll_interval_seconds: float = 2.0) -> None:
 
 
 if __name__ == "__main__":
+    start_health_server()
     bootstrap_db()
     run_forever()

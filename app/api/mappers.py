@@ -1,6 +1,7 @@
 from app.models.analysis_result import AnalysisResult
 from app.models.analysis_batch import AnalysisBatch, AnalysisBatchItem
 from app.models.chat import ChatMessage
+from app.models.enums import RiskLevel
 from app.models.incident import Alert, Incident
 from app.models.monitor_profile import MonitorProfile
 from app.schemas.analysis import AnalysisResponse
@@ -199,11 +200,17 @@ def map_incident_response(model: Incident) -> IncidentResponse:
 
 
 def map_alert_response(model: Alert) -> AlertResponse:
+    incident = model.incident
+    video = incident.video_candidate if incident else None
     return AlertResponse(
         id=model.id,
         created_at=model.created_at,
         updated_at=model.updated_at,
         incident_id=model.incident_id,
+        video_candidate_id=incident.video_candidate_id if incident else 0,
+        video_title=video.title if video else "",
+        severity=incident.severity if incident else RiskLevel.LOW,
+        owner=incident.owner if incident else "",
         channel=model.channel,
         message=model.message,
         is_sent=model.is_sent,

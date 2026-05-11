@@ -44,6 +44,8 @@ class ProjectInsightsService:
 
     def refresh_report(self, monitor_profile_id: int) -> ProjectInsightReport:
         profile = self._require_profile(monitor_profile_id)
+        brand_keywords = self.monitor_repository.unpack_keywords(profile)
+        key_products = self.monitor_repository.unpack_key_products(profile)
         video_analysis_pairs = self.repository.list_videos_with_latest_analysis(
             monitor_profile_id=monitor_profile_id,
             language="en",
@@ -80,6 +82,8 @@ class ProjectInsightsService:
             fallback_payload = self._build_payload(completed_video_rows)
             payload = self._build_payload_with_gemini(
                 profile_name=str(profile.name or "").strip() or f"Project {monitor_profile_id}",
+                brand_keywords=brand_keywords,
+                key_products=key_products,
                 total_video_count=total_video_count,
                 analyzed_video_count=analyzed_video_count,
                 completed_results=completed_results,
@@ -122,6 +126,8 @@ class ProjectInsightsService:
         self,
         *,
         profile_name: str,
+        brand_keywords: List[str],
+        key_products: List[str],
         total_video_count: int,
         analyzed_video_count: int,
         completed_results,
@@ -134,6 +140,8 @@ class ProjectInsightsService:
         try:
             generated = self.gemini_client.generate_project_insights_report(
                 project_name=profile_name,
+                brand_keywords=brand_keywords,
+                key_products=key_products,
                 total_video_count=total_video_count,
                 analyzed_video_count=analyzed_video_count,
                 records=records,
@@ -309,18 +317,10 @@ class ProjectInsightsService:
     @staticmethod
     def _build_gemini_records(completed_results) -> List[dict]:
         max_videos = 80
-        max_transcript_chars_per_video = 4000
-        max_total_transcript_chars = 180000
-        total_chars = 0
         records: List[dict] = []
 
         for result in completed_results[:max_videos]:
             transcript = str(result.transcript_text or "").strip()
-            transcript_excerpt = transcript[:max_transcript_chars_per_video]
-            next_total = total_chars + len(transcript_excerpt)
-            if next_total > max_total_transcript_chars:
-                break
-
             insights_payload = decode_json(result.insights_json, {})
             parsed = ProjectInsightsService._parse_insights_payload(insights_payload)
             evidence = decode_json(result.evidence_json, [])
@@ -334,11 +334,9 @@ class ProjectInsightsService:
                 "criticism_points": parsed["criticism_points"],
                 "action_recommendation": parsed["user_recommendations"][0] if parsed["user_recommendations"] else "",
                 "evidence": evidence if isinstance(evidence, list) else [],
-                "transcript_excerpt": transcript_excerpt,
-                "transcript_truncated": len(transcript_excerpt) < len(transcript),
+                "transcript_full": transcript,
             }
             records = [*records, record]
-            total_chars = next_total
         return records
 
     @staticmethod

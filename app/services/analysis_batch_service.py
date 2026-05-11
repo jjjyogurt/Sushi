@@ -5,7 +5,6 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.enums import QueueState
 from app.repositories.analysis_batch_repository import AnalysisBatchRepository
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.video_repository import VideoRepository
@@ -30,7 +29,6 @@ class AnalysisBatchService:
     ):
         videos = self.video_repository.list(
             monitor_profile_id=monitor_profile_id,
-            queue_state=QueueState.APPROVED,
         )
         video_ids = [video.id for video in videos]
         latest_status_by_video = self.analysis_repository.get_latest_status_by_video_ids(video_ids, language="en")
