@@ -2,6 +2,13 @@
 
 ## Date: 2026-05-14
 
+### Analysis Startup Migration Hotfix Deploy
+
+- Deployed `sushi-backend` revision `sushi-backend-00034-6c2` from branch `codex/backend-startup-hotfix` at commit `a7b391c`, with 100% traffic.
+- Scope: stopped the `analysis_results` language-column startup migration from recreating obsolete unique index `ix_analysis_video_version_language`; the intended uniqueness remains `ix_analysis_video_version_language_settings`.
+- Verification: migration tests passed (`9 passed`), full unit suite passed (`144 passed, 1 warning`), production DB metadata confirmed `language` + `agent_settings_hash` columns and zero duplicate groups under the hash-aware key, backend `/health` returned 200 on both Cloud Run URLs, root page returned 200, new revision logs showed `Application startup complete`, and recent revision ERROR logs were empty.
+- Rollback impact: route backend traffic back to `sushi-backend-00033-87k` only if this hotfix regresses; note that `00033` can fail cold starts on the same duplicate-data startup path.
+
 ### Manual Multi-URL Add UI Deploy
 
 - Deployed `sushi-backend` revision `sushi-backend-00033-87k` from branch `multi-account` at commit `f7af631e9bcfdf8976273ef7ff50db31e3a414ef` plus the approved uncommitted manual-add UI fix, with 100% traffic.
