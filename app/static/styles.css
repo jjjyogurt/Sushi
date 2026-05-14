@@ -853,6 +853,52 @@ body {
   color: var(--text-muted);
 }
 
+.audience-profile-list,
+.usage-scenario-group {
+  display: grid;
+  gap: 8px;
+}
+
+.audience-profile-list + .usage-scenario-group {
+  margin-top: 12px;
+}
+
+.audience-profile-card {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.audience-profile-card strong {
+  color: var(--text);
+}
+
+.audience-profile-card span {
+  color: var(--text-muted);
+}
+
+.scenario-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scenario-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
 .transcript-wrapper {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1093,6 +1139,35 @@ body {
 
 .video-link:hover {
   text-decoration: underline;
+}
+
+.video-reach-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.reach-metric,
+.reach-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #f8f9f9;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.reach-metric strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.reach-label {
+  font-weight: 600;
 }
 
 .analysis-status {

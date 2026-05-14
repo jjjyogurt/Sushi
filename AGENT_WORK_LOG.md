@@ -857,3 +857,57 @@
 - Changes: Moved the Insights guide button to the right-side project header area and tightened callout/button spacing.
 - Check: `ReadLints`; `git diff --check` on edited Help Center files.
 - Next: Refresh Help Center and visually confirm spacing against the live UI.
+
+## 2026-05-14 14:31
+- Task: Redeploy backend for Help Center and URL button updates.
+- Changes: Deployed Cloud Run backend revision `sushi-backend-00031-9h4` from commit `f7af631e9bcfdf8976273ef7ff50db31e3a414ef` and updated deploy log.
+- Check: `python3 -m pytest tests/unit -q` (131 passed); static JS syntax checks passed; `/health` and `/` returned 200; recent backend error logs empty.
+- Next: Open production Help Center and confirm the new URL button and guide visuals.
+
+## 2026-05-14 15:21
+- Task: Fix async Run All Analysis duplicate comment worker failure.
+- Changes: Scoped `video_comments` uniqueness to each video candidate, added rollback-safe comment sync, and documented the DB index change.
+- Check: `.venv/bin/python -m pytest -q tests/unit` (135 passed, 1 warning); `git diff --check`; Python compile checks.
+- Next: Deploy backend/worker revision and run one production Run All Analysis smoke without rolling back the scale-to-zero worker.
+
+## 2026-05-14 15:35
+- Task: Deploy backend and scale-to-zero analysis worker fix.
+- Changes: Deployed `sushi-backend-00032-mc2` and `sushi-analysis-worker-00003-mfq`, preserving Cloud Tasks request-triggered worker settings.
+- Check: Backend and worker `/health` passed; Firebase Hosting returned 200; recent backend/worker ERROR logs empty.
+- Next: Run a production Run All Analysis smoke test on a small QA batch.
+
+## 2026-05-14 15:52
+- Task: Harden manual multi-URL add UI.
+- Changes: Add Videos now uses the shared busy pulse/disabled state, disables URL input during add, forces video refresh, and selects the first newly visible video.
+- Check: `node --check app/static/queue.js`; local browser add-two-URLs smoke; `git diff --check`.
+- Next: Deploy backend static asset refresh and verify production after cache refresh.
+
+## 2026-05-14 15:57
+- Task: Deploy manual multi-URL add UI refresh.
+- Changes: Deployed `sushi-backend-00033-87k`; worker stayed on `sushi-analysis-worker-00003-mfq`.
+- Check: `/health` passed; Hosting returned 200; production `queue.js` includes busy-state code; recent backend ERROR logs empty.
+- Next: User smoke the Add Video URLs flow in production after a hard refresh.
+
+## 2026-05-14 18:11
+- Task: Add video reach metrics to analysis detail.
+- Changes: Added a reach endpoint, YouTube subscriber lookup, and title-area UI pills for views/subscribers.
+- Check: `PYTHONPATH=. pytest tests/unit/test_youtube_video_stats_service.py`; Python compile checks; router pytest blocked by missing FastAPI.
+- Next: Run router tests in the project environment with FastAPI installed.
+
+## 2026-05-14 18:15
+- Task: Add audience and usage context to video analysis.
+- Changes: Extended analysis prompts/API/UI to capture audience profiles and usage scenarios for future analyses while legacy videos stay empty.
+- Check: `ReadLints`; `PYTHONPATH=. pytest tests/unit/test_api_mappers.py tests/unit/test_analysis_service.py` (11 passed).
+- Next: Run a new analysis and verify the section appears below Summary.
+
+## 2026-05-14 18:24
+- Task: Fix local startup migration failure.
+- Changes: Skipped the legacy three-column analysis unique index when hash-aware analysis uniqueness is already present.
+- Check: `PYTHONPATH=. pytest tests/unit/test_db_migrations.py tests/unit/test_api_mappers.py tests/unit/test_analysis_service.py` (19 passed); startup migration script printed `startup migrations ok`.
+- Next: Restart local `uvicorn app.main:app --reload`.
+
+## 2026-05-14 18:33
+- Task: Clarify create-project validation failures.
+- Changes: Added frontend project-name min-length validation and surfaced FastAPI validation messages instead of generic request failures.
+- Check: `.venv/bin/python -m pytest tests/unit/test_monitor_router.py`; JS syntax checks; `git diff --check`.
+- Next: Retry with a project name of at least 2 characters.

@@ -34,10 +34,12 @@ class AgentSettingsService:
             - Overall sentiment and evidence-based risk.
             - Concrete praise and criticism tied to on-camera evidence.
             - Technical failures, safety issues, repeatable problems, and competitor wins.
+            - Audience profiles: 2-3 likely viewer/customer segments watching this video.
+            - Usage scenarios: real-world contexts the influencer tests or discusses.
             - Tactical marketing response guidance.
 
             Use a concise, alert-oriented tone. Avoid generic commentary. Do not fabricate timestamps,
-            incidents, product comparisons, or failure modes.
+            incidents, product comparisons, audience demographics, usage scenarios, or failure modes.
             """
         ).strip()
 

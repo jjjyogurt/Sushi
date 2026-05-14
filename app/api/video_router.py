@@ -18,6 +18,7 @@ from app.schemas.video import (
     VideoBulkAddResponse,
     VideoDiscoveryRequest,
     VideoListResponse,
+    VideoReachResponse,
     VideoSearchRequest,
     VideoSearchResponse,
 )
@@ -33,6 +34,7 @@ from app.services.exceptions import (
     TranscriptUnavailableError,
 )
 from app.services.triage_service import TriageService
+from app.services.youtube_video_stats_service import YouTubeVideoStatsService
 from app.repositories.watchlist_repository import WatchlistRepository
 
 router = APIRouter(prefix="/videos", tags=["videos"])
@@ -245,6 +247,41 @@ def delete_video(
         return {"status": "success", "message": "Video deleted"}
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/{video_id}/reach", response_model=VideoReachResponse)
+def get_video_reach(
+    video_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
+    try:
+        AccessControlService(db).require_video_owner(video_id=video_id, user_id=current_user.id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+    video = TriageService(db).video_repository.get_by_id(video_id)
+    if video is None:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    try:
+        metrics_by_video_id = YouTubeVideoStatsService().fetch_reach_metrics(
+            youtube_video_ids=[video.youtube_video_id],
+        )
+        metrics = metrics_by_video_id.get(video.youtube_video_id)
+    except Exception as error:  # noqa: BLE001
+        logger.warning("api video reach fetch failed video_id=%s error=%s", video_id, error)
+        metrics = None
+
+    view_count = metrics.view_count if metrics else None
+    subscriber_count = metrics.subscriber_count if metrics else None
+    return VideoReachResponse(
+        video_id=video.id,
+        youtube_video_id=video.youtube_video_id,
+        view_count=view_count,
+        subscriber_count=subscriber_count,
+        is_reach_available=view_count is not None or subscriber_count is not None,
+    )
 
 
 @router.post("/{video_id}/analyze", response_model=AnalysisResponse)

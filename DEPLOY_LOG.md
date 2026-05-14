@@ -2,6 +2,28 @@
 
 ## Date: 2026-05-14
 
+### Manual Multi-URL Add UI Deploy
+
+- Deployed `sushi-backend` revision `sushi-backend-00033-87k` from branch `multi-account` at commit `f7af631e9bcfdf8976273ef7ff50db31e3a414ef` plus the approved uncommitted manual-add UI fix, with 100% traffic.
+- Scope: Add Videos now uses the same waiting pulse/disabled state as Discover Videos, disables the URL input during submission, forces the video-list refresh after completion, and selects the first newly visible video.
+- Verification: `node --check app/static/queue.js`, related API tests passed (`17 passed, 1 warning`), local browser add-two-URLs smoke passed, backend `/health` returned 200, Firebase Hosting returned 200, production `queue.js` contains the new busy-state code, and recent backend ERROR logs were empty.
+- Rollback impact: route backend traffic back to `sushi-backend-00032-mc2` if manual URL add UI regresses. Worker remains `sushi-analysis-worker-00003-mfq`.
+
+### Run-All Analysis Duplicate Comment Worker Fix Deploy
+
+- Deployed `sushi-backend` revision `sushi-backend-00032-mc2` from branch `multi-account` at commit `f7af631e9bcfdf8976273ef7ff50db31e3a414ef` plus the approved uncommitted duplicate-comment fix, with 100% traffic.
+- Deployed `sushi-analysis-worker` revision `sushi-analysis-worker-00003-mfq` from the same backend image digest, preserving request-triggered Cloud Tasks settings (`min-instances=0` default, `max-instances=1`, `concurrency=1`, `timeout=1800`, private invocation).
+- Scope: fixes async Run All Analysis failures caused by global YouTube comment uniqueness and rollback-poisoned SQLAlchemy sessions.
+- Verification: alpha automated gates passed (`135 passed, 1 warning`), backend `/health` returned 200, worker authenticated `/health` returned 200, Firebase Hosting returned 200, and recent backend/worker ERROR logs were empty.
+- Rollback impact: route backend traffic back to `sushi-backend-00031-9h4` and worker traffic back to `sushi-analysis-worker-00002-9x6` if batch processing regresses.
+
+### Help Center and URL Button Backend Deploy
+
+- Deployed `sushi-backend` revision `sushi-backend-00031-9h4` from branch `multi-account` at commit `f7af631e9bcfdf8976273ef7ff50db31e3a414ef`, with 100% traffic.
+- Scope: refreshed backend-served static/template assets for the Help Center and URL button updates.
+- Verification: unit tests passed (`131 passed`), static JS syntax checks passed for `auth.js`, `main.js`, and `queue.js`, backend `/health` returned 200, root page returned 200, and recent backend error logs were empty.
+- Rollback impact: route backend traffic back to `sushi-backend-00030-824` if the Help Center or URL button update regresses.
+
 ### Multi-Account Backend and Request-Triggered Worker Deploy
 
 - Deployed `sushi-backend` revision `sushi-backend-00030-824` from branch `multi-account` at base commit `406ce65a261f1f47a44b70de8727e5fa25b638e4` plus the approved uncommitted working tree, with 100% traffic.

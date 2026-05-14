@@ -19,6 +19,7 @@ from app.services.analysis_service import AnalysisService
 from app.services.exceptions import GeminiConfigurationError, TranscriptBlockedError
 from app.services.security import hash_password
 from app.services.triage_service import TriageService
+from app.services.youtube_video_stats_service import YouTubeVideoReachMetrics, YouTubeVideoStatsService
 from app.utils.json_codec import encode_json
 
 
@@ -158,6 +159,59 @@ def test_list_videos_global_includes_project_name_and_sentiment(client, api_db_s
     assert by_video_id["router-global-1"]["sentiment_label"] == "positive"
     assert by_video_id["router-global-1"]["latest_analysis_status"] == "completed"
     assert by_video_id["router-global-2"]["latest_analysis_status"] is None
+
+
+def test_get_video_reach_uses_youtube_stats_service(client, api_db_session, api_monitor_profile, monkeypatch):
+    video = create_video(api_db_session, api_monitor_profile.id, youtube_video_id="router-reach-video")
+    captured = {}
+
+    def fake_fetch_reach_metrics(self, *, youtube_video_ids):
+        captured["youtube_video_ids"] = youtube_video_ids
+        return {
+            "router-reach-video": YouTubeVideoReachMetrics(
+                view_count=12345,
+                subscriber_count=67890,
+            )
+        }
+
+    monkeypatch.setattr(YouTubeVideoStatsService, "fetch_reach_metrics", fake_fetch_reach_metrics)
+
+    response = client.get(f"/videos/{video.id}/reach")
+
+    assert response.status_code == 200
+    assert captured["youtube_video_ids"] == ["router-reach-video"]
+    assert response.json() == {
+        "video_id": video.id,
+        "youtube_video_id": "router-reach-video",
+        "view_count": 12345,
+        "subscriber_count": 67890,
+        "is_reach_available": True,
+    }
+
+
+def test_get_video_reach_returns_unknown_metrics_when_provider_fails(
+    client,
+    api_db_session,
+    api_monitor_profile,
+    monkeypatch,
+):
+    video = create_video(api_db_session, api_monitor_profile.id, youtube_video_id="router-reach-fail")
+
+    def fail_fetch_reach_metrics(self, *, youtube_video_ids):
+        raise RuntimeError("quota exhausted")
+
+    monkeypatch.setattr(YouTubeVideoStatsService, "fetch_reach_metrics", fail_fetch_reach_metrics)
+
+    response = client.get(f"/videos/{video.id}/reach")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "video_id": video.id,
+        "youtube_video_id": "router-reach-fail",
+        "view_count": None,
+        "subscriber_count": None,
+        "is_reach_available": False,
+    }
 
 
 def test_list_videos_supports_risk_and_sentiment_filters(client, api_db_session, api_monitor_profile):

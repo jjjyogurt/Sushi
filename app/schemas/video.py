@@ -121,6 +121,14 @@ class VideoResponse(TimestampedResponse):
     assigned_user_id: Optional[str] = None
 
 
+class VideoReachResponse(BaseModel):
+    video_id: int
+    youtube_video_id: str
+    view_count: Optional[int] = None
+    subscriber_count: Optional[int] = None
+    is_reach_available: bool = False
+
+
 class VideoListResponse(BaseModel):
     items: List[VideoResponse]
     total: int

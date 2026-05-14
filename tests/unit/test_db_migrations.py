@@ -1,11 +1,14 @@
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError
 
 from app.db_migrations import (
     ensure_analysis_results_agent_settings_hash_column_and_index,
+    ensure_analysis_results_language_column_and_index,
     cleanup_orphan_video_data,
     ensure_monitor_profiles_owner_user_id,
     ensure_analysis_results_summary_columns,
     ensure_video_candidate_scoped_youtube_uniqueness,
+    ensure_video_comments_table,
     ensure_monitor_profiles_key_products_column,
     ensure_project_insight_reports_portfolio_columns,
     retire_legacy_business_impact_columns,
@@ -316,3 +319,114 @@ def test_account_isolation_migrations_upgrade_production_shaped_old_schema():
         connection.execute(
             text("INSERT INTO video_candidates (id, monitor_profile_id, youtube_video_id) VALUES (2, 2, 'same-video')")
         )
+
+
+def test_language_migration_skips_legacy_unique_index_when_agent_hash_exists():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE analysis_results (
+                    id INTEGER PRIMARY KEY,
+                    video_candidate_id INTEGER NOT NULL,
+                    analysis_version TEXT NOT NULL,
+                    language TEXT NOT NULL DEFAULT 'en',
+                    agent_settings_hash VARCHAR(64) NOT NULL DEFAULT 'legacy',
+                    model_name TEXT NOT NULL,
+                    status TEXT NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO analysis_results
+                    (id, video_candidate_id, analysis_version, language, agent_settings_hash, model_name, status)
+                VALUES
+                    (1, 1, 'v1', 'en', 'hash-a', 'model', 'COMPLETED'),
+                    (2, 1, 'v1', 'en', 'hash-b', 'model', 'COMPLETED')
+                """
+            )
+        )
+
+    ensure_analysis_results_language_column_and_index(engine)
+    ensure_analysis_results_agent_settings_hash_column_and_index(engine)
+
+    indexes = {index["name"] for index in inspect(engine).get_indexes("analysis_results")}
+    assert "ix_analysis_video_version_language" not in indexes
+    assert "ix_analysis_video_version_language_settings" in indexes
+
+
+def test_ensure_video_comments_table_replaces_global_comment_uniqueness_with_video_scoped_uniqueness():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE video_candidates (id INTEGER PRIMARY KEY)"))
+        connection.execute(text("INSERT INTO video_candidates (id) VALUES (1), (2)"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE video_comments (
+                    id INTEGER PRIMARY KEY,
+                    video_candidate_id INTEGER NOT NULL,
+                    youtube_comment_id VARCHAR(128) NOT NULL UNIQUE,
+                    parent_comment_id VARCHAR(128) NOT NULL DEFAULT '',
+                    author_name VARCHAR(255) NOT NULL DEFAULT '',
+                    text TEXT NOT NULL DEFAULT '',
+                    like_count INTEGER NOT NULL DEFAULT 0,
+                    published_at DATETIME NOT NULL,
+                    updated_at_remote DATETIME NOT NULL,
+                    is_reply BOOLEAN NOT NULL DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+
+    ensure_video_comments_table(engine)
+    ensure_video_comments_table(engine)
+
+    indexes = {index["name"] for index in inspect(engine).get_indexes("video_comments")}
+    assert "ix_video_comments_youtube_comment_id" in indexes
+    assert "ix_video_comments_video_youtube_comment_id" in indexes
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO video_comments (
+                    id, video_candidate_id, youtube_comment_id, text, published_at, updated_at_remote
+                )
+                VALUES (1, 1, 'same-comment', 'first', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO video_comments (
+                    id, video_candidate_id, youtube_comment_id, text, published_at, updated_at_remote
+                )
+                VALUES (2, 2, 'same-comment', 'second', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """
+            )
+        )
+
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO video_comments (
+                        id, video_candidate_id, youtube_comment_id, text, published_at, updated_at_remote
+                    )
+                    VALUES (3, 1, 'same-comment', 'duplicate', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """
+                )
+            )
+    except IntegrityError:
+        pass
+    else:
+        raise AssertionError("Expected duplicate comment id for the same video candidate to fail.")

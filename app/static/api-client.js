@@ -11,6 +11,27 @@ function messageFromDetail(detail) {
   if (typeof detail === "string") {
     return detail;
   }
+  if (Array.isArray(detail)) {
+    const firstMessage = detail
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+        if (item && typeof item === "object") {
+          const message = String(item.msg || item.message || "").trim();
+          const location = Array.isArray(item.loc) ? item.loc.filter((part) => part !== "body").join(".") : "";
+          if (message && location) {
+            return `${location}: ${message}`;
+          }
+          return message;
+        }
+        return "";
+      })
+      .find((message) => message);
+    if (firstMessage) {
+      return firstMessage;
+    }
+  }
   if (detail && typeof detail === "object" && typeof detail.message === "string") {
     return detail.message;
   }

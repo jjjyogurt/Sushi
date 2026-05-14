@@ -13,6 +13,22 @@ const MAX_MANUAL_VIDEO_URLS = 100;
 const MAX_VISIBLE_MANUAL_URL_ROWS = 5;
 const ACTIVE_ANALYSIS_BATCH_KEY = "active_analysis_batch_id";
 
+function setBusyButtonState(button, { busy, label, busyLabel }) {
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+  button.disabled = busy;
+  button.textContent = busy ? busyLabel : label;
+  button.classList.toggle("is-discovering", busy);
+  if (busy) {
+    button.dataset.busy = "true";
+    button.setAttribute("aria-busy", "true");
+    return;
+  }
+  delete button.dataset.busy;
+  button.removeAttribute("aria-busy");
+}
+
 function analysisStatusBadge(video) {
   const status = String(video.latest_analysis_status || "").toLowerCase();
   if (status === "completed") {
@@ -416,7 +432,7 @@ export function createQueueController({
       query.set("title", titleFilter);
     }
 
-    const data = await request(`/videos?${query.toString()}`);
+    const data = await request(`/videos?${query.toString()}`, { cache: "no-store" });
     const nextVideos = Array.isArray(data.items) ? data.items : [];
     const keepSelection = nextVideos.some((video) => video.id === state.selectedVideoId);
     const selectedVideoId =
@@ -463,17 +479,22 @@ export function createQueueController({
       return;
     }
     button.addEventListener("click", () => {
-      button.classList.add("is-discovering");
-      button.setAttribute("aria-busy", "true");
-      button.disabled = true;
-      button.textContent = t("discoveringVideos");
+      if (button.dataset.busy === "true") {
+        return;
+      }
+      setBusyButtonState(button, {
+        busy: true,
+        label: t("discoverVideos"),
+        busyLabel: t("discoveringVideos"),
+      });
       void runTask(async () => {
         await discoverVideos();
       }, t("discoveryCompleted")).finally(() => {
-        button.classList.remove("is-discovering");
-        button.removeAttribute("aria-busy");
-        button.disabled = false;
-        button.textContent = t("discoverVideos");
+        setBusyButtonState(button, {
+          busy: false,
+          label: t("discoverVideos"),
+          busyLabel: t("discoveringVideos"),
+        });
       });
     });
   }
@@ -496,10 +517,11 @@ export function createQueueController({
     }
 
     const previousVideoIds = new Set(state.videos.map((video) => video.id));
+    const addedVideos = [];
     const failedUrls = [];
     for (const videoUrl of manualUrls) {
       try {
-        await request("/videos/manual", {
+        const addedVideo = await request("/videos/manual", {
           method: "POST",
           body: JSON.stringify({
             monitor_profile_id: state.selectedProfileId,
@@ -507,6 +529,9 @@ export function createQueueController({
             language: state.tokenInputs.languages[0] || "en",
           }),
         });
+        if (addedVideo && typeof addedVideo.id !== "undefined") {
+          addedVideos.push(addedVideo);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : t("failedToAddUrl");
         failedUrls.push(`${videoUrl} (${message})`);
@@ -518,7 +543,7 @@ export function createQueueController({
 
     urlInput.value = "";
     updateManualUrlInputRows(urlInput);
-    
+
     // Success animation
     const container = getElement("queue");
     if (container) {
@@ -526,9 +551,21 @@ export function createQueueController({
       setTimeout(() => container.classList.remove("success-animate"), 400);
     }
 
+    videoDetailController.resetCaches();
     const nextVideos = await refreshVideos();
     markNewlyAddedVideos(previousVideoIds, nextVideos);
+    if (addedVideos.length > 0) {
+      const refreshedIds = new Set(nextVideos.map((video) => video.id));
+      const firstVisibleAddedVideo = addedVideos.find((video) => refreshedIds.has(video.id));
+      if (firstVisibleAddedVideo) {
+        setState((previous) => ({
+          ...previous,
+          selectedVideoId: firstVisibleAddedVideo.id,
+        }));
+      }
+    }
     renderVideos();
+    await videoDetailController.renderVideoDetail();
 
     if (failedUrls.length > 0) {
       throw new Error(
@@ -885,21 +922,32 @@ export function createQueueController({
     const addManualButton = getElement("add-manual-video-btn");
     if (addManualButton instanceof HTMLButtonElement) {
       addManualButton.addEventListener("click", () => {
-        if (addManualButton.disabled) {
+        if (addManualButton.dataset.busy === "true") {
           return;
         }
 
-        addManualButton.classList.add("is-discovering");
-        addManualButton.setAttribute("aria-busy", "true");
-        addManualButton.disabled = true;
-        addManualButton.textContent = t("addingVideos");
+        const manualVideoUrlInput = getElement("manual-video-url");
+        if (manualVideoUrlInput instanceof HTMLTextAreaElement || manualVideoUrlInput instanceof HTMLInputElement) {
+          manualVideoUrlInput.disabled = true;
+          manualVideoUrlInput.setAttribute("aria-busy", "true");
+        }
+        setBusyButtonState(addManualButton, {
+          busy: true,
+          label: t("addVideos"),
+          busyLabel: t("addingVideos"),
+        });
         void runTask(async () => {
           await addManualVideo();
         }, t("videosAddedToProject")).finally(() => {
-          addManualButton.classList.remove("is-discovering");
-          addManualButton.removeAttribute("aria-busy");
-          addManualButton.disabled = false;
-          addManualButton.textContent = t("addVideos");
+          if (manualVideoUrlInput instanceof HTMLTextAreaElement || manualVideoUrlInput instanceof HTMLInputElement) {
+            manualVideoUrlInput.disabled = false;
+            manualVideoUrlInput.removeAttribute("aria-busy");
+          }
+          setBusyButtonState(addManualButton, {
+            busy: false,
+            label: t("addVideos"),
+            busyLabel: t("addingVideos"),
+          });
         });
       });
     }

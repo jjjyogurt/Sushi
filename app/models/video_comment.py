@@ -10,13 +10,20 @@ class VideoComment(TimestampMixin, Base):
     __tablename__ = "video_comments"
     __table_args__ = (
         Index("ix_video_comments_video_candidate_id", "video_candidate_id"),
+        Index("ix_video_comments_youtube_comment_id", "youtube_comment_id"),
+        Index(
+            "ix_video_comments_video_youtube_comment_id",
+            "video_candidate_id",
+            "youtube_comment_id",
+            unique=True,
+        ),
         Index("ix_video_comments_published_at", "published_at"),
         Index("ix_video_comments_parent_comment_id", "parent_comment_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     video_candidate_id: Mapped[int] = mapped_column(ForeignKey("video_candidates.id"), nullable=False)
-    youtube_comment_id: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    youtube_comment_id: Mapped[str] = mapped_column(String(128), nullable=False)
     parent_comment_id: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     author_name: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     text: Mapped[str] = mapped_column(Text, default="", nullable=False)

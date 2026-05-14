@@ -5,6 +5,7 @@ from app.models.analysis_result import AnalysisResult
 from app.models.app_user import AppUser
 from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
 from app.models.monitor_profile import MonitorProfile
+from app.models.video_comment import VideoComment
 from app.repositories.video_repository import VideoRepository
 from app.services.agent_settings_service import AgentSettingsService
 from app.services.analysis_service import AnalysisService
@@ -61,6 +62,17 @@ class StubGeminiClient:
             insights=["Onboarding confusion is recurring.", "Reliability concerns can affect trust."],
             praise_points=["Setup was easy and fast."],
             criticism_points=["Advanced controls felt confusing.", "Reliability concerns appeared after one week."],
+            audience_profiles=[
+                {
+                    "type": "Primary",
+                    "description": "Prospective buyers evaluating setup and reliability tradeoffs.",
+                },
+                {
+                    "type": "Secondary",
+                    "description": "Current owners looking for control tips and reliability signals.",
+                },
+            ],
+            usage_scenarios=["onboarding walkthrough", "one-week reliability check"],
             action_recommendation="Explain improved control tips and reliability roadmap to the influencer.",
         )
 
@@ -199,6 +211,8 @@ def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session,
     assert decode_json(second.comment_lowlights_json, [])[0]["quote"] == "not sure it will last"
     parsed_insights_payload = decode_json(second.insights_json, {})
     assert parsed_insights_payload["praise_points"] == ["Setup was easy and fast."]
+    assert parsed_insights_payload["audience_profiles"][0]["type"] == "Primary"
+    assert parsed_insights_payload["usage_scenarios"] == ["onboarding walkthrough", "one-week reliability check"]
     assert parsed_insights_payload["action_recommendation"].startswith("Explain improved control tips")
 
     settings.analysis_version = original_version
@@ -337,3 +351,50 @@ def test_force_rerun_failure_clears_previous_payload(db_session, discovered_vide
 
     settings.analysis_version = original_version
     settings.gemini_api_key = original_key
+
+
+def test_comment_refresh_rolls_back_failed_sync_before_reading_existing_comments(db_session, discovered_video):
+    service = AnalysisService(db_session)
+    now = datetime.now(timezone.utc)
+
+    def poison_comment_sync(*, video_candidate_id: int, comments):
+        _ = comments
+        db_session.add(
+            VideoComment(
+                video_candidate_id=video_candidate_id,
+                youtube_comment_id="poison-comment",
+                parent_comment_id="",
+                author_name="Viewer",
+                text="Existing usable comment",
+                like_count=0,
+                published_at=now,
+                updated_at_remote=now,
+                is_reply=False,
+            )
+        )
+        db_session.commit()
+        db_session.add(
+            VideoComment(
+                video_candidate_id=video_candidate_id,
+                youtube_comment_id="poison-comment",
+                parent_comment_id="",
+                author_name="Viewer",
+                text="Duplicate comment",
+                like_count=0,
+                published_at=now,
+                updated_at_remote=now,
+                is_reply=False,
+            )
+        )
+        db_session.commit()
+
+    service.youtube_comments_service.fetch_all_comments = lambda youtube_video_id: [{"youtube_comment_id": "poison-comment"}]
+    service.video_comment_repository.replace_for_video = poison_comment_sync
+
+    comments = service._refresh_video_comments(
+        video_id=discovered_video.id,
+        youtube_video_id=discovered_video.youtube_video_id,
+        request_id="unit-rollback",
+    )
+
+    assert comments == ["Existing usable comment"]

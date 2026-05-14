@@ -148,6 +148,8 @@ erDiagram
   - unique index: `(video_candidate_id, analysis_version, language, agent_settings_hash)`
   - stores transcript, summaries, sentiment/risk, evidence, insights, errors
 - `video_comments`: comments fetched for each video and used in analysis/comment summaries.
+  - unique index: `(video_candidate_id, youtube_comment_id)`
+  - non-unique lookup index: `youtube_comment_id`
 - `project_insight_reports`: project-level rollups generated from latest completed video analyses.
   - stores executive rollup metrics for portfolio reporting:
     - `sentiment_breakdown_json` (positive/neutral/negative counts)
@@ -257,6 +259,11 @@ Because this project uses imperative startup migrations, changes to models shoul
 - What changed: Analysis batch processing moved from an always-on Cloud Run polling worker to a request-triggered Cloud Tasks wake flow. The durable queue remains `analysis_batches` and `analysis_batch_items`; the worker now drains queued rows only when invoked.
 - Why it changed: Reduce idle production compute cost for a low-volume internal tool while keeping user-visible batch progress and result persistence unchanged.
 - Impact on existing data and compatibility: No schema migration or data rewrite is required. Existing queued/running/completed/failed/cancelled batch states remain valid; production must configure Cloud Tasks and the worker URL before relying on scale-to-zero processing.
+
+### What Changed (2026-05-14, account-scoped video comments)
+- What changed: Changed `video_comments` uniqueness from global `youtube_comment_id` to `(video_candidate_id, youtube_comment_id)` while keeping a non-unique lookup index on `youtube_comment_id`.
+- Why it changed: Multi-account projects can now store separate `video_candidates` for the same YouTube video. A globally unique comment ID caused async Run All Analysis workers to fail when another account/project had already synced the same YouTube comment.
+- Impact on existing data and compatibility: Existing comment rows remain valid. Startup migration drops the old global unique constraint/index and adds the scoped unique index. This may store the same YouTube comment once per account-scoped video candidate, which is compatible with the current per-video analysis flow and keeps the Cloud Tasks scale-to-zero worker deployment unchanged.
 
 ### What Changed (2026-05-11, documentation governance)
 - What changed: Clarified that database structure, migrations, persistence behavior, production database target, transcript/analysis storage, and JSON contract changes must update this design document in the same change set.

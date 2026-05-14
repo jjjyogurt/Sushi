@@ -23,6 +23,11 @@ class CommentSentimentPoint(BaseModel):
     quote: str = ""
 
 
+class AudienceProfile(BaseModel):
+    type: str = ""
+    description: str = ""
+
+
 class AnalysisResponse(TimestampedResponse):
     video_candidate_id: int
     analysis_version: str
@@ -44,5 +49,7 @@ class AnalysisResponse(TimestampedResponse):
     insights: List[str] = Field(default_factory=list)
     praise_points: List[str] = Field(default_factory=list)
     criticism_points: List[str] = Field(default_factory=list)
+    audience_profiles: List[AudienceProfile] = Field(default_factory=list)
+    usage_scenarios: List[str] = Field(default_factory=list)
     action_recommendation: str = ""
     error_message: str

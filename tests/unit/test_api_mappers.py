@@ -59,3 +59,32 @@ def test_map_analysis_response_keeps_backward_compatibility_for_string_points():
     assert response.comment_highlights[0].quote == ""
     assert response.comment_lowlights[0].point == "App crashes"
     assert response.comment_lowlights[0].quote == ""
+
+
+def test_map_analysis_response_supports_audience_and_usage_context():
+    model = _build_analysis_model()
+    model.insights_json = encode_json(
+        {
+            "audience_profiles": [
+                {"type": "Primary", "description": "Cycling creators evaluating hands-free capture."},
+                {"type": "Secondary", "description": "Travel vloggers comparing setup speed."},
+            ],
+            "usage_scenarios": ["cycling follow-cam", "travel vlogging"],
+        }
+    )
+
+    response = map_analysis_response(model)
+
+    assert response.audience_profiles[0].type == "Primary"
+    assert response.audience_profiles[1].description == "Travel vloggers comparing setup speed."
+    assert response.usage_scenarios == ["cycling follow-cam", "travel vlogging"]
+
+
+def test_map_analysis_response_defaults_legacy_audience_context_to_empty():
+    model = _build_analysis_model()
+    model.insights_json = encode_json(["legacy insight"])
+
+    response = map_analysis_response(model)
+
+    assert response.audience_profiles == []
+    assert response.usage_scenarios == []

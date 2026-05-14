@@ -33,6 +33,27 @@ def normalize_comment_points(raw_points):
     return normalized[:3]
 
 
+def normalize_audience_profiles(raw_profiles):
+    if not isinstance(raw_profiles, list):
+        return []
+    normalized = []
+    for item in raw_profiles:
+        if not isinstance(item, dict):
+            continue
+        profile_type = str(item.get("type") or "").strip()
+        description = str(item.get("description") or "").strip()
+        if profile_type and description:
+            normalized = [*normalized, {"type": profile_type, "description": description}]
+    return normalized[:3]
+
+
+def normalize_usage_scenarios(raw_scenarios):
+    if not isinstance(raw_scenarios, list):
+        return []
+    cleaned = [item for item in [str(raw).strip() for raw in raw_scenarios] if item]
+    return cleaned[:4]
+
+
 def map_monitor_response(model: MonitorProfile) -> MonitorProfileResponse:
     return MonitorProfileResponse(
         id=model.id,
@@ -84,6 +105,8 @@ def map_analysis_response(model: AnalysisResult) -> AnalysisResponse:
         raw_insights = raw_insights_payload.get("insights", [])
         raw_praise_points = raw_insights_payload.get("praise_points", [])
         raw_criticism_points = raw_insights_payload.get("criticism_points", [])
+        raw_audience_profiles = raw_insights_payload.get("audience_profiles", [])
+        raw_usage_scenarios = raw_insights_payload.get("usage_scenarios", [])
         insights = [item for item in [str(value).strip() for value in raw_insights] if item] if isinstance(raw_insights, list) else []
         praise_points = (
             [item for item in [str(value).strip() for value in raw_praise_points] if item][:5]
@@ -95,6 +118,8 @@ def map_analysis_response(model: AnalysisResult) -> AnalysisResponse:
             if isinstance(raw_criticism_points, list)
             else []
         )
+        audience_profiles = normalize_audience_profiles(raw_audience_profiles)
+        usage_scenarios = normalize_usage_scenarios(raw_usage_scenarios)
         action_recommendation = str(raw_insights_payload.get("action_recommendation", "")).strip()
     else:
         insights = (
@@ -104,6 +129,8 @@ def map_analysis_response(model: AnalysisResult) -> AnalysisResponse:
         )
         praise_points = []
         criticism_points = []
+        audience_profiles = []
+        usage_scenarios = []
         action_recommendation = ""
 
     raw_comment_highlights = decode_json(model.comment_highlights_json, [])
@@ -135,6 +162,8 @@ def map_analysis_response(model: AnalysisResult) -> AnalysisResponse:
         insights=insights,
         praise_points=praise_points,
         criticism_points=criticism_points,
+        audience_profiles=audience_profiles,
+        usage_scenarios=usage_scenarios,
         action_recommendation=action_recommendation,
         error_message=model.error_message,
     )

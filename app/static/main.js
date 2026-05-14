@@ -632,6 +632,9 @@ async function bootstrap() {
         if (!projectName || brandKeywords.length === 0) {
           throw new Error(t("errorProjectNameAndKeywordsRequired"));
         }
+        if (projectName.length < 2) {
+          throw new Error(t("errorProjectNameMinLength"));
+        }
 
         await request("/monitor-profiles", {
           method: "POST",
@@ -735,6 +738,9 @@ async function bootstrap() {
         const brandKeywords = splitCsv(formData.get("brand_keywords"));
         if (!projectName || brandKeywords.length === 0) {
           throw new Error(t("errorProjectNameAndKeywordsRequired"));
+        }
+        if (projectName.length < 2) {
+          throw new Error(t("errorProjectNameMinLength"));
         }
 
         await request(`/monitor-profiles/${profileId}`, {

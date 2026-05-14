@@ -37,6 +37,8 @@ class AnalysisOutput:
     insights: List[str]
     praise_points: List[str]
     criticism_points: List[str]
+    audience_profiles: List[dict]
+    usage_scenarios: List[str]
     action_recommendation: str
 
 

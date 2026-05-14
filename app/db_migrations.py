@@ -58,6 +58,41 @@ def _sqlite_rebuild_video_candidates_without_global_youtube_unique(connection) -
     connection.execute(text("PRAGMA foreign_keys=ON"))
 
 
+def _sqlite_rebuild_video_comments_without_global_youtube_unique(connection) -> None:
+    existing_columns = inspect(connection).get_columns("video_comments")
+    column_names = [column["name"] for column in existing_columns]
+    column_definitions = []
+    for column in existing_columns:
+        column_name = str(column["name"])
+        column_type = str(column["type"] or "TEXT")
+        parts = [f'"{column_name}"', column_type]
+        if column.get("primary_key"):
+            parts.append("PRIMARY KEY")
+        elif not bool(column.get("nullable", True)):
+            parts.append("NOT NULL")
+        default_value = column.get("default")
+        if default_value is not None:
+            parts.append(f"DEFAULT {default_value}")
+        column_definitions.append(" ".join(parts))
+
+    table_names = set(inspect(connection).get_table_names())
+    if "video_candidates" in table_names and "video_candidate_id" in column_names:
+        column_definitions.append("FOREIGN KEY(video_candidate_id) REFERENCES video_candidates(id)")
+
+    selected_columns = ", ".join(f'"{column_name}"' for column_name in column_names)
+    connection.execute(text("PRAGMA foreign_keys=OFF"))
+    connection.execute(text("ALTER TABLE video_comments RENAME TO video_comments_old"))
+    connection.execute(text(f"CREATE TABLE video_comments ({', '.join(column_definitions)})"))
+    connection.execute(
+        text(
+            f"INSERT INTO video_comments ({selected_columns}) "
+            f"SELECT {selected_columns} FROM video_comments_old"
+        )
+    )
+    connection.execute(text("DROP TABLE video_comments_old"))
+    connection.execute(text("PRAGMA foreign_keys=ON"))
+
+
 def ensure_monitor_profiles_owner_user_id(engine: Engine) -> None:
     inspector = inspect(engine)
     table_names = set(inspector.get_table_names())
@@ -288,13 +323,16 @@ def ensure_analysis_results_language_column_and_index(engine: Engine) -> None:
     inspector = inspect(engine)
     columns = {column["name"] for column in inspector.get_columns("analysis_results")}
     indexes = {index["name"] for index in inspector.get_indexes("analysis_results")}
+    has_hash_aware_uniqueness = (
+        "agent_settings_hash" in columns or "ix_analysis_video_version_language_settings" in indexes
+    )
 
     statements = []
     if "language" not in columns:
         statements = [*statements, "ALTER TABLE analysis_results ADD COLUMN language TEXT NOT NULL DEFAULT 'en'"]
     if "ix_analysis_video_version" in indexes:
         statements = [*statements, "DROP INDEX ix_analysis_video_version"]
-    if "ix_analysis_video_version_language" not in indexes:
+    if "ix_analysis_video_version_language" not in indexes and not has_hash_aware_uniqueness:
         statements = [
             *statements,
             "CREATE UNIQUE INDEX ix_analysis_video_version_language ON analysis_results (video_candidate_id, analysis_version, language)",
@@ -328,34 +366,77 @@ def ensure_analysis_results_comment_columns(engine: Engine) -> None:
 
 def ensure_video_comments_table(engine: Engine) -> None:
     inspector = inspect(engine)
-    if "video_comments" in inspector.get_table_names():
+    if "video_comments" not in inspector.get_table_names():
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE video_comments (
+                        id INTEGER PRIMARY KEY,
+                        video_candidate_id INTEGER NOT NULL,
+                        youtube_comment_id VARCHAR(128) NOT NULL,
+                        parent_comment_id VARCHAR(128) NOT NULL DEFAULT '',
+                        author_name VARCHAR(255) NOT NULL DEFAULT '',
+                        text TEXT NOT NULL DEFAULT '',
+                        like_count INTEGER NOT NULL DEFAULT 0,
+                        published_at DATETIME NOT NULL,
+                        updated_at_remote DATETIME NOT NULL,
+                        is_reply BOOLEAN NOT NULL DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(video_candidate_id) REFERENCES video_candidates(id)
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX ix_video_comments_video_candidate_id ON video_comments (video_candidate_id)"))
+            connection.execute(text("CREATE INDEX ix_video_comments_youtube_comment_id ON video_comments (youtube_comment_id)"))
+            connection.execute(
+                text(
+                    "CREATE UNIQUE INDEX ix_video_comments_video_youtube_comment_id "
+                    "ON video_comments (video_candidate_id, youtube_comment_id)"
+                )
+            )
+            connection.execute(text("CREATE INDEX ix_video_comments_published_at ON video_comments (published_at)"))
+            connection.execute(text("CREATE INDEX ix_video_comments_parent_comment_id ON video_comments (parent_comment_id)"))
         return
 
     with engine.begin() as connection:
-        connection.execute(
-            text(
-                """
-                CREATE TABLE video_comments (
-                    id INTEGER PRIMARY KEY,
-                    video_candidate_id INTEGER NOT NULL,
-                    youtube_comment_id VARCHAR(128) NOT NULL UNIQUE,
-                    parent_comment_id VARCHAR(128) NOT NULL DEFAULT '',
-                    author_name VARCHAR(255) NOT NULL DEFAULT '',
-                    text TEXT NOT NULL DEFAULT '',
-                    like_count INTEGER NOT NULL DEFAULT 0,
-                    published_at DATETIME NOT NULL,
-                    updated_at_remote DATETIME NOT NULL,
-                    is_reply BOOLEAN NOT NULL DEFAULT 0,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(video_candidate_id) REFERENCES video_candidates(id)
+        columns = {column["name"] for column in inspect(connection).get_columns("video_comments")}
+        if not {"video_candidate_id", "youtube_comment_id"}.issubset(columns):
+            return
+
+        indexes = {index["name"] for index in inspect(connection).get_indexes("video_comments")}
+        dialect_name = connection.dialect.name
+        if dialect_name == "sqlite":
+            if _sqlite_table_has_unique_index_on_columns(
+                connection,
+                table_name="video_comments",
+                column_names=["youtube_comment_id"],
+            ):
+                _sqlite_rebuild_video_comments_without_global_youtube_unique(connection)
+                indexes = {index["name"] for index in inspect(connection).get_indexes("video_comments")}
+        else:
+            connection.execute(text("ALTER TABLE video_comments DROP CONSTRAINT IF EXISTS ix_video_comments_youtube_comment_id"))
+            connection.execute(text("ALTER TABLE video_comments DROP CONSTRAINT IF EXISTS video_comments_youtube_comment_id_key"))
+            connection.execute(text("DROP INDEX IF EXISTS ix_video_comments_youtube_comment_id"))
+            indexes.discard("ix_video_comments_youtube_comment_id")
+
+        if "ix_video_comments_video_candidate_id" not in indexes:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_video_comments_video_candidate_id ON video_comments (video_candidate_id)"))
+        if "ix_video_comments_youtube_comment_id" not in indexes:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_video_comments_youtube_comment_id ON video_comments (youtube_comment_id)"))
+        if "ix_video_comments_video_youtube_comment_id" not in indexes:
+            connection.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_video_comments_video_youtube_comment_id "
+                    "ON video_comments (video_candidate_id, youtube_comment_id)"
                 )
-                """
             )
-        )
-        connection.execute(text("CREATE INDEX ix_video_comments_video_candidate_id ON video_comments (video_candidate_id)"))
-        connection.execute(text("CREATE INDEX ix_video_comments_published_at ON video_comments (published_at)"))
-        connection.execute(text("CREATE INDEX ix_video_comments_parent_comment_id ON video_comments (parent_comment_id)"))
+        if "ix_video_comments_published_at" not in indexes and "published_at" in columns:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_video_comments_published_at ON video_comments (published_at)"))
+        if "ix_video_comments_parent_comment_id" not in indexes and "parent_comment_id" in columns:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_video_comments_parent_comment_id ON video_comments (parent_comment_id)"))
 
 
 def ensure_video_candidate_assignment_columns(engine: Engine) -> None:

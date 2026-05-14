@@ -250,6 +250,8 @@ class GeminiClient:
             insights=analysis_output.insights,
             praise_points=analysis_output.praise_points,
             criticism_points=analysis_output.criticism_points,
+            audience_profiles=analysis_output.audience_profiles,
+            usage_scenarios=analysis_output.usage_scenarios,
             action_recommendation=analysis_output.action_recommendation,
         )
         translated_comments = self._translate_comments_text_fields(
@@ -272,6 +274,8 @@ class GeminiClient:
             insights=translated_fields.get("insights", analysis_output.insights),
             praise_points=translated_fields.get("praise_points", analysis_output.praise_points),
             criticism_points=translated_fields.get("criticism_points", analysis_output.criticism_points),
+            audience_profiles=translated_fields.get("audience_profiles", analysis_output.audience_profiles),
+            usage_scenarios=translated_fields.get("usage_scenarios", analysis_output.usage_scenarios),
             action_recommendation=translated_fields.get(
                 "action_recommendation",
                 analysis_output.action_recommendation,
@@ -557,10 +561,15 @@ class GeminiClient:
         insights = GeminiClient._normalize_insights(parsed.get("insights"))
         praise_points = GeminiClient._normalize_point_list(parsed.get("praise_points"))
         criticism_points = GeminiClient._normalize_point_list(parsed.get("criticism_points"))
+        audience_profiles = GeminiClient._normalize_audience_profiles(parsed.get("audience_profiles"))
+        usage_scenarios = GeminiClient._normalize_usage_scenarios(parsed.get("usage_scenarios"))
         action_recommendation = GeminiClient._normalize_action_recommendation(parsed.get("action_recommendation"))
 
         normalized_target = str(target_output_language or "").strip().lower()
-        text_bundle = "\n".join([summary_text, summary_headline, summary_body])
+        audience_text = "\n".join(
+            [str(item.get("description", "")) for item in audience_profiles if isinstance(item, dict)]
+        )
+        text_bundle = "\n".join([summary_text, summary_headline, summary_body, audience_text, *usage_scenarios])
         if self._is_output_language_mismatch(text=text_bundle, target_output_language=normalized_target):
             translated_fields = self._translate_analysis_text_fields(
                 target_output_language=normalized_target,
@@ -571,6 +580,8 @@ class GeminiClient:
                 insights=insights,
                 praise_points=praise_points,
                 criticism_points=criticism_points,
+                audience_profiles=audience_profiles,
+                usage_scenarios=usage_scenarios,
                 action_recommendation=action_recommendation,
             )
             summary_text = translated_fields.get("summary_text", summary_text)
@@ -580,6 +591,8 @@ class GeminiClient:
             insights = translated_fields.get("insights", insights)
             praise_points = translated_fields.get("praise_points", praise_points)
             criticism_points = translated_fields.get("criticism_points", criticism_points)
+            audience_profiles = translated_fields.get("audience_profiles", audience_profiles)
+            usage_scenarios = translated_fields.get("usage_scenarios", usage_scenarios)
             action_recommendation = translated_fields.get("action_recommendation", action_recommendation)
 
         return AnalysisOutput(
@@ -595,6 +608,8 @@ class GeminiClient:
             insights=insights,
             praise_points=praise_points,
             criticism_points=criticism_points,
+            audience_profiles=audience_profiles,
+            usage_scenarios=usage_scenarios,
             action_recommendation=action_recommendation,
         )
 
@@ -609,6 +624,8 @@ class GeminiClient:
         insights: List[str],
         praise_points: List[str],
         criticism_points: List[str],
+        audience_profiles: List[dict],
+        usage_scenarios: List[str],
         action_recommendation: str,
     ) -> dict:
         if target_output_language not in {"en", "zh-hans"}:
@@ -622,6 +639,8 @@ class GeminiClient:
             "insights": insights,
             "praise_points": praise_points,
             "criticism_points": criticism_points,
+            "audience_profiles": audience_profiles,
+            "usage_scenarios": usage_scenarios,
             "action_recommendation": action_recommendation,
         }
         prompt = (
@@ -642,6 +661,10 @@ class GeminiClient:
                 "insights": self._normalize_insights(parsed.get("insights")) or insights,
                 "praise_points": self._normalize_point_list(parsed.get("praise_points")) or praise_points,
                 "criticism_points": self._normalize_point_list(parsed.get("criticism_points")) or criticism_points,
+                "audience_profiles": self._normalize_audience_profiles(parsed.get("audience_profiles"))
+                or audience_profiles,
+                "usage_scenarios": self._normalize_usage_scenarios(parsed.get("usage_scenarios"))
+                or usage_scenarios,
                 "action_recommendation": self._normalize_action_recommendation(
                     parsed.get("action_recommendation")
                 )
@@ -751,6 +774,31 @@ class GeminiClient:
             return []
         cleaned = [item for item in [str(raw).strip() for raw in value] if item]
         return cleaned[:5]
+
+    @staticmethod
+    def _normalize_audience_profiles(value: Any) -> List[dict]:
+        if not isinstance(value, list):
+            return []
+        default_types = ["Primary", "Secondary", "Specialist"]
+        normalized: List[dict] = []
+        for index, item in enumerate(value):
+            if not isinstance(item, dict):
+                continue
+            profile_type = str(item.get("type") or item.get("label") or item.get("segment") or "").strip()
+            description = str(item.get("description") or item.get("text") or item.get("point") or "").strip()
+            if not description:
+                continue
+            if not profile_type:
+                profile_type = default_types[min(index, len(default_types) - 1)]
+            normalized = [*normalized, {"type": profile_type, "description": description}]
+        return normalized[:3]
+
+    @staticmethod
+    def _normalize_usage_scenarios(value: Any) -> List[str]:
+        if not isinstance(value, list):
+            return []
+        cleaned = [item for item in [str(raw).strip() for raw in value] if item]
+        return cleaned[:4]
 
     @staticmethod
     def _normalize_action_recommendation(value: Any) -> str:
@@ -871,11 +919,19 @@ class GeminiClient:
             f"{agent_instructions}\n"
             "Return strict JSON with keys: summary_text, translated_summary, summary_headline, summary_body, "
             "sentiment, risk_level, "
-            "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
+            "confidence_score, evidence, insights, praise_points, criticism_points, audience_profiles, "
+            "usage_scenarios, action_recommendation.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
             "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
+            "audience_profiles as list of 2-3 objects {type, description}, usage_scenarios as list of short strings with max 4 items, "
             "action_recommendation as one short actionable string.\n"
+            "Audience profiles should identify likely viewer/customer segments from the title and transcript only; "
+            "use product/marketing useful types like Primary, Secondary, Specialist, Current Owners, or Competitor Shoppers. "
+            "Do not infer age, gender, income, or demographics unless explicitly stated. "
+            "Usage scenarios must capture real-world contexts the influencer actually tests or discusses, "
+            "such as cycling, vlogging, skiing, hiking, travel, indoor setup, or low-light test. "
+            "If unclear, return [] for usage_scenarios and only evidence-supported audience profiles.\n"
             f"All textual outputs MUST be written in: {target_output_language}.\n"
             "Do not invent evidence. Use only evidence that appears in the transcript for summary, points, and recommendation.\n"
             "Knowledge base context (if provided) can be used to verify product facts, but transcript evidence is still required for claims about this video.\n"
@@ -904,11 +960,15 @@ class GeminiClient:
             f"{agent_instructions}\n"
             "Return strict JSON with keys: summary_text, translated_summary, summary_headline, summary_body, "
             "sentiment, risk_level, "
-            "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
+            "confidence_score, evidence, insights, praise_points, criticism_points, audience_profiles, "
+            "usage_scenarios, action_recommendation.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
             "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
+            "audience_profiles as list of 2-3 objects {type, description}, usage_scenarios as list of short strings with max 4 items, "
             "action_recommendation as one short actionable string.\n"
+            "Audience profiles should identify likely viewer/customer segments from this chunk only; do not infer age, gender, income, or demographics unless explicitly stated. "
+            "Usage scenarios must capture real-world contexts actually tested or discussed in this chunk; return [] if unclear.\n"
             f"All textual outputs MUST be written in: {target_output_language}.\n"
             f"Video title: {title}\n"
             f"Source transcript language: {source_language}\n"
@@ -936,11 +996,15 @@ class GeminiClient:
             f"{agent_instructions}\n"
             "Return strict JSON with keys: summary_text, translated_summary, summary_headline, summary_body, "
             "sentiment, risk_level, "
-            "confidence_score, evidence, insights, praise_points, criticism_points, action_recommendation.\n"
+            "confidence_score, evidence, insights, praise_points, criticism_points, audience_profiles, "
+            "usage_scenarios, action_recommendation.\n"
             "Rules: sentiment in [positive, neutral, negative], risk_level in [low, medium, high, critical], "
             "confidence_score in [0, 1], evidence as list of {timestamp, quote, reason}, insights as list of strings, "
             "praise_points as list of short strings with max 5 items, criticism_points as list of short strings with max 5 items, "
+            "audience_profiles as list of 2-3 objects {type, description}, usage_scenarios as list of short strings with max 4 items, "
             "action_recommendation as one short actionable string.\n"
+            "Audience profiles should synthesize likely viewer/customer segments from chunk analyses only; do not infer age, gender, income, or demographics unless explicitly stated. "
+            "Usage scenarios must capture real-world contexts actually tested or discussed; return [] if unclear.\n"
             f"All textual outputs MUST be written in: {target_output_language}.\n"
             "Do not invent evidence. Use only evidence that appears in chunk analyses for summary, points, and recommendation.\n"
             "Knowledge base context (if provided) can be used to verify product facts, but transcript evidence is still required for claims about this video.\n"

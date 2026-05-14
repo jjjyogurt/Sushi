@@ -442,6 +442,8 @@ class AnalysisService:
                 "insights": output.insights,
                 "praise_points": output.praise_points,
                 "criticism_points": output.criticism_points,
+                "audience_profiles": output.audience_profiles,
+                "usage_scenarios": output.usage_scenarios,
                 "action_recommendation": output.action_recommendation,
             }
         )
@@ -454,11 +456,15 @@ class AnalysisService:
         insights = []
         praise_points = []
         criticism_points = []
+        audience_profiles = []
+        usage_scenarios = []
         action_recommendation = ""
         if isinstance(insights_payload, dict):
             raw_insights = insights_payload.get("insights", [])
             raw_praise = insights_payload.get("praise_points", [])
             raw_criticism = insights_payload.get("criticism_points", [])
+            raw_audience_profiles = insights_payload.get("audience_profiles", [])
+            raw_usage_scenarios = insights_payload.get("usage_scenarios", [])
             insights = [str(item).strip() for item in raw_insights if str(item).strip()] if isinstance(raw_insights, list) else []
             praise_points = [str(item).strip() for item in raw_praise if str(item).strip()] if isinstance(raw_praise, list) else []
             criticism_points = (
@@ -466,6 +472,8 @@ class AnalysisService:
                 if isinstance(raw_criticism, list)
                 else []
             )
+            audience_profiles = AnalysisService._normalize_audience_profiles(raw_audience_profiles)
+            usage_scenarios = AnalysisService._normalize_usage_scenarios(raw_usage_scenarios)
             action_recommendation = str(insights_payload.get("action_recommendation", "")).strip()
         return AnalysisOutput(
             transcript_text=result.transcript_text,
@@ -480,6 +488,8 @@ class AnalysisService:
             insights=insights,
             praise_points=praise_points,
             criticism_points=criticism_points,
+            audience_profiles=audience_profiles,
+            usage_scenarios=usage_scenarios,
             action_recommendation=action_recommendation,
         )
 
@@ -528,6 +538,27 @@ class AnalysisService:
             if fallback_point:
                 normalized = [*normalized, {"point": fallback_point, "quote": ""}]
         return normalized[:3]
+
+    @staticmethod
+    def _normalize_audience_profiles(raw_profiles):
+        if not isinstance(raw_profiles, list):
+            return []
+        normalized = []
+        for item in raw_profiles:
+            if not isinstance(item, dict):
+                continue
+            profile_type = str(item.get("type") or "").strip()
+            description = str(item.get("description") or "").strip()
+            if profile_type and description:
+                normalized = [*normalized, {"type": profile_type, "description": description}]
+        return normalized[:3]
+
+    @staticmethod
+    def _normalize_usage_scenarios(raw_scenarios):
+        if not isinstance(raw_scenarios, list):
+            return []
+        cleaned = [item for item in [str(raw).strip() for raw in raw_scenarios] if item]
+        return cleaned[:4]
 
     @staticmethod
     def _is_location_restricted_error(error: Exception) -> bool:
@@ -591,6 +622,7 @@ class AnalysisService:
                 stored_count,
             )
         except Exception as error:  # noqa: BLE001
+            self.session.rollback()
             logger.warning(
                 "analysis comments sync failed request_id=%s video_id=%s youtube_video_id=%s error=%s",
                 request_id,
@@ -598,4 +630,15 @@ class AnalysisService:
                 youtube_video_id,
                 error,
             )
-        return self.video_comment_repository.list_texts_for_video(video_candidate_id=video_id, max_items=5000)
+        try:
+            return self.video_comment_repository.list_texts_for_video(video_candidate_id=video_id, max_items=5000)
+        except Exception as error:  # noqa: BLE001
+            self.session.rollback()
+            logger.warning(
+                "analysis comments read failed request_id=%s video_id=%s youtube_video_id=%s error=%s",
+                request_id,
+                video_id,
+                youtube_video_id,
+                error,
+            )
+            return []

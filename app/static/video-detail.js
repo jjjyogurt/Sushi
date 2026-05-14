@@ -61,6 +61,37 @@ function sentimentBadge(sentiment) {
   return `<span class="badge ${css}">${escapeHtml(sentiment)}</span>`;
 }
 
+function formatReachMetricValue(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    return t("unknown");
+  }
+  return numericValue.toLocaleString();
+}
+
+function videoReachMetricsMarkup(reach, isLoading = false) {
+  if (isLoading) {
+    return `
+      <div id="video-reach-metrics" class="video-reach-metrics">
+        <span class="reach-loading">${escapeHtml(t("loadingReachMetrics"))}</span>
+      </div>
+    `;
+  }
+
+  return `
+    <div id="video-reach-metrics" class="video-reach-metrics">
+      <span class="reach-metric">
+        <span class="reach-label">${escapeHtml(t("videoViews"))}</span>
+        <strong>${escapeHtml(formatReachMetricValue(reach?.view_count))}</strong>
+      </span>
+      <span class="reach-metric">
+        <span class="reach-label">${escapeHtml(t("influencerSubscribers"))}</span>
+        <strong>${escapeHtml(formatReachMetricValue(reach?.subscriber_count))}</strong>
+      </span>
+    </div>
+  `;
+}
+
 function transcriptMarkup(analysis, transcriptExpanded) {
   const transcript = analysis ? analysis.transcript_text || "" : "";
   const buttonLabel = transcriptExpanded ? t("collapse") : t("expand");
@@ -105,6 +136,65 @@ function summaryMarkup(analysis) {
       ${headline ? `<div class="summary-headline">${escapeHtml(headline)}</div>` : ""}
       ${body ? `<div class="summary-body">${escapeHtml(body)}</div>` : ""}
       ${topRiskTrigger ? `<div class="summary-impact"><strong>${escapeHtml(t("insightsTopRiskTrigger"))}:</strong> ${escapeHtml(topRiskTrigger)}</div>` : ""}
+    </div>
+  `;
+}
+
+function audienceUseCaseMarkup(analysis) {
+  const audienceProfiles = Array.isArray(analysis?.audience_profiles) ? analysis.audience_profiles : [];
+  const usageScenarios = Array.isArray(analysis?.usage_scenarios) ? analysis.usage_scenarios : [];
+  const profileItems = audienceProfiles
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const profileType = String(item.type || "").trim();
+      const description = String(item.description || "").trim();
+      if (!profileType || !description) {
+        return null;
+      }
+      return { type: profileType, description };
+    })
+    .filter(Boolean);
+  const scenarioItems = usageScenarios.map((item) => String(item || "").trim()).filter(Boolean);
+  if (profileItems.length === 0 && scenarioItems.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="detail-block">
+      <h5>${escapeHtml(t("audienceUseCase"))}</h5>
+      ${
+        profileItems.length > 0
+          ? `
+            <div class="audience-profile-list">
+              <div class="signal-label">${escapeHtml(t("audienceProfile"))}</div>
+              ${profileItems
+                .map(
+                  (item) => `
+                    <div class="audience-profile-card">
+                      <strong>${escapeHtml(item.type)}</strong>
+                      <span>${escapeHtml(item.description)}</span>
+                    </div>
+                  `
+                )
+                .join("")}
+            </div>
+          `
+          : ""
+      }
+      ${
+        scenarioItems.length > 0
+          ? `
+            <div class="usage-scenario-group">
+              <div class="signal-label">${escapeHtml(t("usageScenarios"))}</div>
+              <div class="scenario-chip-list">
+                ${scenarioItems.map((item) => `<span class="scenario-chip">${escapeHtml(item)}</span>`).join("")}
+              </div>
+            </div>
+          `
+          : ""
+      }
     </div>
   `;
 }
@@ -323,6 +413,7 @@ function videoDetailMarkup({
   isRerunning,
   analysisLanguage,
   appUsers,
+  reach,
 }) {
   const riskLevel = analysis ? String(analysis.risk_level || "").toUpperCase() : "-";
   const normalizedRisk = analysis ? String(analysis.risk_level || "").toLowerCase() : "";
@@ -345,6 +436,7 @@ function videoDetailMarkup({
         <a class="video-link" href="${escapeHtml(video.video_url)}" target="_blank" rel="noreferrer">
           ${escapeHtml(video.video_url)} ↗
         </a>
+        ${videoReachMetricsMarkup(reach, !reach)}
         <div class="analysis-status">${escapeHtml(t("analysisStatus"))}: <strong>${escapeHtml(
     analysisStatusLabel(analysis)
   )}</strong> | ${escapeHtml(analysisLanguageLabel(analysisLanguage))}</div>
@@ -395,6 +487,7 @@ function videoDetailMarkup({
           <h5>${escapeHtml(t("summary"))}</h5>
           <div>${summaryMarkup(analysis)}</div>
         </div>
+        ${audienceUseCaseMarkup(analysis)}
         <div class="split-grid">
           <div class="detail-block">
             <h5>${escapeHtml(t("sentiment"))}</h5>
@@ -454,6 +547,7 @@ export function createVideoDetailController({
   let chatInlineErrorByVideoId = {};
   let chatSendingByVideoId = {};
   let rerunStateByVideoId = {};
+  let reachCache = {};
   let detailAbortController = null;
 
   function withoutVideoKey(record, videoId) {
@@ -476,6 +570,7 @@ export function createVideoDetailController({
     const remainingPendingQuestion = withoutVideoKey(chatPendingQuestionByVideoId, videoId);
     const remainingInlineError = withoutVideoKey(chatInlineErrorByVideoId, videoId);
     const remainingSending = withoutVideoKey(chatSendingByVideoId, videoId);
+    const remainingReach = withoutVideoKey(reachCache, videoId);
     const { [videoId]: _rerun, ...remainingRerun } = rerunStateByVideoId;
     analysisCache = remainingAnalysis;
     chatCache = remainingChat;
@@ -483,6 +578,7 @@ export function createVideoDetailController({
     chatPendingQuestionByVideoId = remainingPendingQuestion;
     chatInlineErrorByVideoId = remainingInlineError;
     chatSendingByVideoId = remainingSending;
+    reachCache = remainingReach;
     rerunStateByVideoId = remainingRerun;
   }
 
@@ -519,6 +615,37 @@ export function createVideoDetailController({
       [key]: analysis,
     };
     return analysis;
+  }
+
+  async function fetchReach(videoId, forceRefresh = false) {
+    if (!forceRefresh && reachCache[videoId]) {
+      return reachCache[videoId];
+    }
+    const reach = await request(`/videos/${videoId}/reach`);
+    reachCache = {
+      ...reachCache,
+      [videoId]: reach,
+    };
+    return reach;
+  }
+
+  async function renderReachMetrics(videoId) {
+    const container = getElement("video-reach-metrics");
+    if (!container) {
+      return;
+    }
+    try {
+      const reach = await fetchReach(videoId);
+      if (videoId !== getState().selectedVideoId) {
+        return;
+      }
+      container.outerHTML = videoReachMetricsMarkup(reach);
+    } catch (_error) {
+      if (videoId !== getState().selectedVideoId) {
+        return;
+      }
+      container.outerHTML = videoReachMetricsMarkup(null);
+    }
   }
 
   async function fetchChat(videoId, forceRefresh = false) {
@@ -898,8 +1025,10 @@ export function createVideoDetailController({
       isRerunning: Boolean(rerunStateByVideoId[selectedVideo.id]),
       analysisLanguage,
       appUsers: Array.isArray(state.appUsers) ? state.appUsers : [],
+      reach: reachCache[selectedVideo.id] || null,
     });
     bindDetailActions(selectedVideo.id);
+    void renderReachMetrics(selectedVideo.id);
     await renderChat(selectedVideo.id);
   }
 
@@ -915,6 +1044,7 @@ export function createVideoDetailController({
       chatInlineErrorByVideoId = {};
       chatSendingByVideoId = {};
       rerunStateByVideoId = {};
+      reachCache = {};
     },
   };
 }

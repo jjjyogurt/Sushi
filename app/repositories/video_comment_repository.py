@@ -16,7 +16,22 @@ class VideoCommentRepository:
             self.session.commit()
             return 0
 
-        rows = [self._to_model(video_candidate_id=video_candidate_id, item=item) for item in comments]
+        rows = []
+        seen_comment_ids = set()
+        for item in comments:
+            comment_id = str(item.get("youtube_comment_id") or "").strip()
+            if not comment_id or comment_id in seen_comment_ids:
+                continue
+            seen_comment_ids.add(comment_id)
+            rows.append(
+                self._to_model(
+                    video_candidate_id=video_candidate_id,
+                    item={**item, "youtube_comment_id": comment_id},
+                )
+            )
+        if not rows:
+            self.session.commit()
+            return 0
         self.session.add_all(rows)
         self.session.commit()
         return len(rows)
