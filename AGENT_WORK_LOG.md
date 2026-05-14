@@ -1,5 +1,12 @@
 # Agent Work Log
 
+## 2026-05-14 18:55
+
+- Task: Restore Cloud Run backend after analysis startup migration outage.
+- Changes: Removed obsolete `analysis_results` legacy unique-index creation, added regression coverage, documented database/deploy notes.
+- Check: `test_db_migrations.py` 9 passed; full unit suite 144 passed; deployed `sushi-backend-00034-6c2`; `/health` and root returned 200; revision ERROR logs empty.
+- Next: Rotate exposed Cloud Run env secrets into Secret Manager.
+
 ## 2026-04-28 14:30
 
 - Task: Project workspace — place Insights control beside back (top-right cluster).
