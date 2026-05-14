@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.video_repository import VideoRepository
 from app.repositories.watchlist_repository import WatchlistRepository
+from app.services.access_control import AccessControlService
 
 
 class WatchlistService:
@@ -11,14 +12,13 @@ class WatchlistService:
         self.audit_repository = AuditRepository(session)
         self.video_repository = VideoRepository(session)
         self.watchlist_repository = WatchlistRepository(session)
+        self.access_control = AccessControlService(session)
 
     def list_videos_for_user(self, *, user_id: str):
         return self.watchlist_repository.list_videos_for_user(user_id=user_id)
 
     def add(self, *, user_id: str, video_id: int):
-        candidate = self.video_repository.get_by_id(video_id)
-        if candidate is None:
-            raise ValueError("Video candidate not found.")
+        self.access_control.require_video_owner(video_id=video_id, user_id=user_id)
         created = self.watchlist_repository.add(user_id=user_id, video_candidate_id=video_id)
         self.audit_repository.record(
             actor=user_id,

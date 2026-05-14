@@ -30,7 +30,7 @@ class ProjectInsightsService:
         self.monitor_repository = MonitorRepository(session)
         self.repository = ProjectInsightsRepository(session)
         self.settings = get_settings()
-        self.agent_settings_service = AgentSettingsService()
+        self.agent_settings_service = AgentSettingsService(session)
         self.gemini_client = GeminiClient(self.settings)
         self.youtube_video_stats_service = YouTubeVideoStatsService()
 
@@ -82,6 +82,7 @@ class ProjectInsightsService:
             fallback_payload = self._build_payload(completed_video_rows)
             payload = self._build_payload_with_gemini(
                 profile_name=str(profile.name or "").strip() or f"Project {monitor_profile_id}",
+                owner_user_id=profile.owner_user_id,
                 brand_keywords=brand_keywords,
                 key_products=key_products,
                 total_video_count=total_video_count,
@@ -126,6 +127,7 @@ class ProjectInsightsService:
         self,
         *,
         profile_name: str,
+        owner_user_id: str,
         brand_keywords: List[str],
         key_products: List[str],
         total_video_count: int,
@@ -136,7 +138,7 @@ class ProjectInsightsService:
         records = self._build_gemini_records(completed_results)
         if len(records) == 0:
             return fallback_payload
-        agent_instructions = self.agent_settings_service.get_content()
+        agent_instructions = self.agent_settings_service.get_resolved(user_id=owner_user_id).content
         try:
             generated = self.gemini_client.generate_project_insights_report(
                 project_name=profile_name,

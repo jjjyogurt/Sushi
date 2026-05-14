@@ -9,11 +9,13 @@ from sqlalchemy.pool import StaticPool
 from app.db import get_db_session
 from app.main import app
 from app.models.analysis_result import AnalysisResult
+from app.models.app_user import AppUser
 from app.models.base import Base
 from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
 from app.models.monitor_profile import MonitorProfile
 from app.repositories.video_repository import VideoRepository
 from app.services.project_insights_service import ProjectInsightsService
+from app.services.security import hash_password
 from app.services.youtube_video_stats_service import YouTubeVideoStatsService
 from app.utils.json_codec import encode_json
 
@@ -63,6 +65,18 @@ def client(insights_db_session, monkeypatch):
 
     app.dependency_overrides[get_db_session] = override_db
     with TestClient(app) as test_client:
+        insights_db_session.add(
+            AppUser(
+                id="Sushi_1",
+                display_name="Sushi_1",
+                password_hash=hash_password("1234"),
+                must_change_password=False,
+                is_active=True,
+            )
+        )
+        insights_db_session.commit()
+        login = test_client.post("/auth/login", json={"user_id": "Sushi_1", "password": "1234"})
+        assert login.status_code == 200
         yield test_client
     app.dependency_overrides.clear()
 

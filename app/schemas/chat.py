@@ -8,7 +8,6 @@ from app.schemas.common import TimestampedResponse
 
 class ChatRequest(BaseModel):
     question: str = Field(min_length=3, max_length=2000)
-    user_id: str = Field(default="marketing-user")
     knowledge_base_id: Optional[int] = None
 
 
@@ -28,4 +27,3 @@ class ChatMessageResponse(TimestampedResponse):
 class ChatSessionResponse(TimestampedResponse):
     video_candidate_id: int
     created_by: str
-

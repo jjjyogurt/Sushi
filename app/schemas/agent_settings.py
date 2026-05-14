@@ -7,5 +7,7 @@ class AgentSettingsUpdateRequest(BaseModel):
 
 class AgentSettingsResponse(BaseModel):
     content: str
+    settings_hash: str
+    is_default: bool
     default_content: str
     max_chars: int

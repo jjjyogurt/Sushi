@@ -7,7 +7,6 @@ import {
   getProjectIdFromRoute,
   getVideoIdFromRouteSearch,
   navigateToProject,
-  navigateToProjectVideo,
   syncProjectRoute,
 } from "./router-state.js";
 import { getState, setState } from "./state.js";
@@ -28,10 +27,6 @@ import { createAllVideosSettingsController } from "./all-videos-settings.js";
 import { createInsightsController } from "./insights.js";
 import { createWatchlistController } from "./watchlist.js";
 import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js";
-
-const appVideoSettingsActions = {
-  openHighlight: /** @type {null | ((videoId: number) => void)} */ (null),
-};
 
 const DEFAULT_PROJECT_BRAND_KEYWORDS = Object.freeze([
   "HOVER",
@@ -124,28 +119,6 @@ function showMessage(message, type = "info", options = null) {
   }, dismissMs);
 }
 
-function getVideoConflictPayload(error) {
-  if (!(error instanceof Error)) {
-    return null;
-  }
-  const raw = "videoConflict" in error ? error.videoConflict : null;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return null;
-  }
-  const conflict = raw;
-  const code = "code" in conflict ? conflict.code : null;
-  const profileId = "existing_monitor_profile_id" in conflict ? conflict.existing_monitor_profile_id : null;
-  const videoId = "existing_video_id" in conflict ? conflict.existing_video_id : null;
-  if (
-    code === "VIDEO_PROJECT_CONFLICT" &&
-    typeof profileId === "number" &&
-    typeof videoId === "number"
-  ) {
-    return { existing_monitor_profile_id: profileId, existing_video_id: videoId };
-  }
-  return null;
-}
-
 async function runTask(task, successMessage = "") {
   try {
     clearMessage();
@@ -163,29 +136,7 @@ async function runTask(task, successMessage = "") {
       return;
     }
     const message = error instanceof Error ? error.message : t("requestFailed");
-    const conflict = getVideoConflictPayload(error);
-    if (conflict) {
-      const actions = [
-        {
-          label: t("openVideoInProject"),
-          onAction: () => {
-            navigateToProjectVideo(conflict.existing_monitor_profile_id, conflict.existing_video_id);
-          },
-        },
-      ];
-      if (appVideoSettingsActions.openHighlight) {
-        const open = appVideoSettingsActions.openHighlight;
-        actions.push({
-          label: t("viewInAllVideos"),
-          onAction: () => {
-            open(conflict.existing_video_id);
-          },
-        });
-      }
-      showMessage(message, "error", { actions });
-    } else {
-      showMessage(message, "error");
-    }
+    showMessage(message, "error");
   }
 }
 
@@ -419,7 +370,7 @@ function bindAlertsControls() {
 }
 
 function bindNav(onSectionChange = () => {}) {
-  const buttons = Array.from(document.querySelectorAll(".nav-btn[data-section]"));
+  const buttons = Array.from(document.querySelectorAll("button[data-section]"));
   buttons.forEach((button) => {
     button.addEventListener("click", () => {
       const sectionId = button.dataset.section;
@@ -625,9 +576,6 @@ async function bootstrap() {
       await videoDetailController.renderVideoDetail();
     },
   });
-  appVideoSettingsActions.openHighlight = (videoId) => {
-    allVideosSettingsController.openSettingsAndHighlight(videoId);
-  };
 
   async function loadProfiles() {
     const profiles = await request("/monitor-profiles");

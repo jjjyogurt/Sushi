@@ -55,7 +55,7 @@ def test_create_batch_includes_discovered_project_videos(db_session, monitor_pro
 
     batch = AnalysisBatchService(db_session).create_batch(
         monitor_profile_id=monitor_profile.id,
-        created_by="tester",
+        created_by=monitor_profile.owner_user_id,
     )
 
     assert batch.total_count == 2
@@ -69,7 +69,7 @@ def test_create_batch_skips_completed_discovered_videos(db_session, monitor_prof
 
     batch = AnalysisBatchService(db_session).create_batch(
         monitor_profile_id=monitor_profile.id,
-        created_by="tester",
+        created_by=monitor_profile.owner_user_id,
     )
 
     assert batch.total_count == 1

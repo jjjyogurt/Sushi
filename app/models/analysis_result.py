@@ -9,10 +9,11 @@ class AnalysisResult(TimestampMixin, Base):
     __tablename__ = "analysis_results"
     __table_args__ = (
         Index(
-            "ix_analysis_video_version_language",
+            "ix_analysis_video_version_language_settings",
             "video_candidate_id",
             "analysis_version",
             "language",
+            "agent_settings_hash",
             unique=True,
         ),
     )
@@ -21,6 +22,7 @@ class AnalysisResult(TimestampMixin, Base):
     video_candidate_id: Mapped[int] = mapped_column(ForeignKey("video_candidates.id"), nullable=False, index=True)
     analysis_version: Mapped[str] = mapped_column(String(40), nullable=False)
     language: Mapped[str] = mapped_column(String(16), nullable=False, default="en")
+    agent_settings_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="legacy")
     model_name: Mapped[str] = mapped_column(String(60), nullable=False)
     status: Mapped[AnalysisStatus] = mapped_column(Enum(AnalysisStatus), default=AnalysisStatus.QUEUED, nullable=False)
     transcript_text: Mapped[str] = mapped_column(Text, default="")

@@ -1,6 +1,7 @@
 from app.models.audit_log import AuditLog
 from app.models.analysis_result import AnalysisResult
 from app.models.analysis_batch import AnalysisBatch, AnalysisBatchItem
+from app.models.agent_setting import AgentSetting
 from app.models.app_user import AppUser
 from app.models.auth_session import AuthSession
 from app.models.chat import ChatMessage, ChatSession
@@ -43,6 +44,7 @@ __all__ = [
     "VocSkillVersion",
     "VocTemplateVersion",
     "AnalysisResult",
+    "AgentSetting",
     "AnalysisBatch",
     "AnalysisBatchItem",
     "ChatSession",

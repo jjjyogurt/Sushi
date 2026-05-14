@@ -755,3 +755,105 @@
 - Changes: Escalation now returns whether an alert was created; low-risk escalation shows follow-up copy; alerts include video, severity, owner, channel, and time.
 - Check: `pytest tests/unit/test_incident_service.py tests/unit/test_incident_router.py tests/unit/test_video_router.py -q`; JS syntax checks; local browser/API verification.
 - Next: Deploy and verify the production Alerts page after release.
+
+## 2026-05-11 16:44
+- Task: Align backend/database documentation with current design.
+- Changes: Updated backend and database docs, Supabase env template, and stale managed-database comments.
+- Check: `python3 -m compileall app/db.py app/main.py`.
+- Next: Keep `BACKEND_SETUP.md` and `DATABASE_DESIGN.md` updated with dated notes for backend/database changes.
+
+## 2026-05-11 18:10
+- Task: Install Supabase Postgres best-practices skill.
+- Changes: Added `supabase-postgres-best-practices` under `.agents/skills`.
+- Check: Verified installed `SKILL.md` and reference files exist.
+- Next: Restart Codex so the new skill is picked up.
+
+## 2026-05-11 18:59
+- Task: Implement account-scoped projects, videos, and per-user agent settings.
+- Changes: Added project ownership, owner-aware API scoping, scoped YouTube uniqueness, DB-backed agent settings, hash-aware analysis cache, frontend conflict cleanup, and docs.
+- Check: `python3 -m pytest -q tests/unit` (125 passed, 1 warning); `node --check app/static/main.js app/static/queue.js app/static/agent-settings.js`; Python compile checks.
+- Next: Add transcript provider operational logging (`credits_used`, requested/returned language, source) without adding a shared transcript table.
+
+## 2026-05-11 20:26
+- Task: Run alpha release test gates on the current branch.
+- Changes: Executed the documented P0 fast gate and full unit regression using the repo `.venv`.
+- Check: `.venv/bin/python -m pytest ...` P0 fast gate (33 passed, 1 warning); `.venv/bin/python -m pytest -q tests/unit` (125 passed, 1 warning); `git diff --check` clean.
+- Next: Complete staging/production manual and E2E alpha cases before final release sign-off.
+
+## 2026-05-13 22:23
+- Task: Move analysis worker from always-on polling to request-triggered Cloud Tasks draining.
+- Changes: Added Cloud Tasks wake client, HTTP worker drain mode, continuation handling, worker env config, tests, and deployment/setup/database docs.
+- Check: `python3 -m pytest tests/unit -q` (131 passed, 1 warning); `git diff --check` clean.
+- Next: Deploy Cloud Tasks queue/private worker config and verify a production test batch drains.
+
+## 2026-05-14 11:45
+- Task: Run alpha release automated test gates.
+- Changes: Executed `ALPHA_RELEASE_TEST_CASES.md` fast gate/full regression, Python compile, JS syntax, health startup probe, and diff whitespace check.
+- Check: Fast gate 33 passed; full unit 131 passed; health returned 200; JS syntax and `git diff --check` clean.
+- Next: Complete staging/production E2E and manual PMM quality gates before GO.
+
+## 2026-05-14 11:53
+- Task: Add subtle welcome motion to the sign-in popup.
+- Changes: Added CSS-only overlay fade and auth card lift animations with reduced-motion handling.
+- Check: `ReadLints` on `app/static/styles.css` passed.
+- Next: Visually verify the first-load sign-in experience in browser.
+
+## 2026-05-14 11:56
+- Task: Remove unnecessary login-page account helper UI.
+- Changes: Removed visible account selector and demo account hint while preserving default account selection behind the scenes.
+- Check: `ReadLints` on edited auth template, JS, and CSS passed; `node --check app/static/auth.js`.
+- Next: Refresh the login page to visually confirm only the password field remains.
+
+## 2026-05-14 11:58
+- Task: Fix login submit after removing account helper UI.
+- Changes: Replaced hidden Account ID dependency with an internal default login user and removed leftover account-field markup.
+- Check: Browser login verified locally; `node --check app/static/auth.js`; auth pytest subset 5 passed.
+- Next: Deploy static/login assets and verify production sign-in.
+
+## 2026-05-14 12:08
+- Task: Add account input to login page.
+- Changes: Added a visible Account text field and made sign-in use the typed account ID while keeping the demo hint removed.
+- Check: Browser login verified with `Sushi_14`; `node --check app/static/auth.js`; auth pytest subset 5 passed.
+- Next: Deploy static/login assets and verify production multi-account sign-in.
+
+## 2026-05-14 13:52
+- Task: Deploy the multi-account backend and request-triggered analysis worker.
+- Changes: Enabled Cloud Tasks, configured worker IAM/queue, deployed backend `sushi-backend-00030-824`, deployed worker `sushi-analysis-worker-00002-9x6`, and updated deploy log.
+- Check: `python3 -m pytest tests/unit -q` (131 passed); backend `/health` 200; Cloud Tasks worker health task completed; recent backend/worker error logs empty.
+- Next: Production-smoke test login/project isolation and one analysis batch when ready.
+
+## 2026-05-14 14:01
+- Task: Add waiting state for manual multi-URL adds.
+- Changes: Manual Add Videos now disables, shows busy state, and reuses the Discover button pulse until parsing/add completes.
+- Check: `ReadLints` on `app/static/queue.js` and `app/static/i18n.js` passed.
+- Next: Browser-test pasting multiple URLs on a project detail page.
+
+## 2026-05-14 14:10
+- Task: Remove topbar Project Sushi title.
+- Changes: Left the topbar title area empty while preserving the right-side header actions.
+- Check: `ReadLints` on `app/templates/index.html` passed.
+- Next: Refresh the app to visually confirm the blank topbar title area.
+
+## 2026-05-14 14:10
+- Task: Add a minimal Help Center tutorial page.
+- Changes: Added Help Center navigation, a three-step product guide, neutral documentation styling, and i18n bindings.
+- Check: `ReadLints`; `node --check app/static/main.js app/static/i18n.js`; `git diff --check` on edited UI files.
+- Next: Refresh the app and visually confirm Help Center layout and copy.
+
+## 2026-05-14 14:13
+- Task: Add visual guidance to Help Center tutorial.
+- Changes: Added lightweight SVG guide images with numbered button callouts for project creation, video analysis, and insights.
+- Check: `ReadLints`; `git diff --check` on edited Help Center files.
+- Next: Refresh Help Center and confirm the guide images are visually clear.
+
+## 2026-05-14 14:18
+- Task: Align Help Center visuals with current frontend design.
+- Changes: Replaced illustrative SVGs with mini guide panels built from existing app button/nav/pane classes.
+- Check: `ReadLints`; `git diff --check` on edited Help Center files.
+- Next: Refresh Help Center and compare the guide controls against the live UI.
+
+## 2026-05-14 14:21
+- Task: Refine Help Center visual guide alignment.
+- Changes: Moved the Insights guide button to the right-side project header area and tightened callout/button spacing.
+- Check: `ReadLints`; `git diff --check` on edited Help Center files.
+- Next: Refresh Help Center and visually confirm spacing against the live UI.

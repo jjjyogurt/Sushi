@@ -5,8 +5,10 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import get_db_session
 from app.main import app
+from app.models.app_user import AppUser
 from app.models.base import Base
 from app.models.monitor_profile import MonitorProfile
+from app.services.security import hash_password
 from app.utils.json_codec import encode_json
 
 
@@ -35,6 +37,16 @@ def test_knowledge_router_supports_multi_kb_and_summary_generation():
     Base.metadata.create_all(bind=engine)
     session_factory = sessionmaker(bind=engine, autocommit=False, autoflush=False)
     session = session_factory()
+    session.add(
+        AppUser(
+            id="Sushi_1",
+            display_name="Sushi_1",
+            password_hash=hash_password("1234"),
+            must_change_password=False,
+            is_active=True,
+        )
+    )
+    session.commit()
     profile = _seed_profile(session)
 
     def override_db():
@@ -43,6 +55,8 @@ def test_knowledge_router_supports_multi_kb_and_summary_generation():
     app.dependency_overrides[get_db_session] = override_db
     try:
         with TestClient(app) as client:
+            login = client.post("/auth/login", json={"user_id": "Sushi_1", "password": "1234"})
+            assert login.status_code == 200
             create_first = client.post(
                 "/knowledge/bases",
                 json={"monitor_profile_id": profile.id, "name": "Specs"},

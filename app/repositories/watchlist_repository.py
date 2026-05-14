@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.video_candidate import VideoCandidate
 from app.models.video_watchlist_entry import VideoWatchlistEntry
+from app.models.monitor_profile import MonitorProfile
 
 
 class WatchlistRepository:
@@ -15,7 +16,9 @@ class WatchlistRepository:
         return (
             self.session.query(VideoCandidate)
             .join(VideoWatchlistEntry, VideoWatchlistEntry.video_candidate_id == VideoCandidate.id)
+            .join(MonitorProfile, MonitorProfile.id == VideoCandidate.monitor_profile_id)
             .filter(VideoWatchlistEntry.user_id == user_id)
+            .filter(MonitorProfile.owner_user_id == user_id)
             .order_by(desc(VideoWatchlistEntry.created_at))
             .all()
         )

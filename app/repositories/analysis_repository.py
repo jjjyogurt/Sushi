@@ -24,13 +24,14 @@ class AnalysisRepository:
         )
 
     def get_completed_by_version(
-        self, *, video_candidate_id: int, analysis_version: str, language: str
+        self, *, video_candidate_id: int, analysis_version: str, language: str, agent_settings_hash: str
     ) -> Optional[AnalysisResult]:
         return (
             self.session.query(AnalysisResult)
             .filter(AnalysisResult.video_candidate_id == video_candidate_id)
             .filter(AnalysisResult.analysis_version == analysis_version)
             .filter(AnalysisResult.language == language)
+            .filter(AnalysisResult.agent_settings_hash == agent_settings_hash)
             .filter(AnalysisResult.status == AnalysisStatus.COMPLETED)
             .order_by(desc(AnalysisResult.created_at))
             .first()
@@ -111,12 +112,14 @@ class AnalysisRepository:
         analysis_version: str,
         model_name: str,
         language: str,
+        agent_settings_hash: str,
     ) -> AnalysisResult:
         existing = (
             self.session.query(AnalysisResult)
             .filter(AnalysisResult.video_candidate_id == video_candidate_id)
             .filter(AnalysisResult.analysis_version == analysis_version)
             .filter(AnalysisResult.language == language)
+            .filter(AnalysisResult.agent_settings_hash == agent_settings_hash)
             .one_or_none()
         )
         if existing:
@@ -131,6 +134,7 @@ class AnalysisRepository:
             video_candidate_id=video_candidate_id,
             analysis_version=analysis_version,
             language=language,
+            agent_settings_hash=agent_settings_hash,
             model_name=model_name,
             status=AnalysisStatus.QUEUED,
         )

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.repositories.analysis_batch_repository import AnalysisBatchRepository
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.video_repository import VideoRepository
+from app.services.access_control import AccessControlService
 from app.services.analysis_service import AnalysisService
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ class AnalysisBatchService:
         self.video_repository = VideoRepository(session)
         self.analysis_repository = AnalysisRepository(session)
         self.analysis_service = AnalysisService(session)
+        self.access_control = AccessControlService(session)
 
     def create_batch(
         self,
@@ -27,8 +29,11 @@ class AnalysisBatchService:
         monitor_profile_id: Optional[int],
         created_by: str,
     ):
+        if monitor_profile_id is not None:
+            self.access_control.require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=created_by)
         videos = self.video_repository.list(
             monitor_profile_id=monitor_profile_id,
+            owner_user_id=created_by,
         )
         video_ids = [video.id for video in videos]
         latest_status_by_video = self.analysis_repository.get_latest_status_by_video_ids(video_ids, language="en")
@@ -46,7 +51,9 @@ class AnalysisBatchService:
             video_ids=video_ids,
         )
 
-    def get_batch(self, batch_id: int):
+    def get_batch(self, batch_id: int, *, user_id: Optional[str] = None):
+        if user_id is not None:
+            return self.access_control.require_batch_owner(batch_id=batch_id, user_id=user_id)
         batch = self.batch_repository.get_batch(batch_id)
         if batch is None:
             raise ValueError("Analysis batch not found.")
@@ -55,10 +62,17 @@ class AnalysisBatchService:
     def list_batch_items(self, batch_id: int):
         return self.batch_repository.get_items_for_batch(batch_id)
 
-    def get_latest_active_batch(self, monitor_profile_id: Optional[int]):
-        return self.batch_repository.get_latest_active_batch(monitor_profile_id=monitor_profile_id)
+    def get_latest_active_batch(self, monitor_profile_id: Optional[int], *, user_id: str):
+        if monitor_profile_id is not None:
+            self.access_control.require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=user_id)
+        return self.batch_repository.get_latest_active_batch(
+            monitor_profile_id=monitor_profile_id,
+            created_by=user_id,
+        )
 
-    def cancel_batch(self, batch_id: int):
+    def cancel_batch(self, batch_id: int, *, user_id: Optional[str] = None):
+        if user_id is not None:
+            self.access_control.require_batch_owner(batch_id=batch_id, user_id=user_id)
         return self.batch_repository.cancel_batch(batch_id)
 
     def process_next_item(self) -> bool:
@@ -82,3 +96,6 @@ class AnalysisBatchService:
             )
             self.batch_repository.mark_item_failed(item.id, error_message=str(error))
         return True
+
+    def has_queued_items(self) -> bool:
+        return self.batch_repository.has_queued_items()

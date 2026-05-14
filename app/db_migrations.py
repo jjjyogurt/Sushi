@@ -5,6 +5,187 @@ from app.services.security import hash_password
 
 
 DEFAULT_APP_USERS = tuple(f"Sushi_{index}" for index in range(1, 16))
+LEGACY_OWNER_USER_ID = DEFAULT_APP_USERS[0]
+
+
+def _sqlite_table_has_unique_index_on_columns(connection, *, table_name: str, column_names: list[str]) -> bool:
+    index_rows = connection.execute(text(f"PRAGMA index_list('{table_name}')")).fetchall()
+    for index_row in index_rows:
+        index_name = str(index_row[1])
+        is_unique = int(index_row[2] or 0) == 1
+        if not is_unique:
+            continue
+        indexed_columns = [
+            str(column_row[2])
+            for column_row in connection.execute(text(f"PRAGMA index_info('{index_name}')")).fetchall()
+        ]
+        if indexed_columns == column_names:
+            return True
+    return False
+
+
+def _sqlite_rebuild_video_candidates_without_global_youtube_unique(connection) -> None:
+    existing_columns = inspect(connection).get_columns("video_candidates")
+    column_names = [column["name"] for column in existing_columns]
+    column_definitions = []
+    for column in existing_columns:
+        column_name = str(column["name"])
+        column_type = str(column["type"] or "TEXT")
+        parts = [f'"{column_name}"', column_type]
+        if column.get("primary_key"):
+            parts.append("PRIMARY KEY")
+        elif not bool(column.get("nullable", True)):
+            parts.append("NOT NULL")
+        default_value = column.get("default")
+        if default_value is not None:
+            parts.append(f"DEFAULT {default_value}")
+        column_definitions.append(" ".join(parts))
+
+    if "monitor_profile_id" in column_names:
+        column_definitions.append("FOREIGN KEY(monitor_profile_id) REFERENCES monitor_profiles(id)")
+
+    selected_columns = ", ".join(f'"{column_name}"' for column_name in column_names)
+    connection.execute(text("PRAGMA foreign_keys=OFF"))
+    connection.execute(text("ALTER TABLE video_candidates RENAME TO video_candidates_old"))
+    connection.execute(text(f"CREATE TABLE video_candidates ({', '.join(column_definitions)})"))
+    connection.execute(
+        text(
+            f"INSERT INTO video_candidates ({selected_columns}) "
+            f"SELECT {selected_columns} FROM video_candidates_old"
+        )
+    )
+    connection.execute(text("DROP TABLE video_candidates_old"))
+    connection.execute(text("PRAGMA foreign_keys=ON"))
+
+
+def ensure_monitor_profiles_owner_user_id(engine: Engine) -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    if "monitor_profiles" not in table_names:
+        return
+    columns = {column["name"] for column in inspector.get_columns("monitor_profiles")}
+    indexes = {index["name"] for index in inspector.get_indexes("monitor_profiles")}
+
+    with engine.begin() as connection:
+        if "app_users" in table_names:
+            existing_owner = connection.execute(
+                text("SELECT id FROM app_users WHERE id = :id"),
+                {"id": LEGACY_OWNER_USER_ID},
+            ).fetchone()
+            if existing_owner is None:
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO app_users (id, display_name, password_hash, must_change_password, is_active)
+                        VALUES (:id, :display_name, :password_hash, :must_change_password, :is_active)
+                        """
+                    ),
+                    {
+                        "id": LEGACY_OWNER_USER_ID,
+                        "display_name": LEGACY_OWNER_USER_ID,
+                        "password_hash": hash_password("1234"),
+                        "must_change_password": True,
+                        "is_active": True,
+                    },
+                )
+
+        if "owner_user_id" not in columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE monitor_profiles "
+                    f"ADD COLUMN owner_user_id VARCHAR(80) NOT NULL DEFAULT '{LEGACY_OWNER_USER_ID}'"
+                )
+            )
+        else:
+            connection.execute(
+                text("UPDATE monitor_profiles SET owner_user_id = :owner WHERE owner_user_id IS NULL OR owner_user_id = ''"),
+                {"owner": LEGACY_OWNER_USER_ID},
+            )
+        if "ix_monitor_profiles_owner_user_id" not in indexes:
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_monitor_profiles_owner_user_id ON monitor_profiles (owner_user_id)")
+            )
+
+
+def ensure_video_candidate_scoped_youtube_uniqueness(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if "video_candidates" not in inspector.get_table_names():
+        return
+    indexes = {index["name"] for index in inspector.get_indexes("video_candidates")}
+
+    with engine.begin() as connection:
+        dialect_name = connection.dialect.name
+        if dialect_name == "sqlite":
+            if _sqlite_table_has_unique_index_on_columns(
+                connection,
+                table_name="video_candidates",
+                column_names=["youtube_video_id"],
+            ):
+                _sqlite_rebuild_video_candidates_without_global_youtube_unique(connection)
+                indexes = {index["name"] for index in inspect(connection).get_indexes("video_candidates")}
+        else:
+            connection.execute(text("ALTER TABLE video_candidates DROP CONSTRAINT IF EXISTS video_candidates_youtube_video_id_key"))
+            connection.execute(text("DROP INDEX IF EXISTS ix_video_candidates_youtube_video_id"))
+
+        if "ix_video_candidates_youtube_video_id" not in indexes:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_video_candidates_youtube_video_id ON video_candidates (youtube_video_id)"))
+        if "ix_video_candidates_monitor_profile_id" not in indexes:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_video_candidates_monitor_profile_id ON video_candidates (monitor_profile_id)"))
+        if "ix_video_candidates_profile_youtube_video_id" not in indexes:
+            connection.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_video_candidates_profile_youtube_video_id "
+                    "ON video_candidates (monitor_profile_id, youtube_video_id)"
+                )
+            )
+
+
+def ensure_agent_settings_table(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if "agent_settings" in inspector.get_table_names():
+        return
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE agent_settings (
+                    user_id VARCHAR(80) PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    settings_hash VARCHAR(64) NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES app_users(id)
+                )
+                """
+            )
+        )
+        connection.execute(text("CREATE INDEX ix_agent_settings_settings_hash ON agent_settings (settings_hash)"))
+
+
+def ensure_analysis_results_agent_settings_hash_column_and_index(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if "analysis_results" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("analysis_results")}
+    indexes = {index["name"] for index in inspector.get_indexes("analysis_results")}
+
+    statements = []
+    if "agent_settings_hash" not in columns:
+        statements.append("ALTER TABLE analysis_results ADD COLUMN agent_settings_hash VARCHAR(64) NOT NULL DEFAULT 'legacy'")
+    if "ix_analysis_video_version_language" in indexes:
+        statements.append("DROP INDEX ix_analysis_video_version_language")
+    if "ix_analysis_video_version_language_settings" not in indexes:
+        statements.append(
+            "CREATE UNIQUE INDEX ix_analysis_video_version_language_settings "
+            "ON analysis_results (video_candidate_id, analysis_version, language, agent_settings_hash)"
+        )
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
 
 
 def ensure_analysis_batch_tables(engine: Engine) -> None:

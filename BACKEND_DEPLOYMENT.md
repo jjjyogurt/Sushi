@@ -50,6 +50,7 @@ Other sensitive values may be plain env vars or Secret Manager-backed depending 
 - `GEMINI_API_KEY`
 - `YOUTUBE_TRANSCRIPT_API_KEY`
 - `YOUTUBE_DATA_API_KEY`
+- `ANALYSIS_WORKER_INTERNAL_TOKEN` (optional defense-in-depth header shared by Cloud Tasks and the worker)
 
 Expected non-secret runtime env:
 
@@ -57,6 +58,14 @@ Expected non-secret runtime env:
 - `ENABLE_MOCK_DISCOVERY=false`
 - `GEMINI_MODEL_ANALYSIS=gemini-3-flash`
 - `GEMINI_MODEL_CHAT=gemini-3-flash`
+- `GCP_PROJECT_ID=sushi-d9036`
+- `GCP_REGION=asia-southeast1`
+- `ANALYSIS_WORKER_URL=<sushi-analysis-worker Cloud Run URL>`
+- `ANALYSIS_WORKER_TASKS_QUEUE=sushi-analysis-worker`
+- `ANALYSIS_WORKER_TASK_SERVICE_ACCOUNT_EMAIL=<task invoker service account email>`
+- `ANALYSIS_WORKER_DRAIN_PATH=/internal/analysis-worker/drain`
+- `ANALYSIS_WORKER_DISPATCH_DEADLINE_SECONDS=1800`
+- `ANALYSIS_WORKER_DRAIN_MAX_SECONDS=1200`
 
 ---
 
@@ -120,9 +129,49 @@ Only run when `firebase.json` or `public/` changed.
 firebase deploy --only hosting
 ```
 
-### Step E - Deploy analysis worker after batch/analysis changes
+### Step E - Configure analysis worker wake queue
 
-The async "Run all analysis" flow requires one always-on worker process. Deploy it from the same backend image or source revision and override the command:
+The async "Run all analysis" flow is request-triggered. The backend creates the durable database batch and enqueues a Cloud Task that wakes the private worker drain endpoint.
+
+Create the queue once per region:
+
+```bash
+gcloud services enable cloudtasks.googleapis.com
+
+gcloud tasks queues create sushi-analysis-worker \
+  --location asia-southeast1 \
+  --max-dispatches-per-second 1 \
+  --max-concurrent-dispatches 1
+```
+
+Use a dedicated service account for Cloud Tasks to invoke the worker:
+
+```bash
+gcloud iam service-accounts create sushi-analysis-worker-invoker \
+  --display-name "Sushi analysis worker invoker"
+
+gcloud run services add-iam-policy-binding sushi-analysis-worker \
+  --region asia-southeast1 \
+  --member serviceAccount:sushi-analysis-worker-invoker@sushi-d9036.iam.gserviceaccount.com \
+  --role roles/run.invoker
+```
+
+For the backend service account that enqueues tasks, grant queue enqueue permissions:
+
+```bash
+gcloud projects add-iam-policy-binding sushi-d9036 \
+  --member serviceAccount:<BACKEND_RUNTIME_SERVICE_ACCOUNT> \
+  --role roles/cloudtasks.enqueuer
+
+gcloud iam service-accounts add-iam-policy-binding \
+  sushi-analysis-worker-invoker@sushi-d9036.iam.gserviceaccount.com \
+  --member serviceAccount:<BACKEND_RUNTIME_SERVICE_ACCOUNT> \
+  --role roles/iam.serviceAccountUser
+```
+
+### Step F - Deploy analysis worker after batch/analysis changes
+
+Deploy the worker from the same backend image or source revision and override the command. The worker now exposes an HTTP drain endpoint and scales to zero when idle:
 
 ```bash
 gcloud run deploy sushi-analysis-worker \
@@ -134,12 +183,18 @@ gcloud run deploy sushi-analysis-worker \
   --clear-cloudsql-instances \
   --cpu 1 \
   --memory 512Mi \
-  --min-instances 1 \
+  --min-instances 0 \
   --max-instances 1 \
-  --no-cpu-throttling
+  --concurrency 1 \
+  --timeout 1800 \
+  --no-allow-unauthenticated
 ```
 
-The worker uses the same runtime env vars as `sushi-backend`, including `DATABASE_URL`, Gemini keys, YouTube transcript keys, and YouTube Data API keys. Do not run the worker without `--no-cpu-throttling`; it must keep polling even when it is not serving HTTP requests.
+The worker uses the same runtime env vars as `sushi-backend`, including `DATABASE_URL`, Gemini keys, YouTube transcript keys, YouTube Data API keys, and optional `ANALYSIS_WORKER_INTERNAL_TOKEN`. Do not set `--no-cpu-throttling`; the worker does useful work only while Cloud Tasks is calling the drain endpoint.
+
+After the worker is deployed, update `sushi-backend` with the worker task settings, especially `ANALYSIS_WORKER_URL` and `ANALYSIS_WORKER_TASK_SERVICE_ACCOUNT_EMAIL`.
+
+Optional fallback: add a Cloud Scheduler job every 5-10 minutes to enqueue or call the same drain endpoint so missed task creation events do not leave queued work idle.
 
 ---
 

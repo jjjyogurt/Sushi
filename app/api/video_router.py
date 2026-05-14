@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.api.auth_dependencies import get_current_user, get_optional_current_user
+from app.api.auth_dependencies import get_current_user
 from app.api.mappers import map_analysis_response, map_video_response
 from app.db import get_db_session
 from app.models.app_user import AppUser
@@ -22,6 +22,7 @@ from app.schemas.video import (
     VideoSearchResponse,
 )
 from app.services.analysis_service import AnalysisService
+from app.services.access_control import AccessControlService
 from app.services.exceptions import (
     GeminiConfigurationError,
     GeminiDependencyError,
@@ -31,7 +32,6 @@ from app.services.exceptions import (
     TranscriptProviderError,
     TranscriptUnavailableError,
 )
-from app.services.exceptions import VideoProjectConflictError
 from app.services.triage_service import TriageService
 from app.repositories.watchlist_repository import WatchlistRepository
 
@@ -64,42 +64,48 @@ def map_videos_with_context(service: TriageService, videos, *, current_user_id: 
 
 
 @router.post("/discover", response_model=VideoListResponse)
-def discover_videos(payload: VideoDiscoveryRequest, db: Session = Depends(get_db_session)):
+def discover_videos(
+    payload: VideoDiscoveryRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = TriageService(db)
     try:
+        AccessControlService(db).require_profile_owner(
+            monitor_profile_id=payload.monitor_profile_id,
+            user_id=current_user.id,
+        )
         videos = service.discover_for_profile(
             monitor_profile_id=payload.monitor_profile_id,
             max_results=payload.max_results,
             published_after=payload.published_after,
             published_before=payload.published_before,
         )
-        responses = map_videos_with_context(service, videos)
+        responses = map_videos_with_context(service, videos, current_user_id=current_user.id)
         return VideoListResponse(items=responses, total=len(responses))
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @router.post("/manual")
-def add_manual_video(payload: ManualVideoCreateRequest, db: Session = Depends(get_db_session)):
+def add_manual_video(
+    payload: ManualVideoCreateRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = TriageService(db)
     try:
+        AccessControlService(db).require_profile_owner(
+            monitor_profile_id=payload.monitor_profile_id,
+            user_id=current_user.id,
+        )
         candidate = service.add_manual_video(
             monitor_profile_id=payload.monitor_profile_id,
             video_url=payload.video_url,
             language=payload.language,
         )
-        responses = map_videos_with_context(service, [candidate])
+        responses = map_videos_with_context(service, [candidate], current_user_id=current_user.id)
         return responses[0]
-    except VideoProjectConflictError as error:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": str(error),
-                "code": "VIDEO_PROJECT_CONFLICT",
-                "existing_video_id": error.existing_video_id,
-                "existing_monitor_profile_id": error.existing_monitor_profile_id,
-            },
-        ) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -111,12 +117,21 @@ def list_videos(
     risk_level: Optional[str] = None,
     sentiment: Optional[str] = None,
     title: Optional[str] = Query(default=None, max_length=255),
-    current_user: Optional[AppUser] = Depends(get_optional_current_user),
+    current_user: AppUser = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ):
     service = TriageService(db)
+    if monitor_profile_id is not None:
+        try:
+            AccessControlService(db).require_profile_owner(
+                monitor_profile_id=monitor_profile_id,
+                user_id=current_user.id,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
     videos = service.list_candidates(
         monitor_profile_id=monitor_profile_id,
+        owner_user_id=current_user.id,
         queue_state=queue_state,
         risk_level=risk_level,
         sentiment=sentiment,
@@ -125,7 +140,7 @@ def list_videos(
     responses = map_videos_with_context(
         service,
         videos,
-        current_user_id=current_user.id if current_user else None,
+        current_user_id=current_user.id,
     )
     return VideoListResponse(
         items=responses,
@@ -136,9 +151,17 @@ def list_videos(
 
 
 @router.post("/search", response_model=VideoSearchResponse)
-def search_videos(payload: VideoSearchRequest, db: Session = Depends(get_db_session)):
+def search_videos(
+    payload: VideoSearchRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = TriageService(db)
     try:
+        AccessControlService(db).require_profile_owner(
+            monitor_profile_id=payload.monitor_profile_id,
+            user_id=current_user.id,
+        )
         items = service.search_candidates(
             monitor_profile_id=payload.monitor_profile_id,
             query=payload.query,
@@ -150,25 +173,39 @@ def search_videos(payload: VideoSearchRequest, db: Session = Depends(get_db_sess
 
 
 @router.post("/bulk-add", response_model=VideoBulkAddResponse)
-def bulk_add_videos(payload: VideoBulkAddRequest, db: Session = Depends(get_db_session)):
+def bulk_add_videos(
+    payload: VideoBulkAddRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = TriageService(db)
     try:
+        AccessControlService(db).require_profile_owner(
+            monitor_profile_id=payload.monitor_profile_id,
+            user_id=current_user.id,
+        )
         items = service.add_bulk_candidates(
             monitor_profile_id=payload.monitor_profile_id,
             candidates=payload.candidates,
         )
-        responses = map_videos_with_context(service, items)
+        responses = map_videos_with_context(service, items, current_user_id=current_user.id)
         return VideoBulkAddResponse(items=responses, total=len(responses))
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.post("/{video_id}/approve")
-def approve_video(video_id: int, payload: VideoApproveRequest, db: Session = Depends(get_db_session)):
+def approve_video(
+    video_id: int,
+    payload: VideoApproveRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = TriageService(db)
     try:
+        AccessControlService(db).require_video_owner(video_id=video_id, user_id=current_user.id)
         candidate = service.approve(video_id=video_id, approved=payload.approved)
-        responses = map_videos_with_context(service, [candidate])
+        responses = map_videos_with_context(service, [candidate], current_user_id=current_user.id)
         return responses[0]
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -183,6 +220,7 @@ def update_video_assignee(
 ):
     service = TriageService(db)
     try:
+        AccessControlService(db).require_video_owner(video_id=video_id, user_id=current_user.id)
         candidate = service.assign_video(
             video_id=video_id,
             assigned_user_id=payload.assigned_user_id,
@@ -195,9 +233,14 @@ def update_video_assignee(
 
 
 @router.delete("/{video_id}")
-def delete_video(video_id: int, db: Session = Depends(get_db_session)):
+def delete_video(
+    video_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = TriageService(db)
     try:
+        AccessControlService(db).require_video_owner(video_id=video_id, user_id=current_user.id)
         service.delete_video(video_id=video_id)
         return {"status": "success", "message": "Video deleted"}
     except ValueError as error:
@@ -205,9 +248,18 @@ def delete_video(video_id: int, db: Session = Depends(get_db_session)):
 
 
 @router.post("/{video_id}/analyze", response_model=AnalysisResponse)
-def analyze_video(video_id: int, payload: AnalysisRequest, db: Session = Depends(get_db_session)):
+def analyze_video(
+    video_id: int,
+    payload: AnalysisRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     logger.info("api analyze request video_id=%s force_reanalyze=%s", video_id, payload.force_reanalyze)
     service = AnalysisService(db)
+    try:
+        AccessControlService(db).require_video_owner(video_id=video_id, user_id=current_user.id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
     try:
         result = service.analyze_video(
             video_id=video_id,
@@ -239,8 +291,17 @@ def analyze_video(video_id: int, payload: AnalysisRequest, db: Session = Depends
 
 
 @router.get("/{video_id}/analysis", response_model=AnalysisResponse)
-def get_latest_analysis(video_id: int, language: Optional[str] = Query(default=None), db: Session = Depends(get_db_session)):
+def get_latest_analysis(
+    video_id: int,
+    language: Optional[str] = Query(default=None),
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = AnalysisService(db)
+    try:
+        AccessControlService(db).require_video_owner(video_id=video_id, user_id=current_user.id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
     try:
         normalized_language = service.normalize_analysis_language(language)
     except ValueError as error:
@@ -252,4 +313,3 @@ def get_latest_analysis(video_id: int, language: Optional[str] = Query(default=N
     if result is None:
         raise HTTPException(status_code=404, detail="Analysis not found.")
     return map_analysis_response(result)
-

@@ -162,7 +162,7 @@ def test_watchlist_isolation_across_accounts(monkeypatch):
             assert user_two_watchlist.json()["items"] == []
             user_two_videos = client.get("/videos")
             assert user_two_videos.status_code == 200
-            assert user_two_videos.json()["items"][0]["is_bookmarked"] is False
+            assert user_two_videos.json()["items"] == []
     finally:
         app.dependency_overrides.clear()
         session.close()

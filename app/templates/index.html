@@ -42,7 +42,7 @@
           </button>
         </nav>
         <div class="sidebar-footer">
-          <button class="nav-btn" type="button">
+          <button class="nav-btn" data-section="help-center" type="button">
             <span class="material-symbols-outlined icon">help</span>
             Help Center
           </button>
@@ -51,12 +51,12 @@
 
       <div class="main-shell">
         <header class="topbar">
-          <div class="topbar-title">
-            <span class="topbar-context">Project Sushi</span>
-          </div>
+          <div class="topbar-title"></div>
           <div class="topbar-actions">
             <button class="icon-btn"><span class="material-symbols-outlined">notifications</span></button>
-            <button class="icon-btn"><span class="material-symbols-outlined">help</span></button>
+            <button class="icon-btn" data-section="help-center" type="button" aria-label="Help Center">
+              <span class="material-symbols-outlined">help</span>
+            </button>
             <div class="user-avatar user-avatar-account">
               <span id="topbar-user-label">-</span>
             </div>
@@ -884,6 +884,170 @@
               </div>
             </details>
           </section>
+
+          <section id="help-center" class="panel">
+            <div class="panel-header help-center-header">
+              <div>
+                <span id="help-center-label" class="section-label">Quick guide</span>
+                <h2 id="help-center-title">Help Center</h2>
+                <p id="help-center-description">A simple workflow for setting up a project, analyzing videos, and reading insights.</p>
+              </div>
+            </div>
+
+            <div class="help-center-layout">
+              <section class="pane help-guide-card">
+                <div class="help-guide-step">1</div>
+                <div>
+                  <h3 id="help-create-title">Create a project</h3>
+                  <p id="help-create-body">Start with one brand, product line, market, or campaign you want to monitor.</p>
+                  <div class="help-ui-shot" aria-label="Guide image showing the New Project and Create Project buttons">
+                    <div class="help-ui-sidebar">
+                      <span class="nav-btn active">
+                        <span class="material-symbols-outlined icon">dashboard</span>
+                        Dashboard
+                      </span>
+                    </div>
+                    <div class="help-ui-content">
+                      <div class="help-ui-title-row">
+                        <strong>Projects</strong>
+                      </div>
+                      <div class="help-ui-action-row">
+                        <span class="btn btn-secondary dashboard-create-btn help-ui-button">+ New Project</span>
+                        <span class="help-ui-callout">1</span>
+                      </div>
+                      <div class="help-ui-form-preview">
+                        <span class="help-ui-field"></span>
+                        <span class="help-ui-field"></span>
+                        <div class="help-ui-action-row">
+                          <span class="btn btn-primary help-ui-button">Create Project</span>
+                          <span class="help-ui-callout">2</span>
+                        </div>
+                      </div>
+                      <div class="help-ui-project-card">
+                        <strong>Project card</strong>
+                        <span>Open the project after creating it.</span>
+                        <span class="help-ui-callout">3</span>
+                      </div>
+                    </div>
+                  </div>
+                  <ol class="help-guide-list">
+                    <li id="help-create-step-1">Go to Dashboard and select New Project.</li>
+                    <li id="help-create-step-2">Add a clear project name, brand keywords, markets, languages, and key products.</li>
+                    <li id="help-create-step-3">Create the project, then open it from the project card.</li>
+                  </ol>
+                </div>
+              </section>
+
+              <section class="pane help-guide-card">
+                <div class="help-guide-step">2</div>
+                <div>
+                  <h3 id="help-analysis-title">Use the video analysis pipeline</h3>
+                  <p id="help-analysis-body">Add videos to the project, then let the AI review each video for sentiment, risk, praise, criticism, and action items.</p>
+                  <div class="help-ui-shot" aria-label="Guide image showing the Discover Videos, Add Videos, and Run All Analysis buttons">
+                    <div class="help-ui-toolbar">
+                      <span class="btn btn-primary help-ui-button">Discover Videos</span>
+                      <span class="help-ui-callout">1</span>
+                      <div class="url-add-group help-ui-url-group">
+                        <span class="help-ui-textarea">Paste video URLs</span>
+                        <span class="btn btn-secondary help-ui-button">Add Videos</span>
+                      </div>
+                    </div>
+                    <div class="help-ui-grid">
+                      <div class="pane help-ui-pane">
+                        <div class="pane-header">
+                          <h3>Video List</h3>
+                          <span class="btn btn-secondary btn-sm help-ui-button">Run All Analysis</span>
+                        </div>
+                        <span class="help-ui-callout">2</span>
+                        <span class="help-ui-line"></span>
+                        <span class="help-ui-line short"></span>
+                        <span class="help-ui-callout help-ui-callout-secondary">3</span>
+                      </div>
+                      <div class="pane help-ui-pane">
+                        <div class="empty-icon-circle help-ui-empty-icon">
+                          <span class="material-symbols-outlined">auto_awesome</span>
+                        </div>
+                        <strong>Analysis result</strong>
+                        <span class="help-ui-line"></span>
+                        <span class="help-ui-callout">4</span>
+                      </div>
+                    </div>
+                  </div>
+                  <ol class="help-guide-list">
+                    <li id="help-analysis-step-1">Use Discover Videos to find recent videos, or paste URLs under Add Video URLs.</li>
+                    <li id="help-analysis-step-2">Review the video list and open any video you want to inspect.</li>
+                    <li id="help-analysis-step-3">Select Run All Analysis to analyze the queue, or analyze videos individually from the detail view.</li>
+                    <li id="help-analysis-step-4">Use the analysis result to see risk level, sentiment, key moments, transcript notes, and team discussion.</li>
+                  </ol>
+                </div>
+              </section>
+
+              <section class="pane help-guide-card">
+                <div class="help-guide-step">3</div>
+                <div>
+                  <h3 id="help-insights-title">Use the insights report</h3>
+                  <p id="help-insights-body">Insights summarize only analyzed videos, so run video analysis first for the best report.</p>
+                  <div class="help-ui-shot" aria-label="Guide image showing the Insights, Refresh Report, and History buttons">
+                    <div class="help-ui-project-header">
+                      <div>
+                        <strong>Project Workspace</strong>
+                        <span>Review project videos and reports.</span>
+                      </div>
+                      <div class="help-ui-action-row">
+                        <span class="btn btn-secondary help-ui-button">
+                          <span class="material-symbols-outlined">insights</span>
+                          Insights
+                        </span>
+                        <span class="help-ui-callout">1</span>
+                      </div>
+                    </div>
+                    <div class="pane help-ui-pane help-ui-insights-pane">
+                      <div class="panel-header insights-panel-header help-ui-insights-header">
+                        <div class="insights-header-row">
+                          <div class="insights-header-intro">
+                            <h2>Insights</h2>
+                            <p>Project-level summary from analyzed videos only.</p>
+                          </div>
+                          <div class="button-row">
+                            <span class="btn btn-primary help-ui-button">Refresh Report</span>
+                            <span class="btn btn-secondary btn-icon-only help-ui-button" aria-label="Open History">
+                              <span class="material-symbols-outlined">history</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <span class="help-ui-callout help-ui-refresh-callout">2</span>
+                      <span class="help-ui-callout help-ui-history-callout">4</span>
+                      <div class="insights-meta-grid help-ui-insights-meta">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                      <div class="pane insights-report-pane help-ui-report-card">
+                        <div class="pane-header">
+                          <h3>Executive Summary</h3>
+                        </div>
+                        <span class="help-ui-line"></span>
+                        <span class="help-ui-line short"></span>
+                        <span class="help-ui-callout">3</span>
+                      </div>
+                    </div>
+                  </div>
+                  <ol class="help-guide-list">
+                    <li id="help-insights-step-1">Open a project and select Insights.</li>
+                    <li id="help-insights-step-2">Select Refresh Report to generate the latest summary.</li>
+                    <li id="help-insights-step-3">Read the executive summary, praise, criticism, recommendations, and team action plan.</li>
+                    <li id="help-insights-step-4">Use History to compare older report snapshots when the project changes over time.</li>
+                  </ol>
+                </div>
+              </section>
+
+              <aside class="pane help-guide-note">
+                <h3 id="help-note-title">Best practice</h3>
+                <p id="help-note-body">Keep projects focused. A project with clear keywords, products, markets, and languages produces cleaner video queues and better insights.</p>
+              </aside>
+            </div>
+          </section>
         </main>
 
         <div id="app-message" class="app-message is-hidden" role="status" aria-live="polite"></div>
@@ -903,15 +1067,10 @@
         <h2>Sign in</h2>
         <p>Use your Sushi account to continue.</p>
         <form id="auth-login-form" class="form-grid">
-          <label id="auth-user-select-wrap">
+          <label>
             Account
-            <select id="auth-user-select"></select>
+            <input id="auth-user-id" type="text" value="Sushi_1" autocomplete="username" required />
           </label>
-          <label id="auth-user-id-wrap" class="is-hidden">
-            Account ID
-            <input id="auth-user-id" type="text" autocomplete="username" />
-          </label>
-          <p id="auth-demo-hint" class="auth-hint">Demo account: Sushi_1 / 1234</p>
           <label>
             Password
             <input id="auth-password" type="password" value="1234" required />

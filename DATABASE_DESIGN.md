@@ -2,7 +2,7 @@
 
 
 
-May 6 2026
+May 11 2026
 
 
 
@@ -28,14 +28,23 @@ flowchart LR
     A[User / Firebase Hosting] --> B[Cloud Run: sushi-backend]
     B --> C[FastAPI + SQLAlchemy]
     C --> D[(Supabase PostgreSQL)]
+    B --> WQ[Cloud Tasks: analysis worker wake queue]
+    WQ --> W[Cloud Run: sushi-analysis-worker]
 
     C --> E[YouTube Transcript Provider]
     C --> F[YouTube Data API Comments]
     C --> G[Gemini]
+    W --> E
+    W --> F
+    W --> G
+    W --> D
 
     E --> C
     F --> C
     G --> C
+    E --> W
+    F --> W
+    G --> W
 
     C --> H[analysis_results]
     C --> I[video_comments]
@@ -127,16 +136,16 @@ erDiagram
 
 ### 1) Monitoring + Video Intake
 
-- `monitor_profiles`: project-level monitoring settings.
+- `monitor_profiles`: project-level monitoring settings owned by `owner_user_id`.
 - `video_candidates`: discovered/manual videos tied to a monitor profile.
-  - unique `youtube_video_id`
+  - scoped unique index: `(monitor_profile_id, youtube_video_id)`
   - queue state: `discovered`, `approved`, `rejected`
   - includes assignment fields (`assigned_user_id`, `assigned_by`, `assigned_at`)
 
 ### 2) Analysis + Comments + Insights
 
 - `analysis_results`: canonical analysis output store.
-  - unique index: `(video_candidate_id, analysis_version, language)`
+  - unique index: `(video_candidate_id, analysis_version, language, agent_settings_hash)`
   - stores transcript, summaries, sentiment/risk, evidence, insights, errors
 - `video_comments`: comments fetched for each video and used in analysis/comment summaries.
 - `project_insight_reports`: project-level rollups generated from latest completed video analyses.
@@ -147,6 +156,7 @@ erDiagram
     - `top_negative_videos_json` (top 5 negative videos by reach)
 - `analysis_batches`: durable async batch runs for “Run all analysis” with aggregate progress counters.
 - `analysis_batch_items`: per-video execution state for each batch (`queued/running/completed/failed/cancelled`), including attempts and failure message.
+  - production processing is request-triggered: the backend inserts queued rows, enqueues a Cloud Task, and the worker claims work from these tables.
 
 ### 3) Chat + Incident Workflow
 
@@ -158,6 +168,7 @@ erDiagram
 
 - `app_users`: local app users.
 - `auth_sessions`: hashed token sessions with expiry.
+- `agent_settings`: per-user analysis instructions stored in the database.
 - `video_watchlist_entries`: user bookmarks for videos (unique per `video_candidate_id + user_id`).
 
 ### 5) Knowledge Base (RAG-like support)
@@ -181,7 +192,7 @@ This is the critical path for understanding analysis persistence.
 
 1. `AnalysisService.analyze_video()` fetches transcript via `TranscriptService`.
 2. `TranscriptService` normalizes transcript segments and builds one timestamped string (`full_text`).
-3. Service creates/updates `analysis_results` row(s) by `(video_candidate_id, analysis_version, language)`.
+3. Service resolves per-user agent settings from the monitor profile owner and creates/updates `analysis_results` row(s) by `(video_candidate_id, analysis_version, language, agent_settings_hash)`.
 4. On success:
   - writes transcript to `analysis_results.transcript_text`
   - writes summary fields, evidence, insights, risk/sentiment
@@ -193,6 +204,7 @@ Notes:
 
 - Supported analysis languages are `en` and `zh-Hans`.
 - The same video/version can therefore have separate rows per language.
+- Changing a user's agent settings changes the hash used for future analysis cache lookups. Existing analysis rows are not automatically reanalyzed; a new row is created the next time analysis is explicitly run for that video/settings hash.
 
 ---
 
@@ -220,8 +232,12 @@ Notes:
 Startup migration helpers currently ensure/repair:
 
 - monitor profile `key_products` column
+- monitor profile `owner_user_id` column with legacy backfill to `Sushi_1`
+- scoped video uniqueness by `(monitor_profile_id, youtube_video_id)`
+- per-user `agent_settings` table
 - analysis summary columns
 - analysis `language` column + unique index
+- analysis `agent_settings_hash` column + hash-aware unique index
 - analysis comment summary columns
 - analysis batch tables (`analysis_batches`, `analysis_batch_items`)
 - `video_comments` table
@@ -231,6 +247,21 @@ Startup migration helpers currently ensure/repair:
 - orphan/stale cleanup across dependent tables
 
 Because this project uses imperative startup migrations, changes to models should also include corresponding migration helper updates when needed.
+
+### What Changed (2026-05-11, account isolation and per-user agent settings)
+- What changed: Added `monitor_profiles.owner_user_id`, moved runtime agent settings into the `agent_settings` table keyed by `user_id`, changed video uniqueness from global `youtube_video_id` to `(monitor_profile_id, youtube_video_id)`, and changed analysis cache uniqueness to include `agent_settings_hash`.
+- Why it changed: Each account needs isolated project pages, isolated project/video access, and analysis output generated from that account owner's instructions.
+- Impact on existing data and compatibility: Startup migrations backfill legacy monitor profiles to `Sushi_1`, mark old analysis rows with `agent_settings_hash='legacy'`, and allow the same YouTube video to be added to different projects/accounts. Existing shared root `AGENTS.md` is no longer runtime product settings; users start from the built-in default and can save their own DB-backed settings.
+
+### What Changed (2026-05-13, request-triggered analysis worker)
+- What changed: Analysis batch processing moved from an always-on Cloud Run polling worker to a request-triggered Cloud Tasks wake flow. The durable queue remains `analysis_batches` and `analysis_batch_items`; the worker now drains queued rows only when invoked.
+- Why it changed: Reduce idle production compute cost for a low-volume internal tool while keeping user-visible batch progress and result persistence unchanged.
+- Impact on existing data and compatibility: No schema migration or data rewrite is required. Existing queued/running/completed/failed/cancelled batch states remain valid; production must configure Cloud Tasks and the worker URL before relying on scale-to-zero processing.
+
+### What Changed (2026-05-11, documentation governance)
+- What changed: Clarified that database structure, migrations, persistence behavior, production database target, transcript/analysis storage, and JSON contract changes must update this design document in the same change set.
+- Why it changed: Make documentation upkeep explicit so the database design stays current as backend changes are made.
+- Impact on existing data and compatibility: Documentation-only. No schema, migration, or persisted data behavior changed.
 
 ### What Changed (2026-04-30)
 - What changed: Added four columns to `project_insight_reports`: `sentiment_breakdown_json`, `risk_breakdown_json`, `reach_metrics_json`, and `top_negative_videos_json`.
@@ -284,3 +315,5 @@ Update this file whenever you change:
 - migration strategy
 - Cloud Run / production database connection method
 - JSON field contracts (shape or encoding)
+
+Every database design update should include a dated **What Changed** note that states what changed, why it changed, and the impact on existing data and compatibility.

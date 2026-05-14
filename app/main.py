@@ -20,14 +20,18 @@ from app.api.voc_router import router as voc_router
 from app.api.watchlist_router import router as watchlist_router
 from app.db_migrations import (
     cleanup_orphan_video_data,
+    ensure_agent_settings_table,
     ensure_analysis_batch_tables,
+    ensure_analysis_results_agent_settings_hash_column_and_index,
     ensure_analysis_results_comment_columns,
     ensure_analysis_results_language_column_and_index,
     ensure_analysis_results_summary_columns,
     ensure_default_app_users,
+    ensure_monitor_profiles_owner_user_id,
     ensure_monitor_profiles_key_products_column,
     ensure_project_insight_reports_portfolio_columns,
     retire_legacy_business_impact_columns,
+    ensure_video_candidate_scoped_youtube_uniqueness,
     ensure_video_candidate_assignment_columns,
     ensure_video_comments_table,
 )
@@ -40,21 +44,25 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Get database engine with retry logic for Cloud SQL connections
+    # Get database engine with retry logic for managed database connections.
     engine = get_db_engine(max_retries=15, retry_delay=2.0)
 
-    # Run database migrations - only runs after Cloud SQL proxy is ready
+    # Run database migrations after the database connection is ready.
     Base.metadata.create_all(bind=engine)
+    ensure_default_app_users(engine)
+    ensure_agent_settings_table(engine)
     ensure_analysis_batch_tables(engine)
     ensure_monitor_profiles_key_products_column(engine)
+    ensure_monitor_profiles_owner_user_id(engine)
     ensure_analysis_results_summary_columns(engine)
     ensure_analysis_results_language_column_and_index(engine)
+    ensure_analysis_results_agent_settings_hash_column_and_index(engine)
     ensure_analysis_results_comment_columns(engine)
     ensure_video_comments_table(engine)
     ensure_video_candidate_assignment_columns(engine)
+    ensure_video_candidate_scoped_youtube_uniqueness(engine)
     ensure_project_insight_reports_portfolio_columns(engine)
     retire_legacy_business_impact_columns(engine)
-    ensure_default_app_users(engine)
     cleanup_orphan_video_data(engine)
     logger.info("Application startup complete - all migrations finished")
 

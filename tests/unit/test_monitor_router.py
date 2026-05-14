@@ -5,7 +5,9 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import get_db_session
 from app.main import app
+from app.models.app_user import AppUser
 from app.models.base import Base
+from app.services.security import hash_password
 
 
 def _build_client():
@@ -26,6 +28,24 @@ def _build_client():
     return client, session
 
 
+def _create_user(session, user_id: str = "Sushi_1"):
+    user = AppUser(
+        id=user_id,
+        display_name=user_id,
+        password_hash=hash_password("1234"),
+        must_change_password=False,
+        is_active=True,
+    )
+    session.add(user)
+    session.commit()
+    return user
+
+
+def _login(client: TestClient, user_id: str = "Sushi_1"):
+    response = client.post("/auth/login", json={"user_id": user_id, "password": "1234"})
+    assert response.status_code == 200
+
+
 def _create_monitor_profile(client: TestClient):
     payload = {
         "name": "Falcon Mini",
@@ -43,6 +63,8 @@ def _create_monitor_profile(client: TestClient):
 def test_monitor_profile_create_and_list_include_key_products():
     client, session = _build_client()
     try:
+        _create_user(session)
+        _login(client)
         created = _create_monitor_profile(client)
         assert created["key_products"] == ["falcon mini", "falcon mini pro"]
 
@@ -60,6 +82,8 @@ def test_monitor_profile_create_and_list_include_key_products():
 def test_monitor_profile_update_persists_key_products():
     client, session = _build_client()
     try:
+        _create_user(session)
+        _login(client)
         created = _create_monitor_profile(client)
         profile_id = created["id"]
 
@@ -88,6 +112,8 @@ def test_monitor_profile_update_persists_key_products():
 def test_monitor_profile_update_not_found_returns_404():
     client, session = _build_client()
     try:
+        _create_user(session)
+        _login(client)
         response = client.put(
             "/monitor-profiles/9999",
             json={
@@ -109,6 +135,8 @@ def test_monitor_profile_update_not_found_returns_404():
 def test_monitor_profile_update_validation_error_returns_422():
     client, session = _build_client()
     try:
+        _create_user(session)
+        _login(client)
         created = _create_monitor_profile(client)
         profile_id = created["id"]
         response = client.put(

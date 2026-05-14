@@ -1,4 +1,3 @@
-import { ApiError } from "./api-client.js";
 import { syncProjectRoute } from "./router-state.js";
 import {
   debounce,
@@ -45,14 +44,6 @@ function parseManualVideoUrls(rawValue) {
       }
     });
   return [...new Set(normalizedUrls)];
-}
-
-function videoConflictDetailFromError(error) {
-  if (!(error instanceof ApiError) || !error.detail || typeof error.detail !== "object" || Array.isArray(error.detail)) {
-    return null;
-  }
-  const detail = error.detail;
-  return detail.code === "VIDEO_PROJECT_CONFLICT" ? detail : null;
 }
 
 function updateManualUrlInputRows(inputElement) {
@@ -506,7 +497,6 @@ export function createQueueController({
 
     const previousVideoIds = new Set(state.videos.map((video) => video.id));
     const failedUrls = [];
-    let firstVideoConflictDetail = null;
     for (const videoUrl of manualUrls) {
       try {
         await request("/videos/manual", {
@@ -518,20 +508,12 @@ export function createQueueController({
           }),
         });
       } catch (error) {
-        const conflict = videoConflictDetailFromError(error);
-        if (conflict && !firstVideoConflictDetail) {
-          firstVideoConflictDetail = conflict;
-        }
         const message = error instanceof Error ? error.message : t("failedToAddUrl");
         failedUrls.push(`${videoUrl} (${message})`);
       }
     }
     if (failedUrls.length === manualUrls.length) {
-      const err = new Error(t("errorCouldNotAddAnyUrl", { reason: failedUrls[0] }));
-      if (firstVideoConflictDetail) {
-        err.videoConflict = firstVideoConflictDetail;
-      }
-      throw err;
+      throw new Error(t("errorCouldNotAddAnyUrl", { reason: failedUrls[0] }));
     }
 
     urlInput.value = "";
@@ -549,17 +531,13 @@ export function createQueueController({
     renderVideos();
 
     if (failedUrls.length > 0) {
-      const err = new Error(
+      throw new Error(
         t("errorPartialUrlAdd", {
           successCount: manualUrls.length - failedUrls.length,
           totalCount: manualUrls.length,
           reason: failedUrls[0],
         })
       );
-      if (firstVideoConflictDetail) {
-        err.videoConflict = firstVideoConflictDetail;
-      }
-      throw err;
     }
   }
 
@@ -905,11 +883,24 @@ export function createQueueController({
     }
 
     const addManualButton = getElement("add-manual-video-btn");
-    if (addManualButton) {
+    if (addManualButton instanceof HTMLButtonElement) {
       addManualButton.addEventListener("click", () => {
+        if (addManualButton.disabled) {
+          return;
+        }
+
+        addManualButton.classList.add("is-discovering");
+        addManualButton.setAttribute("aria-busy", "true");
+        addManualButton.disabled = true;
+        addManualButton.textContent = t("addingVideos");
         void runTask(async () => {
           await addManualVideo();
-        }, t("videosAddedToProject"));
+        }, t("videosAddedToProject")).finally(() => {
+          addManualButton.classList.remove("is-discovering");
+          addManualButton.removeAttribute("aria-busy");
+          addManualButton.disabled = false;
+          addManualButton.textContent = t("addVideos");
+        });
       });
     }
 

@@ -20,7 +20,7 @@ _engine = None
 
 
 def get_db_engine(max_retries: int = 10, retry_delay: float = 3.0) -> Engine:
-    """Get or create the database engine with retry logic for Cloud SQL connections."""
+    """Get or create the database engine with retry logic for managed database connections."""
     global _engine
     if _engine is not None:
         return _engine
@@ -59,4 +59,3 @@ def get_db_session() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
-

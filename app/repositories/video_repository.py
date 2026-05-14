@@ -9,6 +9,7 @@ from app.models.analysis_result import AnalysisResult
 from app.models.chat import ChatMessage, ChatSession
 from app.models.enums import QueueState
 from app.models.incident import Alert, Incident
+from app.models.monitor_profile import MonitorProfile
 from app.models.video_candidate import VideoCandidate
 from app.models.video_comment import VideoComment
 from app.utils.text import normalize_title, title_fingerprint
@@ -21,10 +22,18 @@ class VideoRepository:
     def get_by_id(self, video_id: int) -> Optional[VideoCandidate]:
         return self.session.get(VideoCandidate, video_id)
 
-    def get_by_youtube_id(self, youtube_video_id: str) -> Optional[VideoCandidate]:
+    def get_by_youtube_id(self, youtube_video_id: str, *, monitor_profile_id: Optional[int] = None) -> Optional[VideoCandidate]:
+        query = self.session.query(VideoCandidate).filter(VideoCandidate.youtube_video_id == youtube_video_id)
+        if monitor_profile_id is not None:
+            query = query.filter(VideoCandidate.monitor_profile_id == monitor_profile_id)
+        return query.one_or_none()
+
+    def get_by_id_for_user(self, *, video_id: int, owner_user_id: str) -> Optional[VideoCandidate]:
         return (
             self.session.query(VideoCandidate)
-            .filter(VideoCandidate.youtube_video_id == youtube_video_id)
+            .join(MonitorProfile, MonitorProfile.id == VideoCandidate.monitor_profile_id)
+            .filter(VideoCandidate.id == video_id)
+            .filter(MonitorProfile.owner_user_id == owner_user_id)
             .one_or_none()
         )
 
@@ -41,7 +50,7 @@ class VideoRepository:
         relevance_score: float,
         relevance_reason: str,
     ) -> VideoCandidate:
-        existing = self.get_by_youtube_id(youtube_video_id)
+        existing = self.get_by_youtube_id(youtube_video_id, monitor_profile_id=monitor_profile_id)
         if existing:
             existing.video_url = video_url
             existing.title = title
@@ -131,6 +140,7 @@ class VideoRepository:
         risk_level: Optional[str] = None,
         sentiment: Optional[str] = None,
         title_query: Optional[str] = None,
+        owner_user_id: Optional[str] = None,
     ) -> List[VideoCandidate]:
         from app.models.analysis_result import AnalysisResult
         from sqlalchemy import and_, func
@@ -147,6 +157,9 @@ class VideoRepository:
         )
 
         query = self.session.query(VideoCandidate)
+        if owner_user_id is not None:
+            query = query.join(MonitorProfile, MonitorProfile.id == VideoCandidate.monitor_profile_id)
+            query = query.filter(MonitorProfile.owner_user_id == owner_user_id)
 
         if risk_level or sentiment:
             query = query.join(

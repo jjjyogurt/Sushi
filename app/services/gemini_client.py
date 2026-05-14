@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from app.config import Settings
 from app.models.enums import RiskLevel, Sentiment
@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 class GeminiClient:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.agent_settings_service = AgentSettingsService()
 
     def analyze_video(
         self,
@@ -31,20 +30,21 @@ class GeminiClient:
         relevance_reason: str,
         transcript_text: str,
         knowledge_context: str = "",
+        agent_instructions: Optional[str] = None,
     ) -> AnalysisOutput:
         self._ensure_runtime_ready()
         max_transcript_chars = max(1, self.settings.analysis_max_transcript_chars)
         transcript_for_prompt = transcript_text[:max_transcript_chars]
         hard_capped = len(transcript_for_prompt) < len(transcript_text)
         single_pass_threshold = max(1, self.settings.analysis_single_pass_max_estimated_tokens)
-        agent_instructions = self._analysis_agent_instructions()
+        resolved_agent_instructions = agent_instructions or self._analysis_agent_instructions()
         single_pass_prompt = self._build_analysis_single_pass_prompt(
             title=title,
             source_language=source_language,
             target_output_language=target_output_language,
             relevance_reason=relevance_reason,
             transcript_text=transcript_for_prompt,
-            agent_instructions=agent_instructions,
+            agent_instructions=resolved_agent_instructions,
             knowledge_context=knowledge_context,
         )
         estimated_tokens = self._estimate_tokens_from_chars(total_chars=len(single_pass_prompt))
@@ -87,7 +87,7 @@ class GeminiClient:
             transcript_for_prompt=transcript_for_prompt,
             fallback_transcript=transcript_text,
             knowledge_context=knowledge_context,
-            agent_instructions=agent_instructions,
+            agent_instructions=resolved_agent_instructions,
         )
 
     def ensure_ready(self) -> None:
@@ -421,11 +421,7 @@ class GeminiClient:
         )
 
     def _analysis_agent_instructions(self) -> str:
-        try:
-            return self.agent_settings_service.get_content()
-        except Exception as error:  # noqa: BLE001
-            logger.warning("Failed to load agent instructions; using defaults. error=%s", error)
-            return self.agent_settings_service.default_content()
+        return AgentSettingsService.default_content()
 
     def _estimate_tokens_from_chars(self, *, total_chars: int) -> int:
         chars_per_token = max(1, self.settings.analysis_estimated_chars_per_token)

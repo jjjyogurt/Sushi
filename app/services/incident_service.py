@@ -7,6 +7,7 @@ from app.repositories.audit_repository import AuditRepository
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.incident_repository import IncidentRepository
 from app.repositories.video_repository import VideoRepository
+from app.services.access_control import AccessControlService
 from app.services.notification_service import NotificationService
 
 
@@ -24,6 +25,7 @@ class IncidentService:
         self.video_repository = VideoRepository(session)
         self.incident_repository = IncidentRepository(session)
         self.notification_service = NotificationService()
+        self.access_control = AccessControlService(session)
 
     def escalate(self, *, video_id: int, owner: str, notes: str):
         candidate = self.video_repository.get_by_id(video_id)
@@ -58,5 +60,5 @@ class IncidentService:
         )
         return EscalationResult(incident=incident, alert_created=alert_created)
 
-    def list_alerts(self):
-        return self.incident_repository.list_alerts()
+    def list_alerts(self, *, user_id: str = ""):
+        return self.incident_repository.list_alerts(user_id=user_id)

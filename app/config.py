@@ -45,6 +45,27 @@ class Settings(BaseSettings):
     voc_failed_ratio_ack: float = Field(default=0.05, alias="VOC_FAILED_RATIO_ACK")
     voc_confidence_high: float = Field(default=0.8, alias="VOC_CONFIDENCE_HIGH")
     voc_confidence_medium: float = Field(default=0.6, alias="VOC_CONFIDENCE_MEDIUM")
+    gcp_project_id: str = Field(default="", alias="GCP_PROJECT_ID")
+    gcp_region: str = Field(default="asia-southeast1", alias="GCP_REGION")
+    analysis_worker_url: str = Field(default="", alias="ANALYSIS_WORKER_URL")
+    analysis_worker_tasks_queue: str = Field(default="", alias="ANALYSIS_WORKER_TASKS_QUEUE")
+    analysis_worker_task_service_account_email: str = Field(
+        default="",
+        alias="ANALYSIS_WORKER_TASK_SERVICE_ACCOUNT_EMAIL",
+    )
+    analysis_worker_internal_token: str = Field(default="", alias="ANALYSIS_WORKER_INTERNAL_TOKEN")
+    analysis_worker_drain_path: str = Field(
+        default="/internal/analysis-worker/drain",
+        alias="ANALYSIS_WORKER_DRAIN_PATH",
+    )
+    analysis_worker_dispatch_deadline_seconds: int = Field(
+        default=1800,
+        alias="ANALYSIS_WORKER_DISPATCH_DEADLINE_SECONDS",
+    )
+    analysis_worker_drain_max_seconds: float = Field(
+        default=1200.0,
+        alias="ANALYSIS_WORKER_DRAIN_MAX_SECONDS",
+    )
     model_config = SettingsConfigDict(env_file=".env", populate_by_name=True, extra="ignore")
 
     def use_secure_cookies(self) -> bool:

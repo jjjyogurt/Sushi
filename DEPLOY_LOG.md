@@ -1,5 +1,25 @@
 # Deployment Log - Sushi App to Firebase + Cloud Run
 
+## Date: 2026-05-14
+
+### Multi-Account Backend and Request-Triggered Worker Deploy
+
+- Deployed `sushi-backend` revision `sushi-backend-00030-824` from branch `multi-account` at base commit `406ce65a261f1f47a44b70de8727e5fa25b638e4` plus the approved uncommitted working tree, with 100% traffic.
+- Enabled Cloud Tasks, created the `sushi-analysis-worker` queue in `asia-southeast1`, and configured IAM so the backend runtime service account can enqueue authenticated worker wake tasks.
+- Deployed `sushi-analysis-worker` revision `sushi-analysis-worker-00002-9x6` from the same backend image with HTTP drain mode, `min-instances=0`, `max-instances=1`, `concurrency=1`, and `timeout=1800`.
+- Verification: unit tests passed (`131 passed`), backend `/health` returned 200, Cloud Tasks worker health task dispatched successfully, and recent backend/worker error logs were empty.
+- Rollback impact: route backend traffic back to `sushi-backend-00029-s8h` and worker traffic back to `sushi-analysis-worker-00001-lb6` if the new account isolation or worker wake path regresses.
+
+## Date: 2026-05-13
+
+### Request-Triggered Analysis Worker Plan
+
+- Changed the deployment method for `sushi-analysis-worker` from an always-on polling service to a Cloud Tasks-triggered drain endpoint.
+- Planned worker Cloud Run settings are `min-instances=0`, `max-instances=1`, `concurrency=1`, `timeout=1800`, and private invocation through `roles/run.invoker`.
+- Added Cloud Tasks queue configuration requirements so `sushi-backend` can wake the worker immediately after creating an analysis batch.
+- Verification before production deploy: run unit tests, create/verify the Cloud Tasks queue, deploy the private worker, update backend worker env vars, then create a test analysis batch and confirm queued items drain.
+- Rollback impact: redeploy the worker with `ANALYSIS_WORKER_MODE=poll`, `min-instances=1`, `max-instances=1`, and CPU always allocated if the Cloud Tasks wake path fails in production.
+
 ## Date: 2026-05-06
 
 ### Run-All Analysis Fix

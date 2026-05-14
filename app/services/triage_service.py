@@ -12,7 +12,6 @@ from app.repositories.audit_repository import AuditRepository
 from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.video_repository import VideoRepository
 from app.services.discovery_keyword_service import DiscoveryKeywordService
-from app.services.exceptions import VideoProjectConflictError
 from app.services.gemini_client import GeminiClient
 from app.services.relevance_service import RelevanceService
 from app.services.types import DiscoveredVideo
@@ -139,20 +138,6 @@ class TriageService:
         relevance_reason: str,
         raise_on_conflict: bool,
     ):
-        existing = self.video_repository.get_by_youtube_id(discovered_video.youtube_video_id)
-        if existing is not None and existing.monitor_profile_id != monitor_profile_id:
-            error_message = (
-                f"Video already belongs to project #{existing.monitor_profile_id}. "
-                "A video can only belong to one project."
-            )
-            if raise_on_conflict:
-                raise VideoProjectConflictError(
-                    error_message,
-                    existing_video_id=existing.id,
-                    existing_monitor_profile_id=existing.monitor_profile_id,
-                )
-            return None
-
         return self.video_repository.upsert_candidate(
             monitor_profile_id=monitor_profile_id,
             youtube_video_id=discovered_video.youtube_video_id,
@@ -289,6 +274,7 @@ class TriageService:
         self,
         *,
         monitor_profile_id: int = None,
+        owner_user_id: Optional[str] = None,
         queue_state=None,
         risk_level: str = None,
         sentiment: str = None,
@@ -300,6 +286,7 @@ class TriageService:
             risk_level=risk_level,
             sentiment=sentiment,
             title_query=title_query,
+            owner_user_id=owner_user_id,
         )
 
     def search_candidates(self, *, monitor_profile_id: int, query: str, max_results: int) -> List[dict]:
@@ -339,16 +326,16 @@ class TriageService:
                 description=item.description,
                 keywords=scoring_keywords,
             )
-            existing = self.video_repository.get_by_youtube_id(item.youtube_video_id)
+            existing = self.video_repository.get_by_youtube_id(
+                item.youtube_video_id,
+                monitor_profile_id=monitor_profile_id,
+            )
             if existing is None:
                 can_add = True
                 block_reason = None
-            elif existing.monitor_profile_id == monitor_profile_id:
-                can_add = False
-                block_reason = "Already in this project"
             else:
                 can_add = False
-                block_reason = f"Already belongs to project #{existing.monitor_profile_id}"
+                block_reason = "Already in this project"
 
             candidates.append(
                 {

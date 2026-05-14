@@ -23,8 +23,9 @@ class MonitorRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    def create(self, payload: MonitorProfileCreate) -> MonitorProfile:
+    def create(self, payload: MonitorProfileCreate, *, owner_user_id: str = "Sushi_1") -> MonitorProfile:
         profile = MonitorProfile(
+            owner_user_id=owner_user_id,
             name=payload.name,
             brand_keywords=encode_json(payload.brand_keywords),
             markets=encode_json(payload.markets),
@@ -37,8 +38,8 @@ class MonitorRepository:
         self.session.refresh(profile)
         return profile
 
-    def update(self, profile_id: int, payload: MonitorProfileUpdate) -> Optional[MonitorProfile]:
-        profile = self.get(profile_id)
+    def update(self, profile_id: int, payload: MonitorProfileUpdate, *, owner_user_id: Optional[str] = None) -> Optional[MonitorProfile]:
+        profile = self.get_for_user(profile_id, owner_user_id) if owner_user_id else self.get(profile_id)
         if profile is None:
             return None
         profile.name = payload.name
@@ -54,16 +55,32 @@ class MonitorRepository:
     def get(self, profile_id: int) -> Optional[MonitorProfile]:
         return self.session.get(MonitorProfile, profile_id)
 
+    def get_for_user(self, profile_id: int, owner_user_id: str) -> Optional[MonitorProfile]:
+        return (
+            self.session.query(MonitorProfile)
+            .filter(MonitorProfile.id == profile_id)
+            .filter(MonitorProfile.owner_user_id == owner_user_id)
+            .one_or_none()
+        )
+
     def list_all(self) -> List[MonitorProfile]:
         return self.session.query(MonitorProfile).order_by(MonitorProfile.created_at.desc()).all()
+
+    def list_for_user(self, owner_user_id: str) -> List[MonitorProfile]:
+        return (
+            self.session.query(MonitorProfile)
+            .filter(MonitorProfile.owner_user_id == owner_user_id)
+            .order_by(MonitorProfile.created_at.desc())
+            .all()
+        )
 
     def list_by_ids(self, profile_ids: List[int]) -> List[MonitorProfile]:
         if not profile_ids:
             return []
         return self.session.query(MonitorProfile).filter(MonitorProfile.id.in_(profile_ids)).all()
 
-    def delete(self, profile_id: int) -> bool:
-        profile = self.get(profile_id)
+    def delete(self, profile_id: int, *, owner_user_id: Optional[str] = None) -> bool:
+        profile = self.get_for_user(profile_id, owner_user_id) if owner_user_id else self.get(profile_id)
         if profile:
             video_id_rows = (
                 self.session.query(VideoCandidate.id)

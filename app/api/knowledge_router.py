@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
+from app.api.auth_dependencies import get_current_user
 from app.db import get_db_session
+from app.models.app_user import AppUser
 from app.schemas.knowledge import (
     KnowledgeBaseCreateRequest,
     KnowledgeBaseListResponse,
@@ -13,6 +15,7 @@ from app.schemas.knowledge import (
     KnowledgeUrlSourceCreateRequest,
 )
 from app.services.knowledge_ingestion_service import KnowledgeIngestionService
+from app.services.access_control import AccessControlService
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -45,9 +48,14 @@ def _map_source(model) -> KnowledgeSourceResponse:
 
 
 @router.post("/bases", response_model=KnowledgeBaseResponse)
-def create_knowledge_base(payload: KnowledgeBaseCreateRequest, db: Session = Depends(get_db_session)):
+def create_knowledge_base(
+    payload: KnowledgeBaseCreateRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = KnowledgeIngestionService(db)
     try:
+        AccessControlService(db).require_profile_owner(monitor_profile_id=payload.monitor_profile_id, user_id=current_user.id)
         model = service.create_base(
             monitor_profile_id=payload.monitor_profile_id,
             name=payload.name,
@@ -61,10 +69,12 @@ def create_knowledge_base(payload: KnowledgeBaseCreateRequest, db: Session = Dep
 @router.get("/bases", response_model=KnowledgeBaseListResponse)
 def list_knowledge_bases(
     monitor_profile_id: int = Query(..., description="Project scope"),
+    current_user: AppUser = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ):
     service = KnowledgeIngestionService(db)
     try:
+        AccessControlService(db).require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
         items = service.list_bases(monitor_profile_id=monitor_profile_id)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -76,10 +86,12 @@ def list_knowledge_bases(
 def update_knowledge_base(
     knowledge_base_id: int,
     payload: KnowledgeBaseUpdateRequest,
+    current_user: AppUser = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ):
     service = KnowledgeIngestionService(db)
     try:
+        AccessControlService(db).require_knowledge_base_owner(knowledge_base_id=knowledge_base_id, user_id=current_user.id)
         model = service.update_base(
             knowledge_base_id=knowledge_base_id,
             name=payload.name,
@@ -92,9 +104,14 @@ def update_knowledge_base(
 
 
 @router.delete("/bases/{knowledge_base_id}")
-def delete_knowledge_base(knowledge_base_id: int, db: Session = Depends(get_db_session)):
+def delete_knowledge_base(
+    knowledge_base_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = KnowledgeIngestionService(db)
     try:
+        AccessControlService(db).require_knowledge_base_owner(knowledge_base_id=knowledge_base_id, user_id=current_user.id)
         service.delete_base(knowledge_base_id=knowledge_base_id)
         return {"status": "success"}
     except ValueError as error:
@@ -106,10 +123,14 @@ async def upload_knowledge_file(
     monitor_profile_id: int = Form(...),
     knowledge_base_id: int = Form(...),
     file: UploadFile = File(...),
+    current_user: AppUser = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ):
     service = KnowledgeIngestionService(db)
     try:
+        access_control = AccessControlService(db)
+        access_control.require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
+        access_control.require_knowledge_base_owner(knowledge_base_id=knowledge_base_id, user_id=current_user.id)
         model = await service.add_file_source(
             monitor_profile_id=monitor_profile_id,
             knowledge_base_id=knowledge_base_id,
@@ -121,9 +142,16 @@ async def upload_knowledge_file(
 
 
 @router.post("/sources/url", response_model=KnowledgeSourceResponse)
-def add_knowledge_url(payload: KnowledgeUrlSourceCreateRequest, db: Session = Depends(get_db_session)):
+def add_knowledge_url(
+    payload: KnowledgeUrlSourceCreateRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = KnowledgeIngestionService(db)
     try:
+        access_control = AccessControlService(db)
+        access_control.require_profile_owner(monitor_profile_id=payload.monitor_profile_id, user_id=current_user.id)
+        access_control.require_knowledge_base_owner(knowledge_base_id=payload.knowledge_base_id, user_id=current_user.id)
         model = service.add_url_source(
             monitor_profile_id=payload.monitor_profile_id,
             knowledge_base_id=payload.knowledge_base_id,
@@ -139,10 +167,14 @@ def add_knowledge_url(payload: KnowledgeUrlSourceCreateRequest, db: Session = De
 def list_knowledge_sources(
     monitor_profile_id: int = Query(...),
     knowledge_base_id: int = Query(...),
+    current_user: AppUser = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ):
     service = KnowledgeIngestionService(db)
     try:
+        access_control = AccessControlService(db)
+        access_control.require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
+        access_control.require_knowledge_base_owner(knowledge_base_id=knowledge_base_id, user_id=current_user.id)
         items = service.list_sources(
             monitor_profile_id=monitor_profile_id,
             knowledge_base_id=knowledge_base_id,
@@ -154,9 +186,14 @@ def list_knowledge_sources(
 
 
 @router.delete("/sources/{source_id}")
-def delete_knowledge_source(source_id: int, db: Session = Depends(get_db_session)):
+def delete_knowledge_source(
+    source_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = KnowledgeIngestionService(db)
     try:
+        AccessControlService(db).require_knowledge_source_owner(source_id=source_id, user_id=current_user.id)
         service.delete_source(source_id=source_id)
         return {"status": "success"}
     except ValueError as error:
@@ -167,10 +204,14 @@ def delete_knowledge_source(source_id: int, db: Session = Depends(get_db_session
 def get_knowledge_summary(
     monitor_profile_id: int = Query(...),
     knowledge_base_id: int = Query(...),
+    current_user: AppUser = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ):
     service = KnowledgeIngestionService(db)
     try:
+        access_control = AccessControlService(db)
+        access_control.require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
+        access_control.require_knowledge_base_owner(knowledge_base_id=knowledge_base_id, user_id=current_user.id)
         summary = service.get_summary(monitor_profile_id=monitor_profile_id, knowledge_base_id=knowledge_base_id)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error

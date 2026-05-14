@@ -13,6 +13,7 @@ class ChatRepository:
         existing = (
             self.session.query(ChatSession)
             .filter(ChatSession.video_candidate_id == video_candidate_id)
+            .filter(ChatSession.created_by == created_by)
             .order_by(ChatSession.created_at.asc())
             .first()
         )
@@ -58,4 +59,3 @@ class ChatRepository:
 
     def get_message(self, message_id: int) -> Optional[ChatMessage]:
         return self.session.get(ChatMessage, message_id)
-

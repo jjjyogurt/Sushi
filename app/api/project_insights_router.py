@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.api.auth_dependencies import get_current_user
 from app.db import get_db_session
+from app.models.app_user import AppUser
 from app.schemas.project_insights import (
     ProjectInsightCurrentResponse,
     ProjectInsightHistoryResponse,
     ProjectInsightReportResponse,
 )
 from app.services.project_insights_service import ProjectInsightsService
+from app.services.access_control import AccessControlService
 from app.utils.json_codec import decode_json
 
 router = APIRouter(prefix="/monitor-profiles/{monitor_profile_id}/insights", tags=["project-insights"])
@@ -46,9 +49,14 @@ def _map_report(model) -> ProjectInsightReportResponse:
 
 
 @router.get("/current", response_model=ProjectInsightCurrentResponse)
-def get_current_report(monitor_profile_id: int, db: Session = Depends(get_db_session)):
+def get_current_report(
+    monitor_profile_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = ProjectInsightsService(db)
     try:
+        AccessControlService(db).require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
         report = service.get_current_report(monitor_profile_id)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -59,10 +67,12 @@ def get_current_report(monitor_profile_id: int, db: Session = Depends(get_db_ses
 def list_report_history(
     monitor_profile_id: int,
     limit: int = Query(default=20, ge=1, le=100),
+    current_user: AppUser = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ):
     service = ProjectInsightsService(db)
     try:
+        AccessControlService(db).require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
         reports = service.list_report_history(monitor_profile_id, limit=limit)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -71,9 +81,14 @@ def list_report_history(
 
 
 @router.post("/refresh", response_model=ProjectInsightReportResponse)
-def refresh_report(monitor_profile_id: int, db: Session = Depends(get_db_session)):
+def refresh_report(
+    monitor_profile_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = ProjectInsightsService(db)
     try:
+        AccessControlService(db).require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
         report = service.refresh_report(monitor_profile_id)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -81,9 +96,15 @@ def refresh_report(monitor_profile_id: int, db: Session = Depends(get_db_session
 
 
 @router.delete("/history/{report_id}")
-def delete_history_item(monitor_profile_id: int, report_id: int, db: Session = Depends(get_db_session)):
+def delete_history_item(
+    monitor_profile_id: int,
+    report_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = ProjectInsightsService(db)
     try:
+        AccessControlService(db).require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
         deleted = service.delete_history_item(
             monitor_profile_id=monitor_profile_id,
             report_id=report_id,
@@ -96,9 +117,14 @@ def delete_history_item(monitor_profile_id: int, report_id: int, db: Session = D
 
 
 @router.delete("/history")
-def clear_history(monitor_profile_id: int, db: Session = Depends(get_db_session)):
+def clear_history(
+    monitor_profile_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     service = ProjectInsightsService(db)
     try:
+        AccessControlService(db).require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
         deleted = service.clear_history(monitor_profile_id)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error

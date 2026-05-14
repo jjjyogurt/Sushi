@@ -11,13 +11,14 @@ from app.models.enums import QueueState
 class VideoCandidate(TimestampMixin, Base):
     __tablename__ = "video_candidates"
     __table_args__ = (
+        Index("ix_video_candidates_profile_youtube_video_id", "monitor_profile_id", "youtube_video_id", unique=True),
         Index("ix_video_candidates_title_fingerprint", "title_fingerprint"),
         Index("ix_video_candidates_queue_state", "queue_state"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     monitor_profile_id: Mapped[int] = mapped_column(ForeignKey("monitor_profiles.id"), nullable=False, index=True)
-    youtube_video_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    youtube_video_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     video_url: Mapped[str] = mapped_column(String(255), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     normalized_title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -33,4 +34,3 @@ class VideoCandidate(TimestampMixin, Base):
     assigned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     monitor_profile = relationship("MonitorProfile")
-

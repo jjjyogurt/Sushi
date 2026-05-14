@@ -4,6 +4,8 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.models.incident import Alert, Incident
+from app.models.monitor_profile import MonitorProfile
+from app.models.video_candidate import VideoCandidate
 
 
 class IncidentRepository:
@@ -31,6 +33,13 @@ class IncidentRepository:
         self.session.refresh(alert)
         return alert
 
-    def list_alerts(self) -> List[Alert]:
-        return self.session.query(Alert).order_by(desc(Alert.created_at)).all()
-
+    def list_alerts(self, *, user_id: str = "") -> List[Alert]:
+        query = self.session.query(Alert)
+        if user_id:
+            query = (
+                query.join(Incident, Incident.id == Alert.incident_id)
+                .join(VideoCandidate, VideoCandidate.id == Incident.video_candidate_id)
+                .join(MonitorProfile, MonitorProfile.id == VideoCandidate.monitor_profile_id)
+                .filter(MonitorProfile.owner_user_id == user_id)
+            )
+        return query.order_by(desc(Alert.created_at)).all()

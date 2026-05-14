@@ -67,7 +67,7 @@ def test_approve_updates_queue_state(db_session, monitor_profile):
     settings.enable_mock_discovery = original
 
 
-def test_search_candidates_marks_cross_project_conflict(db_session, monitor_profile):
+def test_search_candidates_allows_same_video_in_another_project(db_session, monitor_profile):
     settings = get_settings()
     original = settings.enable_mock_discovery
     settings.enable_mock_discovery = True
@@ -105,8 +105,8 @@ def test_search_candidates_marks_cross_project_conflict(db_session, monitor_prof
 
     results = service.search_candidates(monitor_profile_id=monitor_profile.id, query="hoverair", max_results=1)
     assert len(results) == 1
-    assert results[0]["can_add"] is False
-    assert f"project #{second_profile.id}" in str(results[0]["block_reason"]).lower()
+    assert results[0]["can_add"] is True
+    assert results[0]["block_reason"] is None
 
     settings.enable_mock_discovery = original
 

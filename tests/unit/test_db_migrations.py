@@ -1,8 +1,11 @@
 from sqlalchemy import create_engine, inspect, text
 
 from app.db_migrations import (
+    ensure_analysis_results_agent_settings_hash_column_and_index,
     cleanup_orphan_video_data,
+    ensure_monitor_profiles_owner_user_id,
     ensure_analysis_results_summary_columns,
+    ensure_video_candidate_scoped_youtube_uniqueness,
     ensure_monitor_profiles_key_products_column,
     ensure_project_insight_reports_portfolio_columns,
     retire_legacy_business_impact_columns,
@@ -200,3 +203,116 @@ def test_retire_legacy_business_impact_columns_drops_legacy_columns():
     insights_columns = {column["name"] for column in inspect(engine).get_columns("project_insight_reports")}
     assert "business_impact" not in analysis_columns
     assert "business_impact" not in insights_columns
+
+
+def test_account_isolation_migrations_upgrade_production_shaped_old_schema():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE app_users (
+                    id VARCHAR(80) PRIMARY KEY,
+                    display_name VARCHAR(120) NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
+                    must_change_password BOOLEAN NOT NULL DEFAULT 1,
+                    is_active BOOLEAN NOT NULL DEFAULT 1
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE monitor_profiles (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    brand_keywords TEXT NOT NULL,
+                    markets TEXT NOT NULL,
+                    languages TEXT NOT NULL,
+                    key_products TEXT NOT NULL DEFAULT '[]',
+                    alert_sensitivity TEXT,
+                    is_active BOOLEAN
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE video_candidates (
+                    id INTEGER PRIMARY KEY,
+                    monitor_profile_id INTEGER NOT NULL,
+                    youtube_video_id TEXT NOT NULL UNIQUE
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE analysis_results (
+                    id INTEGER PRIMARY KEY,
+                    video_candidate_id INTEGER NOT NULL,
+                    analysis_version TEXT NOT NULL,
+                    language TEXT NOT NULL DEFAULT 'en',
+                    model_name TEXT NOT NULL,
+                    status TEXT NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE UNIQUE INDEX ix_analysis_video_version_language "
+                "ON analysis_results (video_candidate_id, analysis_version, language)"
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO monitor_profiles (id, name, brand_keywords, markets, languages, key_products, alert_sensitivity, is_active)
+                VALUES (1, 'legacy', '[]', '[]', '[]', '[]', 'medium', 1)
+                """
+            )
+        )
+        connection.execute(
+            text("INSERT INTO video_candidates (id, monitor_profile_id, youtube_video_id) VALUES (1, 1, 'same-video')")
+        )
+        connection.execute(
+            text(
+                "INSERT INTO analysis_results (id, video_candidate_id, analysis_version, language, model_name, status) "
+                "VALUES (1, 1, 'v1', 'en', 'model', 'COMPLETED')"
+            )
+        )
+
+    ensure_monitor_profiles_owner_user_id(engine)
+    ensure_video_candidate_scoped_youtube_uniqueness(engine)
+    ensure_analysis_results_agent_settings_hash_column_and_index(engine)
+    ensure_analysis_results_agent_settings_hash_column_and_index(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("monitor_profiles")}
+    analysis_columns = {column["name"] for column in inspect(engine).get_columns("analysis_results")}
+    indexes = {index["name"] for index in inspect(engine).get_indexes("video_candidates")}
+    analysis_indexes = {index["name"] for index in inspect(engine).get_indexes("analysis_results")}
+    assert "owner_user_id" in columns
+    assert "agent_settings_hash" in analysis_columns
+    assert "ix_video_candidates_profile_youtube_video_id" in indexes
+    assert "ix_analysis_video_version_language_settings" in analysis_indexes
+
+    with engine.begin() as connection:
+        owner = connection.execute(text("SELECT owner_user_id FROM monitor_profiles WHERE id = 1")).scalar_one()
+        legacy_hash = connection.execute(text("SELECT agent_settings_hash FROM analysis_results WHERE id = 1")).scalar_one()
+        assert owner == "Sushi_1"
+        assert legacy_hash == "legacy"
+        connection.execute(
+            text(
+                """
+                INSERT INTO monitor_profiles (id, name, brand_keywords, markets, languages, key_products, alert_sensitivity, is_active, owner_user_id)
+                VALUES (2, 'second', '[]', '[]', '[]', '[]', 'medium', 1, 'Sushi_1')
+                """
+            )
+        )
+        connection.execute(
+            text("INSERT INTO video_candidates (id, monitor_profile_id, youtube_video_id) VALUES (2, 2, 'same-video')")
+        )

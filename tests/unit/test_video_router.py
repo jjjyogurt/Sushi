@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.config import get_settings
 from app.db import get_db_session
 from app.main import app
+from app.models.app_user import AppUser
 from app.models.base import Base
 from app.models.analysis_result import AnalysisResult
 from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
@@ -16,6 +17,7 @@ from app.models.monitor_profile import MonitorProfile
 from app.repositories.video_repository import VideoRepository
 from app.services.analysis_service import AnalysisService
 from app.services.exceptions import GeminiConfigurationError, TranscriptBlockedError
+from app.services.security import hash_password
 from app.services.triage_service import TriageService
 from app.utils.json_codec import encode_json
 
@@ -34,6 +36,35 @@ def create_profile(db_session, name: str):
     db_session.commit()
     db_session.refresh(profile)
     return profile
+
+
+def create_video(db_session, monitor_profile_id: int, youtube_video_id: str = "router-error-video"):
+    return VideoRepository(db_session).upsert_candidate(
+        monitor_profile_id=monitor_profile_id,
+        youtube_video_id=youtube_video_id,
+        video_url=f"https://youtu.be/{youtube_video_id}",
+        title=f"Video {youtube_video_id}",
+        channel_name="Creator",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+
+
+def _ensure_user(db_session, user_id: str = "Sushi_1"):
+    if db_session.get(AppUser, user_id) is not None:
+        return
+    db_session.add(
+        AppUser(
+            id=user_id,
+            display_name=user_id,
+            password_hash=hash_password("1234"),
+            must_change_password=False,
+            is_active=True,
+        )
+    )
+    db_session.commit()
 
 
 @pytest.fixture()
@@ -59,6 +90,9 @@ def client(api_db_session):
 
     app.dependency_overrides[get_db_session] = override_db
     with TestClient(app) as test_client:
+        _ensure_user(api_db_session)
+        login = test_client.post("/auth/login", json={"user_id": "Sushi_1", "password": "1234"})
+        assert login.status_code == 200
         yield test_client
     app.dependency_overrides.clear()
 
@@ -273,26 +307,28 @@ def test_search_and_bulk_add_endpoints(client, api_monitor_profile):
         settings.enable_mock_discovery = original
 
 
-def test_analyze_endpoint_maps_gemini_not_ready_errors(client, monkeypatch):
+def test_analyze_endpoint_maps_gemini_not_ready_errors(client, api_db_session, api_monitor_profile, monkeypatch):
+    video = create_video(api_db_session, api_monitor_profile.id, "router-gemini-error")
     def _raise_not_ready(self, *, video_id: int, force_reanalyze: bool = False, knowledge_base_id=None):
         _ = (video_id, force_reanalyze, knowledge_base_id)
         raise GeminiConfigurationError("GEMINI_API_KEY is not configured.")
 
     monkeypatch.setattr(AnalysisService, "analyze_video", _raise_not_ready)
 
-    response = client.post("/videos/31/analyze", json={"force_reanalyze": True})
+    response = client.post(f"/videos/{video.id}/analyze", json={"force_reanalyze": True})
     assert response.status_code == 503
     assert response.json()["detail"].startswith("GEMINI_NOT_READY:")
 
 
-def test_analyze_endpoint_maps_transcript_blocked_errors(client, monkeypatch):
+def test_analyze_endpoint_maps_transcript_blocked_errors(client, api_db_session, api_monitor_profile, monkeypatch):
+    video = create_video(api_db_session, api_monitor_profile.id, "router-transcript-blocked")
     def _raise_blocked(self, *, video_id: int, force_reanalyze: bool = False, knowledge_base_id=None):
         _ = (video_id, force_reanalyze, knowledge_base_id)
         raise TranscriptBlockedError("YouTube blocked transcript requests for current IP.")
 
     monkeypatch.setattr(AnalysisService, "analyze_video", _raise_blocked)
 
-    response = client.post("/videos/31/analyze", json={"force_reanalyze": True})
+    response = client.post(f"/videos/{video.id}/analyze", json={"force_reanalyze": True})
     assert response.status_code == 503
     assert response.json()["detail"].startswith("TRANSCRIPT_BLOCKED:")
 
@@ -465,7 +501,7 @@ def test_get_analysis_returns_404_for_nonexistent_video(client):
     """Test that GET /videos/{id}/analysis returns 404 for non-existent video ID."""
     response = client.get("/videos/99999/analysis")
     assert response.status_code == 404
-    assert "Analysis not found" in response.json()["detail"]
+    assert "Video not found" in response.json()["detail"]
 
 
 def test_get_analysis_validates_invalid_language(client, api_db_session, api_monitor_profile):
@@ -487,9 +523,10 @@ def test_get_analysis_validates_invalid_language(client, api_db_session, api_mon
     assert response.status_code == 400
 
 
-def test_analyze_endpoint_maps_transcript_unavailable_errors(client, monkeypatch):
+def test_analyze_endpoint_maps_transcript_unavailable_errors(client, api_db_session, api_monitor_profile, monkeypatch):
     """Test that analyze endpoint maps TranscriptUnavailableError to 422."""
     from app.services.exceptions import TranscriptUnavailableError
+    video = create_video(api_db_session, api_monitor_profile.id, "router-transcript-unavailable")
 
     def _raise_unavailable(self, *, video_id: int, force_reanalyze: bool = False, knowledge_base_id=None):
         _ = (video_id, force_reanalyze, knowledge_base_id)
@@ -497,6 +534,6 @@ def test_analyze_endpoint_maps_transcript_unavailable_errors(client, monkeypatch
 
     monkeypatch.setattr(AnalysisService, "analyze_video", _raise_unavailable)
 
-    response = client.post("/videos/31/analyze", json={"force_reanalyze": True})
+    response = client.post(f"/videos/{video.id}/analyze", json={"force_reanalyze": True})
     assert response.status_code == 422
     assert response.json()["detail"].startswith("TRANSCRIPT_UNAVAILABLE:")

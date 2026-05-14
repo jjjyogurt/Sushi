@@ -24,20 +24,17 @@ export function createAuthController({ request, setState }) {
   let waitingResolver = null;
   let formBound = false;
   let selectorDefaultPassword = "";
+  let selectedLoginUserId = "Sushi_1";
 
-  function syncLoginInputsFromSelection() {
-    const userSelect = getElement("auth-user-select");
+  function syncLoginDefaults() {
     const userIdInput = getElement("auth-user-id");
     const passwordInput = getElement("auth-password");
-    if (!(userSelect instanceof HTMLSelectElement)) {
+    selectedLoginUserId = String(users[0]?.user_id || selectedLoginUserId).trim();
+    if (!selectedLoginUserId) {
       return;
     }
-    const selectedUserId = String(userSelect.value || "").trim();
-    if (!selectedUserId) {
-      return;
-    }
-    if (userIdInput instanceof HTMLInputElement) {
-      userIdInput.value = selectedUserId;
+    if (userIdInput instanceof HTMLInputElement && !userIdInput.value.trim()) {
+      userIdInput.value = selectedLoginUserId;
     }
     if (passwordInput instanceof HTMLInputElement) {
       if (!selectorDefaultPassword) {
@@ -62,48 +59,15 @@ export function createAuthController({ request, setState }) {
   }
 
   async function loadUsers() {
-    const selectWrap = getElement("auth-user-select-wrap");
-    const idWrap = getElement("auth-user-id-wrap");
-    const select = getElement("auth-user-select");
-    const idInput = getElement("auth-user-id");
     try {
       const payload = await request("/auth/users");
       users = Array.isArray(payload) ? payload : [];
-      if (idWrap) {
-        idWrap.classList.add("is-hidden");
-      }
-      if (selectWrap) {
-        selectWrap.classList.remove("is-hidden");
-      }
-      if (idInput instanceof HTMLInputElement) {
-        idInput.value = "";
-      }
-      if (!(select instanceof HTMLSelectElement)) {
-        return;
-      }
-      select.innerHTML = users
-        .map((user) => `<option value="${user.user_id}">${user.display_name}</option>`)
-        .join("");
-      if (users.length > 0) {
-        select.value = users[0].user_id;
-      }
-      syncLoginInputsFromSelection();
+      syncLoginDefaults();
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
         users = [];
-        if (selectWrap) {
-          selectWrap.classList.add("is-hidden");
-        }
-        if (idWrap) {
-          idWrap.classList.remove("is-hidden");
-        }
-        if (select instanceof HTMLSelectElement) {
-          select.innerHTML = "";
-        }
-        if (idInput instanceof HTMLInputElement) {
-          idInput.value = "Sushi_1";
-          idInput.focus();
-        }
+        selectedLoginUserId = "Sushi_1";
+        syncLoginDefaults();
         return;
       }
       throw error;
@@ -121,28 +85,13 @@ export function createAuthController({ request, setState }) {
   }
 
   async function submitLogin() {
-    const userSelect = getElement("auth-user-select");
-    const idWrap = getElement("auth-user-id-wrap");
     const userIdInput = getElement("auth-user-id");
     const passwordInput = getElement("auth-password");
     const submitButton = getElement("auth-login-submit");
-    const usingManualId = idWrap instanceof HTMLElement && !idWrap.classList.contains("is-hidden");
-    if (!(passwordInput instanceof HTMLInputElement)) {
+    if (!(userIdInput instanceof HTMLInputElement) || !(passwordInput instanceof HTMLInputElement)) {
       return;
     }
-    if (!usingManualId && !(userSelect instanceof HTMLSelectElement)) {
-      return;
-    }
-    if (usingManualId && !(userIdInput instanceof HTMLInputElement)) {
-      return;
-    }
-    const userId = usingManualId
-      ? userIdInput instanceof HTMLInputElement
-        ? userIdInput.value.trim()
-        : ""
-      : userSelect instanceof HTMLSelectElement
-        ? userSelect.value
-        : "";
+    const userId = userIdInput.value.trim();
     if (!userId) {
       setAuthError(t("loginFailed"));
       return;
@@ -193,17 +142,11 @@ export function createAuthController({ request, setState }) {
       event.preventDefault();
       void submitLogin();
     });
-    const userSelect = getElement("auth-user-select");
-    if (userSelect instanceof HTMLSelectElement) {
-      userSelect.addEventListener("change", () => {
-        syncLoginInputsFromSelection();
-      });
-    }
   }
 
   async function waitForLogin() {
     setAuthGateVisible(true);
-    syncLoginInputsFromSelection();
+    syncLoginDefaults();
     return new Promise((resolve) => {
       waitingResolver = resolve;
     });

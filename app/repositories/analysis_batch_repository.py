@@ -54,12 +54,14 @@ class AnalysisBatchRepository:
             .all()
         )
 
-    def get_latest_active_batch(self, *, monitor_profile_id: Optional[int]) -> Optional[AnalysisBatch]:
+    def get_latest_active_batch(self, *, monitor_profile_id: Optional[int], created_by: Optional[str] = None) -> Optional[AnalysisBatch]:
         query = self.session.query(AnalysisBatch).filter(
             AnalysisBatch.status.in_([AnalysisBatchStatus.QUEUED, AnalysisBatchStatus.RUNNING])
         )
         if monitor_profile_id is None:
             query = query.filter(AnalysisBatch.monitor_profile_id.is_(None))
+            if created_by is not None:
+                query = query.filter(AnalysisBatch.created_by == created_by)
         else:
             query = query.filter(AnalysisBatch.monitor_profile_id == monitor_profile_id)
         return query.order_by(AnalysisBatch.created_at.desc()).first()
@@ -108,6 +110,16 @@ class AnalysisBatchRepository:
         self.session.commit()
         self.session.refresh(item)
         return item
+
+    def has_queued_items(self) -> bool:
+        return (
+            self.session.query(AnalysisBatchItem.id)
+            .join(AnalysisBatch, AnalysisBatch.id == AnalysisBatchItem.batch_id)
+            .filter(AnalysisBatch.status.in_([AnalysisBatchStatus.QUEUED, AnalysisBatchStatus.RUNNING]))
+            .filter(AnalysisBatchItem.status == AnalysisBatchItemStatus.QUEUED)
+            .first()
+            is not None
+        )
 
     def mark_item_completed(self, item_id: int) -> AnalysisBatchItem:
         item = self.session.get(AnalysisBatchItem, item_id)

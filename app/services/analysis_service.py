@@ -11,6 +11,7 @@ from app.repositories.audit_repository import AuditRepository
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.video_comment_repository import VideoCommentRepository
 from app.repositories.video_repository import VideoRepository
+from app.services.agent_settings_service import AgentSettingsService
 from app.services.gemini_client import GeminiClient
 from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
 from app.services.exceptions import (
@@ -58,6 +59,8 @@ class AnalysisService:
         candidate = self.video_repository.get_by_id(video_id)
         if candidate is None:
             raise ValueError("Video not found.")
+        owner_user_id = candidate.monitor_profile.owner_user_id if candidate.monitor_profile else ""
+        agent_settings = AgentSettingsService(self.session).get_resolved(user_id=owner_user_id)
         target_languages = self.supported_analysis_languages()
         previous_completed_current_version_by_language: Dict[str, AnalysisResult] = {}
         previous_completed_any_version_by_language: Dict[str, AnalysisResult] = {}
@@ -66,6 +69,7 @@ class AnalysisService:
                 video_candidate_id=video_id,
                 analysis_version=self.settings.analysis_version,
                 language=language,
+                agent_settings_hash=agent_settings.settings_hash,
             )
             if existing_current_version:
                 previous_completed_current_version_by_language = {
@@ -106,6 +110,7 @@ class AnalysisService:
                     resource_id=str(video_id),
                     details=(
                         f"analysis_version={self.settings.analysis_version},"
+                        f"agent_settings_hash={agent_settings.settings_hash},"
                         f"request_id={request_id},cached_result_id={existing_by_language[DEFAULT_ANALYSIS_LANGUAGE].id}"
                     ),
                 )
@@ -121,6 +126,7 @@ class AnalysisService:
                 analysis_version=self.settings.analysis_version,
                 model_name=self.settings.gemini_model_analysis,
                 language=language,
+                agent_settings_hash=agent_settings.settings_hash,
             )
             queued_result.status = AnalysisStatus.PROCESSING
             results_by_language = {
@@ -207,6 +213,7 @@ class AnalysisService:
                 relevance_reason=candidate.relevance_reason,
                 transcript_text=transcript.full_text,
                 knowledge_context=knowledge_context,
+                agent_instructions=agent_settings.content,
             )
             english_comments = self.gemini_client.analyze_comments(
                 title=candidate.title,
@@ -362,6 +369,7 @@ class AnalysisService:
             resource_id=str(video_id),
             details=(
                 f"status={status_text},version={self.settings.analysis_version},"
+                f"agent_settings_hash={agent_settings.settings_hash},"
                 f"error_code={error_codes_text},request_id={request_id}"
             ),
         )

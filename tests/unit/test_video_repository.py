@@ -149,11 +149,11 @@ def test_list_filters_by_title_query_case_insensitive(db_session, monitor_profil
     assert [item.youtube_video_id for item in filtered] == ["title-match-1"]
 
 
-def test_upsert_keeps_original_project_owner_for_same_video_id(db_session, monitor_profile):
+def test_upsert_allows_same_video_id_in_different_projects(db_session, monitor_profile):
     second_profile = create_profile(db_session, "Second Owner")
     repository = VideoRepository(db_session)
 
-    repository.upsert_candidate(
+    original = repository.upsert_candidate(
         monitor_profile_id=monitor_profile.id,
         youtube_video_id="owner-lock",
         video_url="https://youtu.be/owner-lock",
@@ -164,7 +164,7 @@ def test_upsert_keeps_original_project_owner_for_same_video_id(db_session, monit
         relevance_score=0.6,
         relevance_reason="seed",
     )
-    updated = repository.upsert_candidate(
+    second = repository.upsert_candidate(
         monitor_profile_id=second_profile.id,
         youtube_video_id="owner-lock",
         video_url="https://youtu.be/owner-lock",
@@ -176,7 +176,9 @@ def test_upsert_keeps_original_project_owner_for_same_video_id(db_session, monit
         relevance_reason="seed",
     )
 
-    assert updated.monitor_profile_id == monitor_profile.id
+    assert original.monitor_profile_id == monitor_profile.id
+    assert second.monitor_profile_id == second_profile.id
+    assert original.id != second.id
 
 
 def test_list_filters_by_risk_level_on_latest_analysis(db_session, monitor_profile):

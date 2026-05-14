@@ -1,6 +1,12 @@
+from datetime import datetime, timezone
+
 from app.config import get_settings
 from app.models.analysis_result import AnalysisResult
+from app.models.app_user import AppUser
 from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
+from app.models.monitor_profile import MonitorProfile
+from app.repositories.video_repository import VideoRepository
+from app.services.agent_settings_service import AgentSettingsService
 from app.services.analysis_service import AnalysisService
 from app.services.types import AnalysisOutput, CommentsAnalysisOutput, TranscriptOutput
 from app.utils.json_codec import decode_json, encode_json
@@ -36,8 +42,9 @@ class StubGeminiClient:
         relevance_reason: str,
         transcript_text: str,
         knowledge_context: str = "",
+        agent_instructions: str = "",
     ):
-        _ = (knowledge_context, source_language, target_output_language)
+        _ = (knowledge_context, source_language, target_output_language, agent_instructions)
         return AnalysisOutput(
             transcript_text=transcript_text,
             summary_text=f"{title} includes onboarding and reliability concerns.",
@@ -88,20 +95,45 @@ class StubFailingGeminiClient:
         relevance_reason: str,
         transcript_text: str,
         knowledge_context: str = "",
+        agent_instructions: str = "",
     ):
-        _ = (title, source_language, target_output_language, relevance_reason, transcript_text, knowledge_context)
+        _ = (title, source_language, target_output_language, relevance_reason, transcript_text, knowledge_context, agent_instructions)
         raise RuntimeError("provider exploded")
+
+
+def _seed_user(db_session, user_id: str):
+    db_session.add(AppUser(id=user_id, display_name=user_id, password_hash="hash", must_change_password=False, is_active=True))
+    db_session.commit()
+
+
+def _seed_profile(db_session, *, owner_user_id: str, name: str):
+    profile = MonitorProfile(
+        owner_user_id=owner_user_id,
+        name=name,
+        brand_keywords=encode_json(["hoverair"]),
+        markets=encode_json(["global"]),
+        languages=encode_json(["en"]),
+        key_products=encode_json([]),
+        alert_sensitivity="medium",
+        is_active=True,
+    )
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+    return profile
 
 
 def test_skip_reanalysis_when_completed_and_same_version(db_session, discovered_video):
     settings = get_settings()
     original_version = settings.analysis_version
     settings.analysis_version = "unit-v1"
+    settings_hash = AgentSettingsService(db_session).get_resolved(user_id=discovered_video.monitor_profile.owner_user_id).settings_hash
 
     existing_en = AnalysisResult(
         video_candidate_id=discovered_video.id,
         analysis_version="unit-v1",
         language="en",
+        agent_settings_hash=settings_hash,
         model_name="gemini-3",
         status=AnalysisStatus.COMPLETED,
         transcript_text="cached transcript",
@@ -117,6 +149,7 @@ def test_skip_reanalysis_when_completed_and_same_version(db_session, discovered_
         video_candidate_id=discovered_video.id,
         analysis_version="unit-v1",
         language="zh-Hans",
+        agent_settings_hash=settings_hash,
         model_name="gemini-3",
         status=AnalysisStatus.COMPLETED,
         transcript_text="cached transcript zh",
@@ -170,6 +203,59 @@ def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session,
 
     settings.analysis_version = original_version
     settings.gemini_api_key = original_key
+
+
+def test_analysis_cache_is_separated_by_project_owner_agent_settings(db_session):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    settings.analysis_version = "unit-settings-hash"
+    settings.gemini_api_key = "unit-test-key"
+    try:
+        _seed_user(db_session, "Sushi_A")
+        _seed_user(db_session, "Sushi_B")
+        profile_a = _seed_profile(db_session, owner_user_id="Sushi_A", name="A Project")
+        profile_b = _seed_profile(db_session, owner_user_id="Sushi_B", name="B Project")
+        settings_service = AgentSettingsService(db_session)
+        settings_service.save_content(user_id="Sushi_A", content="Analyze with safety emphasis.")
+        settings_service.save_content(user_id="Sushi_B", content="Analyze with marketing emphasis.")
+        repository = VideoRepository(db_session)
+        video_a = repository.upsert_candidate(
+            monitor_profile_id=profile_a.id,
+            youtube_video_id="same-analysis-video",
+            video_url="https://youtu.be/same-analysis-video",
+            title="Same video A",
+            channel_name="Creator",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            relevance_score=0.8,
+            relevance_reason="seed",
+        )
+        video_b = repository.upsert_candidate(
+            monitor_profile_id=profile_b.id,
+            youtube_video_id="same-analysis-video",
+            video_url="https://youtu.be/same-analysis-video",
+            title="Same video B",
+            channel_name="Creator",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            relevance_score=0.8,
+            relevance_reason="seed",
+        )
+
+        service = AnalysisService(db_session)
+        service.transcript_service = StubTranscriptService()
+        service.gemini_client = StubGeminiClient()
+        result_a = service.analyze_video(video_id=video_a.id, force_reanalyze=False)
+        result_b = service.analyze_video(video_id=video_b.id, force_reanalyze=False)
+
+        assert result_a.video_candidate_id == video_a.id
+        assert result_b.video_candidate_id == video_b.id
+        assert result_a.agent_settings_hash != result_b.agent_settings_hash
+        assert result_a.id != result_b.id
+    finally:
+        settings.analysis_version = original_version
+        settings.gemini_api_key = original_key
 
 
 def test_analysis_fails_closed_when_gemini_is_unavailable(db_session, discovered_video):
@@ -251,4 +337,3 @@ def test_force_rerun_failure_clears_previous_payload(db_session, discovered_vide
 
     settings.analysis_version = original_version
     settings.gemini_api_key = original_key
-

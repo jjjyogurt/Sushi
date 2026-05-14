@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -8,6 +8,13 @@ class MonitorProfile(TimestampMixin, Base):
     __tablename__ = "monitor_profiles"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    owner_user_id: Mapped[str] = mapped_column(
+        String(80),
+        ForeignKey("app_users.id"),
+        nullable=False,
+        index=True,
+        default="Sushi_1",
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     brand_keywords: Mapped[str] = mapped_column(Text, nullable=False)
     markets: Mapped[str] = mapped_column(Text, nullable=False)
@@ -15,4 +22,3 @@ class MonitorProfile(TimestampMixin, Base):
     key_products: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     alert_sensitivity: Mapped[str] = mapped_column(String(30), default="medium")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-
