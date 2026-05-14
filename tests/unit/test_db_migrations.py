@@ -321,7 +321,31 @@ def test_account_isolation_migrations_upgrade_production_shaped_old_schema():
         )
 
 
-def test_language_migration_skips_legacy_unique_index_when_agent_hash_exists():
+def test_language_migration_does_not_create_legacy_unique_index():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE analysis_results (
+                    id INTEGER PRIMARY KEY,
+                    video_candidate_id INTEGER NOT NULL,
+                    analysis_version TEXT NOT NULL,
+                    language TEXT NOT NULL DEFAULT 'en',
+                    model_name TEXT NOT NULL,
+                    status TEXT NOT NULL
+                )
+                """
+            )
+        )
+
+    ensure_analysis_results_language_column_and_index(engine)
+
+    indexes = {index["name"] for index in inspect(engine).get_indexes("analysis_results")}
+    assert "ix_analysis_video_version_language" not in indexes
+
+
+def test_analysis_result_migrations_support_duplicate_legacy_key_with_distinct_agent_hashes():
     engine = create_engine("sqlite:///:memory:")
     with engine.begin() as connection:
         connection.execute(

@@ -323,20 +323,12 @@ def ensure_analysis_results_language_column_and_index(engine: Engine) -> None:
     inspector = inspect(engine)
     columns = {column["name"] for column in inspector.get_columns("analysis_results")}
     indexes = {index["name"] for index in inspector.get_indexes("analysis_results")}
-    has_hash_aware_uniqueness = (
-        "agent_settings_hash" in columns or "ix_analysis_video_version_language_settings" in indexes
-    )
 
     statements = []
     if "language" not in columns:
         statements = [*statements, "ALTER TABLE analysis_results ADD COLUMN language TEXT NOT NULL DEFAULT 'en'"]
     if "ix_analysis_video_version" in indexes:
         statements = [*statements, "DROP INDEX ix_analysis_video_version"]
-    if "ix_analysis_video_version_language" not in indexes and not has_hash_aware_uniqueness:
-        statements = [
-            *statements,
-            "CREATE UNIQUE INDEX ix_analysis_video_version_language ON analysis_results (video_candidate_id, analysis_version, language)",
-        ]
     if not statements:
         return
 

@@ -238,7 +238,7 @@ Startup migration helpers currently ensure/repair:
 - scoped video uniqueness by `(monitor_profile_id, youtube_video_id)`
 - per-user `agent_settings` table
 - analysis summary columns
-- analysis `language` column + unique index
+- analysis `language` column
 - analysis `agent_settings_hash` column + hash-aware unique index
 - analysis comment summary columns
 - analysis batch tables (`analysis_batches`, `analysis_batch_items`)
@@ -249,6 +249,11 @@ Startup migration helpers currently ensure/repair:
 - orphan/stale cleanup across dependent tables
 
 Because this project uses imperative startup migrations, changes to models should also include corresponding migration helper updates when needed.
+
+### What Changed (2026-05-14, analysis startup migration hotfix)
+- What changed: Stopped the `analysis_results` language-column migration from recreating the obsolete unique index on `(video_candidate_id, analysis_version, language)`. The only intended analysis uniqueness is the hash-aware index on `(video_candidate_id, analysis_version, language, agent_settings_hash)`.
+- Why it changed: Multi-account/per-user agent settings can legitimately store multiple analysis rows for the same video, version, and language when `agent_settings_hash` differs. Recreating the old unique index caused Cloud Run cold starts to fail when production already contained those valid rows.
+- Impact on existing data and compatibility: Existing analysis rows remain valid. Startup migration now preserves distinct per-settings analysis rows and relies on the hash-aware unique index for future duplicate protection.
 
 ### What Changed (2026-05-11, account isolation and per-user agent settings)
 - What changed: Added `monitor_profiles.owner_user_id`, moved runtime agent settings into the `agent_settings` table keyed by `user_id`, changed video uniqueness from global `youtube_video_id` to `(monitor_profile_id, youtube_video_id)`, and changed analysis cache uniqueness to include `agent_settings_hash`.
