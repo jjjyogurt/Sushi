@@ -944,3 +944,15 @@
 - Changes: Moved tutorial steps to the left, switched to white/soft-gray styling, removed the spotlight aura, and clarified step labels; removed the Help Center Tutorial link after review.
 - Check: Browser visual smoke on tutorial; console errors empty; `git diff --check`.
 - Next: Decide whether to keep or delete the standalone tutorial file.
+
+## 2026-05-15 16:22
+- Task: Run latest alpha release QA plan.
+- Changes: Executed the plan's focused P0/P1 pytest gate and full unit regression without code changes.
+- Check: `python3 -m pytest ...` focused gate 36 passed; `python3 -m pytest -q tests/unit` 144 passed, 1 warning.
+- Next: Complete staging/manual alpha cases for report/chat, real pipeline, rollout telemetry, and rollback readiness.
+
+## 2026-05-15 16:27
+- Task: Improve shared bottom notification popup and discovery completion copy.
+- Changes: Added larger glass-style toast design, longer default duration, and discovered-video count messaging.
+- Check: `node --check` on edited JS; `git diff --check`.
+- Next: Hard-refresh the app and visually confirm the toast treatment in the browser.

@@ -14,6 +14,16 @@ const MAX_MANUAL_VIDEO_URLS = 100;
 const MAX_VISIBLE_MANUAL_URL_ROWS = 5;
 const ACTIVE_ANALYSIS_BATCH_KEY = "active_analysis_batch_id";
 
+function discoveryCompletedMessage(count) {
+  if (!Number.isFinite(count)) {
+    return t("discoveryCompleted");
+  }
+  if (count === 1) {
+    return t("discoveryCompletedCountSingular");
+  }
+  return t("discoveryCompletedCount", { count });
+}
+
 function setBusyButtonState(button, { busy, label, busyLabel }) {
   if (!(button instanceof HTMLButtonElement)) {
     return;
@@ -461,7 +471,7 @@ export function createQueueController({
       throw new Error(t("errorSelectProjectFirst"));
     }
     const previousVideoIds = new Set(state.videos.map((video) => video.id));
-    await request("/videos/discover", {
+    const discoveryResponse = await request("/videos/discover", {
       method: "POST",
       body: JSON.stringify({
         monitor_profile_id: state.selectedProfileId,
@@ -473,6 +483,7 @@ export function createQueueController({
     const nextVideos = await refreshVideos();
     markNewlyAddedVideos(previousVideoIds, nextVideos);
     renderVideos();
+    return discoveryCompletedMessage(Number(discoveryResponse?.total));
   }
 
   function bindDiscoverVideoButton(button) {
@@ -489,7 +500,7 @@ export function createQueueController({
         busyLabel: t("discoveringVideos"),
       });
       void runTask(async () => {
-        await discoverVideos();
+        return discoverVideos();
       }, t("discoveryCompleted")).finally(() => {
         setBusyButtonState(button, {
           busy: false,

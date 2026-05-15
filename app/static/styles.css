@@ -1629,15 +1629,19 @@ body {
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
-  max-width: min(560px, calc(100vw - 48px));
+  min-width: min(360px, calc(100vw - 48px));
+  max-width: min(680px, calc(100vw - 48px));
   margin: 0;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: #ffffff;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(205, 218, 214, 0.64);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
   color: var(--text);
-  font-size: 0.84rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  box-shadow: 0 18px 48px rgba(28, 43, 39, 0.14);
 }
 
 .app-message .app-message-body {
@@ -1663,13 +1667,13 @@ body {
 
 .app-message.error {
   border-color: #efcfcd;
-  background: #fff8f7;
+  background: rgba(255, 248, 247, 0.84);
   color: var(--danger);
 }
 
 .app-message.success {
   border-color: #cde4dc;
-  background: #f4fbf8;
+  background: rgba(244, 251, 248, 0.84);
   color: var(--success);
 }
 

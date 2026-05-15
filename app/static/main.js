@@ -43,6 +43,9 @@ const DEFAULT_PROJECT_BRAND_KEYWORDS = Object.freeze([
   "HOVERAir X1 Smart",
 ]);
 
+const DEFAULT_MESSAGE_DISMISS_MS = 5100;
+const ACTION_MESSAGE_DISMISS_MS = 14000;
+
 let messageTimer = null;
 
 function clearMessage() {
@@ -113,7 +116,8 @@ function showMessage(message, type = "info", options = null) {
     messageEl.textContent = message;
   }
 
-  const dismissMs = options?.dismissMs ?? (hasAction ? 14000 : 3600);
+  const dismissMs =
+    options?.dismissMs ?? (hasAction ? ACTION_MESSAGE_DISMISS_MS : DEFAULT_MESSAGE_DISMISS_MS);
   messageTimer = window.setTimeout(() => {
     messageEl.classList.add("is-hidden");
   }, dismissMs);
