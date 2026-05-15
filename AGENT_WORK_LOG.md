@@ -956,3 +956,9 @@
 - Changes: Added larger glass-style toast design, longer default duration, and discovered-video count messaging.
 - Check: `node --check` on edited JS; `git diff --check`.
 - Next: Hard-refresh the app and visually confirm the toast treatment in the browser.
+
+## 2026-05-15 17:33
+- Task: Commit and deploy discovery toast backend release.
+- Changes: Committed the toast/discovery copy changes, deployed Cloud Run revision `sushi-backend-00035-wr9`, and recorded the release.
+- Check: P0 pytest gate passed; full unit suite 144 passed; Cloud Run `/health` and public URL passed.
+- Next: Monitor alpha discovery flow and roll back to `sushi-backend-00034-6c2` if production health degrades.

@@ -311,3 +311,17 @@ if supports_stale_timestamp_check:
 - This is a separate issue from the PostgreSQL fix
 - The app starts and serves requests but fails on template rendering
 - May be related to Jinja2/Starlette version compatibility
+
+---
+
+## Date: 2026-05-15 17:33 CST
+
+- Type: OTA web app release via Cloud Run backend
+- Commit: `fe633d41cb98ecfbd50ea8794c8e3a0f79b7ab91`
+- Release owner: Cursor agent
+- What changed: Discovery completion toast now reports discovered video count and uses the updated shared notification styling/timing.
+- Tests: `python3 -m pytest tests/unit/test_monitor_router.py tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_analysis_service.py tests/unit/test_gemini_client.py` passed; `python3 -m pytest tests/unit -q` passed; `node --check app/static/main.js app/static/queue.js app/static/i18n.js` passed; `git diff --check` passed.
+- Cloud Run revision: `sushi-backend-00035-wr9`
+- Firebase Hosting: not deployed
+- Verification: Cloud Run `/health` passed, revision `sushi-backend-00035-wr9` served 100% traffic, new revision ERROR log scan was clean, public URL returned HTTP 200, and deployed static assets included the new toast/discovery markers.
+- Rollback target: `sushi-backend-00034-6c2`
