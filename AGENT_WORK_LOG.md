@@ -1,5 +1,19 @@
 # Agent Work Log
 
+## 2026-05-15 15:34
+
+- Task: Fix missing project-card three-dot menu after icon migration.
+- Changes: Added cache-busting query strings for changed frontend assets, versioned the SVG sprite URL, and made the three-dot icon more visible.
+- Check: JS syntax checks and Chrome render check on Projects passed.
+- Next: None.
+
+## 2026-05-15 15:08
+
+- Task: Remove icon-font flash from the web UI.
+- Changes: Replaced Material Symbols ligatures with a local SVG sprite/helper and updated template, dynamic renderers, CSS, and i18n icon handling.
+- Check: JS syntax checks, venv Python compile, curl asset checks, and Chrome/Playwright render checks passed.
+- Next: None.
+
 ## 2026-05-14 18:55
 
 - Task: Restore Cloud Run backend after analysis startup migration outage.
@@ -918,3 +932,15 @@
 - Changes: Added frontend project-name min-length validation and surfaced FastAPI validation messages instead of generic request failures.
 - Check: `.venv/bin/python -m pytest tests/unit/test_monitor_router.py`; JS syntax checks; `git diff --check`.
 - Next: Retry with a project name of at least 2 characters.
+
+## 2026-05-15 15:35
+- Task: Create standalone Project Workspace tutorial.
+- Changes: Added a clean interactive HTML tutorial with playback, scene scrubber, spotlight, and product-marketing workflow narrative.
+- Check: Browser smoke via local static server; controls and report scene verified; console errors empty.
+- Next: Open the tutorial and adjust copy or pacing after product review.
+
+## 2026-05-15 15:49
+- Task: Align tutorial with Help Center colorway.
+- Changes: Moved tutorial steps to the left, switched to white/soft-gray styling, removed the spotlight aura, and clarified step labels; removed the Help Center Tutorial link after review.
+- Check: Browser visual smoke on tutorial; console errors empty; `git diff --check`.
+- Next: Decide whether to keep or delete the standalone tutorial file.

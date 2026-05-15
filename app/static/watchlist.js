@@ -1,4 +1,5 @@
 import { escapeHtml, getElement } from "./ui-utils.js";
+import { iconSvg } from "./icons.js";
 import { t } from "./i18n.js";
 
 function sentimentBadge(sentimentLabel) {
@@ -49,7 +50,7 @@ export function createWatchlistController({ request, runTask, onOpenVideo }) {
               aria-label="${escapeHtml(t("removeFromWatchlist"))}"
               title="${escapeHtml(t("removeFromWatchlist"))}"
             >
-              <span class="material-symbols-outlined">bookmark_remove</span>
+              ${iconSvg("bookmark_remove")}
             </button>
           </div>
         `;

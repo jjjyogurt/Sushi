@@ -1,4 +1,5 @@
 import { escapeHtml, formatVideoPublishedAt, getElement } from "./ui-utils.js";
+import { iconSvg } from "./icons.js";
 import { t } from "./i18n.js";
 
 const RETRY_CHAT_BUTTON_ID = "retry-chat-btn";
@@ -457,9 +458,7 @@ function videoDetailMarkup({
           aria-label="${escapeHtml(video.is_bookmarked ? t("removeFromWatchlist") : t("addToWatchlist"))}"
           title="${escapeHtml(video.is_bookmarked ? t("removeFromWatchlist") : t("addToWatchlist"))}"
         >
-          <span class="material-symbols-outlined">${
-            video.is_bookmarked ? "bookmark" : "bookmark_add"
-          }</span>
+          ${iconSvg(video.is_bookmarked ? "bookmark" : "bookmark_add")}
         </button>
         <button id="delete-video-btn" class="btn btn-secondary" type="button">${escapeHtml(t("delete"))}</button>
         <div class="analysis-language-toggle" role="group" aria-label="Analysis language">

@@ -1057,7 +1057,7 @@ const STATIC_BINDINGS = [
 ];
 
 function setTextWithLeadingIcon(node, nextText) {
-  const icon = node.querySelector(".material-symbols-outlined");
+  const icon = node.querySelector(".app-icon");
   if (!icon) {
     node.textContent = nextText;
     return;
@@ -1076,7 +1076,7 @@ export function applyStaticTranslations() {
       target.setAttribute(attr, translated);
       return;
     }
-    if (target.querySelector(".material-symbols-outlined")) {
+    if (target.querySelector(".app-icon")) {
       setTextWithLeadingIcon(target, translated);
       return;
     }

@@ -1,4 +1,5 @@
 import { escapeHtml, formatLanguageLabel, formatMarketLabel, getElement } from "./ui-utils.js";
+import { iconSvg } from "./icons.js";
 import { t } from "./i18n.js";
 
 function profileCardMarkup(profile, isSelected, openProjectMenuId) {
@@ -17,7 +18,7 @@ function profileCardMarkup(profile, isSelected, openProjectMenuId) {
             aria-haspopup="menu"
             aria-expanded="${isMenuOpen ? "true" : "false"}"
           >
-            <span class="material-symbols-outlined">more_vert</span>
+            ${iconSvg("more_vert")}
           </button>
           <div class="project-card-menu ${isMenuOpen ? "is-open" : ""}" data-project-menu-id="${profile.id}">
             <button class="dropdown-item" type="button" data-edit-project-id="${profile.id}">${escapeHtml(

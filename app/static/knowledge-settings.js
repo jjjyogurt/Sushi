@@ -1,4 +1,5 @@
 import { getElement } from "./ui-utils.js";
+import { iconSvg } from "./icons.js";
 import { t } from "./i18n.js";
 
 function escapeHtml(value) {
@@ -106,7 +107,7 @@ export function createKnowledgeSettingsController({ request, requestForm, runTas
           <button class="btn btn-secondary btn-icon-only" data-delete-source-id="${item.id}" type="button" title="${escapeHtml(
             t("deleteSource")
           )}">
-            <span class="material-symbols-outlined">delete</span>
+            ${iconSvg("delete")}
           </button>
         </li>
       `

@@ -45,6 +45,20 @@ body {
   line-height: 1.45;
 }
 
+.app-icon {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  flex-shrink: 0;
+  color: currentColor;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.125em;
+}
+
 .app-shell {
   display: flex;
   min-height: 100vh;
@@ -164,7 +178,7 @@ body {
   width: 256px;
 }
 
-.search-wrap .material-symbols-outlined {
+.search-wrap .app-icon {
   font-size: 1.1rem;
   color: #5a6061;
 }
@@ -289,13 +303,14 @@ body {
 }
 
 .project-menu-btn {
-  opacity: 0.35;
+  color: #5a6061;
+  opacity: 0.72;
   transition: opacity 0.2s;
   margin: -8px -8px 0 0;
 }
 
-.project-menu-btn .material-symbols-outlined {
-  font-size: 1rem;
+.project-menu-btn .app-icon {
+  font-size: 1.15rem;
 }
 
 .project-card:hover .project-menu-btn,
@@ -497,7 +512,7 @@ body {
   gap: 4px;
 }
 
-.help-ui-project-header span:not(.help-ui-callout):not(.material-symbols-outlined) {
+.help-ui-project-header span:not(.help-ui-callout):not(.app-icon) {
   color: var(--text-muted);
   font-size: 0.8rem;
 }
@@ -511,7 +526,7 @@ body {
   pointer-events: none;
 }
 
-.help-ui-button .material-symbols-outlined {
+.help-ui-button .app-icon {
   font-size: 1rem;
 }
 
@@ -748,7 +763,7 @@ body {
   background: var(--surface-soft);
 }
 
-.btn-clean .material-symbols-outlined {
+.btn-clean .app-icon {
   font-size: 1.2rem;
 }
 
@@ -996,7 +1011,6 @@ body {
   left: 6px;
   font-size: 14px !important;
   color: var(--success);
-  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
 }
 
 .video-item:hover {
@@ -1052,7 +1066,7 @@ body {
   margin: 0 auto 32px;
 }
 
-.empty-icon-circle .material-symbols-outlined {
+.empty-icon-circle .app-icon {
   font-size: 2.5rem;
   color: #adb3b4;
 }
@@ -1091,7 +1105,7 @@ body {
   color: #5a6061;
 }
 
-.pill .material-symbols-outlined {
+.pill .app-icon {
   font-size: 1rem;
 }
 
@@ -1415,7 +1429,7 @@ body {
   justify-content: center;
 }
 
-.btn-icon-only .material-symbols-outlined {
+.btn-icon-only .app-icon {
   font-size: 1.25rem;
 }
 
@@ -2269,17 +2283,16 @@ body {
   opacity: 0.55;
 }
 
-.video-item-watch-btn .material-symbols-outlined {
+.video-item-watch-btn .app-icon {
   font-size: 1.05rem;
   color: #6b7374;
 }
 
-.video-item-watch-btn.is-bookmarked .material-symbols-outlined {
+.video-item-watch-btn.is-bookmarked .app-icon {
   color: #2d3435;
-  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20;
 }
 
-.video-item-delete-btn .material-symbols-outlined {
+.video-item-delete-btn .app-icon {
   font-size: 1.05rem;
   color: var(--danger);
 }
@@ -2348,7 +2361,7 @@ body {
   opacity: 0.55;
 }
 
-.watchlist-remove-btn .material-symbols-outlined {
+.watchlist-remove-btn .app-icon {
   font-size: 1.05rem;
   color: #6b7374;
 }
@@ -2678,7 +2691,7 @@ body {
   gap: 6px;
 }
 
-#open-insights-btn .material-symbols-outlined {
+#open-insights-btn .app-icon {
   font-size: 1.05rem;
 }
 
@@ -2802,7 +2815,7 @@ body {
   color: var(--danger);
 }
 
-.insights-history-delete-btn .material-symbols-outlined {
+.insights-history-delete-btn .app-icon {
   font-size: 1rem;
 }
 

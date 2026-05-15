@@ -7,6 +7,7 @@ import {
   formatVideoPublishedAt,
   getElement,
 } from "./ui-utils.js";
+import { iconSvg } from "./icons.js";
 import { onLocaleChange, t } from "./i18n.js";
 
 const MAX_MANUAL_VIDEO_URLS = 100;
@@ -32,7 +33,7 @@ function setBusyButtonState(button, { busy, label, busyLabel }) {
 function analysisStatusBadge(video) {
   const status = String(video.latest_analysis_status || "").toLowerCase();
   if (status === "completed") {
-    return '<span class="analysis-check material-symbols-outlined">check_circle</span>';
+    return iconSvg("check_circle", "analysis-check");
   }
   return "";
 }
@@ -340,7 +341,7 @@ export function createQueueController({
           aria-label="${escapeHtml(watchTitle)}"
           title="${escapeHtml(watchTitle)}"
         >
-          <span class="material-symbols-outlined">${watchIcon}</span>
+          ${iconSvg(watchIcon)}
         </button>
         <button
           class="icon-btn video-item-delete-btn"
@@ -349,7 +350,7 @@ export function createQueueController({
           aria-label="${escapeHtml(t("delete"))} ${escapeHtml(video.title)}"
           title="${escapeHtml(t("deleteVideo"))}"
         >
-          <span class="material-symbols-outlined">delete</span>
+          ${iconSvg("delete")}
         </button>
       </div>
     `;

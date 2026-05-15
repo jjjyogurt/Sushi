@@ -211,7 +211,7 @@ function profileCardMarkup(profile) {
       <div style="display: flex; justify-content: space-between; align-items: start;">
         <h4>${escapeHtml(profile.name)}</h4>
         <button class="icon-btn delete-project-btn" data-profile-id="${profile.id}" title="Delete Project" type="button">
-          <span class="material-symbols-outlined" style="color: var(--danger); font-size: 1.2rem;">delete</span>
+          <svg class="app-icon" style="color: var(--danger); font-size: 1.2rem;" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-delete"></use></svg>
         </button>
       </div>
       <div class="meta" style="font-weight: 600; color: #5a6061; font-size: 0.8rem;">Keywords: ${escapeHtml(profile.brand_keywords.join(", "))}</div>

@@ -1,4 +1,5 @@
 import { escapeHtml, getElement } from "./ui-utils.js";
+import { iconSvg } from "./icons.js";
 import { t } from "./i18n.js";
 
 function formatDateTime(isoString) {
@@ -299,7 +300,7 @@ export function createInsightsController({
               aria-label="${escapeHtml(t("insightsDeleteHistoryItem"))}"
               title="${escapeHtml(t("insightsDeleteHistoryItem"))}"
             >
-              <span class="material-symbols-outlined">delete</span>
+              ${iconSvg("delete")}
             </button>
           </div>
         `;
