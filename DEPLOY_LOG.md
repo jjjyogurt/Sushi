@@ -1,5 +1,26 @@
 # Deployment Log - Sushi App to Firebase + Cloud Run
 
+## Date: 2026-05-19
+
+### Video Detail Summary Order Backend Deploy
+
+- Deployed `sushi-backend` revision `sushi-backend-00004-nbf` to `sushi-free-us-20260518` in `us-central1`, with 100% traffic.
+- Scope: refreshed backend-served static assets so video detail pages show Sentiment and Risk Level above Summary.
+- Verification: full unit suite passed (`144 passed, 1 warning`), backend `/health` returned 200, root GET returned HTML, deployed `video-detail.js` contains the new sentiment/risk-before-summary order, Cloud Run env inspection confirmed the Supabase pooler host, and recent new-revision ERROR logs were empty.
+- Rollback impact: route backend traffic back to `sushi-backend-00003-ckg` if the video detail UI regresses. Worker was not deployed because no batch or analysis worker code changed.
+
+## Date: 2026-05-18
+
+### Free-Tier US Pilot Cloud Run Deploy
+
+- Deployed `sushi-backend` revision `sushi-backend-00002-2wc` to new project `sushi-free-us-20260518` in `us-central1`, with 100% traffic and direct Cloud Run access.
+- Deployed private `sushi-analysis-worker` revision `sushi-analysis-worker-00002-4bh` from the same backend image, with `min-instances=0`, `max-instances=1`, `concurrency=1`, and `timeout=1800`.
+- Corrected `DATABASE_URL` after initial deploy created revisions with the local SQLite default from `.env`; current revisions are `sushi-backend-00003-ckg` and `sushi-analysis-worker-00003-kpk`, both using the Supabase session pooler.
+- Scope: moved the pilot backend and request-triggered analysis worker to a US free-tier-friendly Cloud Run project. Supabase remains the database. Firebase was not deployed.
+- Runtime config: `gemini-3.1-flash-lite` is configured for both analysis and chat; the new Gemini key and new YouTube Data API key are Cloud Run env vars, not stored in git.
+- Verification: alpha fast gate passed (`36 passed, 1 warning`), full unit regression passed (`144 passed, 1 warning`), backend `/health` returned 200, backend `/health/gemini?probe=true` returned `probe_ok=true`, root returned 200, Cloud Tasks invoked the private worker drain endpoint with HTTP 200 after cold start retries, Cloud Run backend/worker env inspection confirmed the Supabase pooler host, Supabase table counts were present, and no backend/worker ERROR logs appeared after the worker became ready.
+- Rollback impact: route traffic to the previous `sushi-backend` revision in `sushi-free-us-20260518` if this deployment regresses. If worker dispatch regresses, redeploy `sushi-analysis-worker` from the same image and preserve `min-instances=0` unless actively debugging.
+
 ## Date: 2026-05-14
 
 ### Analysis Startup Migration Hotfix Deploy

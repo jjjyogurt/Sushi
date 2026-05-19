@@ -1,5 +1,19 @@
 # Agent Work Log
 
+## 2026-05-19 10:13
+
+- Task: Deploy backend for video detail summary order update.
+- Changes: Deployed `sushi-backend` revision `sushi-backend-00004-nbf` and logged the deployment.
+- Check: Full unit suite 144 passed; `/health` 200; deployed JS order verified; new-revision ERROR logs empty.
+- Next: None.
+
+## 2026-05-19 10:07
+
+- Task: Move sentiment/risk cards above the video summary.
+- Changes: Reordered video detail markup so Sentiment and Risk Level render before Summary.
+- Check: `node --check app/static/video-detail.js`; `pytest tests/unit/test_video_router.py tests/unit/test_api_mappers.py`; browser verified at `/projects/2`.
+- Next: None.
+
 ## 2026-05-15 15:34
 
 - Task: Fix missing project-card three-dot menu after icon migration.
@@ -962,3 +976,33 @@
 - Changes: Committed the toast/discovery copy changes, deployed Cloud Run revision `sushi-backend-00035-wr9`, and recorded the release.
 - Check: P0 pytest gate passed; full unit suite 144 passed; Cloud Run `/health` and public URL passed.
 - Next: Monitor alpha discovery flow and roll back to `sushi-backend-00034-6c2` if production health degrades.
+
+## 2026-05-18 17:31
+- Task: Deploy backend and analysis worker to US Cloud Run.
+- Changes: Deployed `sushi-backend` and `sushi-analysis-worker` to `us-central1`; kept Gemini and Supabase settings unchanged; did not deploy Firebase.
+- Check: US backend `/health` and root returned 200; US Cloud Tasks smoke invoked worker drain with HTTP 200; recent US ERROR logs empty.
+- Next: Use the US Cloud Run backend URL for pilot testing.
+
+## 2026-05-18 18:20
+- Task: Update backend deployment docs and run alpha gates.
+- Changes: Documented the `sushi-free-us-20260518` free-tier pilot target, `us-central1`, direct Cloud Run usage, and scale-to-zero worker behavior.
+- Check: Alpha fast gate 36 passed; full unit regression 144 passed; `git diff --check` passed.
+- Next: Deploy backend and worker to the new project, then run production smoke/manual alpha cases.
+
+## 2026-05-18 18:28
+- Task: Deploy free-tier pilot backend and worker.
+- Changes: Deployed `sushi-backend` and private `sushi-analysis-worker` to `sushi-free-us-20260518` in `us-central1`; recorded the deployment.
+- Check: Backend health/root/Gemini probe passed; Cloud Tasks worker smoke reached HTTP 200; no post-ready ERROR logs.
+- Next: Run real YouTube import, analysis, report, and chat smoke on the new Cloud Run URL.
+
+## 2026-05-18 21:21
+- Task: Correct free-tier pilot database wiring.
+- Changes: Updated Cloud Run backend and worker `DATABASE_URL` from local SQLite default to the existing Supabase session pooler.
+- Check: Cloud Run env inspection confirmed Supabase host; backend health and Gemini probe passed; Supabase table counts were present.
+- Next: Confirm existing projects/videos appear in the deployed app UI.
+
+## 2026-05-18 21:30
+- Task: Document local SQLite and production Supabase requirements.
+- Changes: Updated backend deployment/setup docs to forbid deploying local SQLite `.env` to Cloud Run and require Supabase for backend and worker.
+- Check: `git diff --check` passed.
+- Next: Preserve or explicitly inject the Supabase `DATABASE_URL` on every production deploy.

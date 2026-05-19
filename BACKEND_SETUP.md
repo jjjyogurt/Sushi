@@ -1,6 +1,6 @@
 # Backend setup
 
-**Document date:** 2026-05-13
+**Document date:** 2026-05-18
 **Scope:** Backend runtime, persistence, integrations, and deployment as implemented in this repository.
 
 ---
@@ -58,8 +58,10 @@
 
 - **Engine:** `sqlalchemy.create_engine` from `DATABASE_URL`.
 - **Sessions:** Request-scoped `Session` via `get_db_session()` (`sessionmaker`, `autocommit=False`).
-- **SQLite:** `check_same_thread=False` when URL starts with `sqlite`.
-- **PostgreSQL:** `pool_pre_ping=True`; connection retries in `get_db_engine()` help managed Postgres / cold starts.
+- **Local SQLite:** Local development and tests may use `DATABASE_URL=sqlite:///./sushi.db` or in-memory SQLite fixtures. This is local-only and must not be deployed as the Cloud Run production database.
+- **Production Supabase PostgreSQL:** Cloud Run backend and worker must use the Supabase session pooler DSN. Current Supabase project ref is `uzqsrsdpfxykujbjjsqu`, region is `ap-southeast-2`, and the pooler host is `aws-1-ap-southeast-2.pooler.supabase.com`.
+- **SQLite handling:** `check_same_thread=False` when URL starts with `sqlite`.
+- **PostgreSQL handling:** `pool_pre_ping=True`; connection retries in `get_db_engine()` help managed Postgres / cold starts.
 - **Schema evolution:** `create_all` + imperative migrations in code (no Alembic in dependencies).
 
 ---
@@ -75,6 +77,22 @@ Centralized in `app/config.py` (`Settings`). Notable categories:
 - **VOC thresholds:** `VOC_FAILED_RATIO_*`, `VOC_CONFIDENCE_*`.
 
 See `.env.example` for names and sane defaults.
+
+### Local vs production database requirement
+
+`.env` is allowed to use SQLite for local testing:
+
+```text
+DATABASE_URL=sqlite:///./sushi.db
+```
+
+Cloud Run production is different. The backend and analysis worker must both use the Supabase session pooler:
+
+```text
+postgresql+psycopg2://postgres.PROJECT_REF:PASSWORD@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+Do not deploy local `.env` directly to Cloud Run if it contains the SQLite `DATABASE_URL`. Doing so creates a container-local database and the app will appear to have no existing Supabase data. For Cloud Run deploys, preserve the existing production `DATABASE_URL` or inject the Supabase DSN separately from local `.env`.
 
 ---
 
@@ -99,24 +117,33 @@ Deployments are described in `DEPLOY_LOG.md` and implied by `firebase.json` and 
 
 | Piece                           | Typical setup                                                                                                                        |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Cloud Run**                   | Service name `sushi-backend`, region `asia-southeast1`, listens on `PORT` (8080).                                                    |
+| **Cloud Run**                   | Service name `sushi-backend`, free-tier pilot region `us-central1`, listens on `PORT` (8080).                                        |
 | **Cloud Run worker**            | Service name `sushi-analysis-worker`, command `python -m app.workers.analysis_batch_worker`, request-triggered with `min-instances=0`, `max-instances=1`, `concurrency=1`. |
-| **Cloud Tasks**                 | Queue `sushi-analysis-worker` in `asia-southeast1`; backend enqueues drain tasks and the queue invokes the private worker service.     |
+| **Cloud Tasks**                 | Queue `sushi-analysis-worker` in `us-central1`; backend enqueues drain tasks and the queue invokes the private worker service.         |
 | **Supabase PostgreSQL**         | Production database accessed through the Supabase session pooler.                                                                     |
-| `DATABASE_URL` on Cloud Run     | Uses TCP/TLS DSN via `postgresql+psycopg2://postgres.PROJECT_REF:PASSWORD@HOST:5432/postgres?sslmode=require`.                       |
-| **Artifact Registry**           | Docker image builds (example path in deploy docs: `asia-southeast1-docker.pkg.dev/.../sushi-backend/...`).                           |
-| **Firebase Hosting**            | Serves static `public/`; `rewrites` send all routes to Cloud Run `sushi-backend` in `asia-southeast1` (`firebase.json`).              |
+| `DATABASE_URL` on Cloud Run     | Must use Supabase TCP/TLS DSN via `postgresql+psycopg2://postgres.PROJECT_REF:PASSWORD@HOST:5432/postgres?sslmode=require`; never local SQLite. |
+| **Artifact Registry**           | Docker image builds created by Cloud Run source deploys.                                                                              |
+| **Firebase Hosting**            | Not used for the free-tier pilot. Use the Cloud Run service URL directly.                                                             |
 | **IAM**                         | Unauthenticated hosting often uses `allUsers` with `roles/run.invoker` on Cloud Run (document only; confirm in GCP console).          |
 
 
 **Build/deploy commands** (adapt project/region/instance):
 
 - `gcloud builds submit ...` or `gcloud run deploy sushi-backend --source ...` with `--clear-cloudsql-instances`, `--set-env-vars`, `--allow-unauthenticated` as needed.
-- `gcloud tasks queues create sushi-analysis-worker --location asia-southeast1` once per environment, then grant the backend runtime service account `roles/cloudtasks.enqueuer`.
+- `gcloud tasks queues create sushi-analysis-worker --location us-central1` once per environment, then grant the backend runtime service account `roles/cloudtasks.enqueuer`.
 - `gcloud run deploy sushi-analysis-worker ... --min-instances 0 --max-instances 1 --concurrency 1 --timeout 1800 --no-allow-unauthenticated`.
-- `firebase deploy --only hosting` after Hosting config changes.
+- Do not deploy Firebase for the free-tier pilot.
 
 Store secrets (API keys, DB passwords) in **Secret Manager** or Cloud Run secrets — not in markdown or git.
+
+Before considering a Cloud Run deploy healthy, verify both services point to Supabase:
+
+```bash
+gcloud run services describe sushi-backend --region us-central1 --format=json
+gcloud run services describe sushi-analysis-worker --region us-central1 --format=json
+```
+
+Inspect only the `DATABASE_URL` host/ref, not the password. It must contain the Supabase pooler host, not `sqlite:///./sushi.db`.
 
 ---
 
@@ -138,6 +165,18 @@ Database structure, migration, persistence behavior, production database target,
 - What changed: Updated this setup document date, fixed Cloud Run table formatting, and clarified the documentation update rule for backend and database changes.
 - Why it changed: Keep the setup document aligned with the current Supabase-backed backend design and make future documentation updates mandatory when backend or database behavior changes.
 - Impact on existing data and compatibility: Documentation-only. No runtime, API, schema, or persisted data behavior changed.
+
+### What Changed (2026-05-18, free-tier US pilot deployment)
+
+- What changed: Documented the free-tier pilot backend target as project `sushi-free-us-20260518` in `us-central1`, with direct Cloud Run access and a request-triggered analysis worker that scales to zero when idle. Gemini runtime model settings are `gemini-3.1-flash-lite` for both analysis and chat.
+- Why it changed: Keep backend and analysis worker deployment in a US Cloud Run region with free-tier-friendly behavior and avoid Firebase for pilot testing.
+- Impact on existing data and compatibility: Supabase remains the production database. No schema migration, persisted data rewrite, or API contract change is required.
+
+### What Changed (2026-05-18, local SQLite vs production Supabase rule)
+
+- What changed: Added explicit local and production database requirements. Local `.env` may use SQLite, but Cloud Run backend and worker must use the Supabase session pooler DSN for project ref `uzqsrsdpfxykujbjjsqu`.
+- Why it changed: Prevent Cloud Run deployments from accidentally using local SQLite and hiding existing Supabase data.
+- Impact on existing data and compatibility: Documentation-only. No schema migration or data rewrite is required.
 
 ### What Changed (2026-05-13, request-triggered analysis worker)
 

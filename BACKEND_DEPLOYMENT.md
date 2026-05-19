@@ -10,13 +10,14 @@ If deployment method changes, update this file in the same PR before deploying.
 
 ## 1) Current production targets
 
-- GCP project: `sushi-d9036`
+- Primary free-tier pilot GCP project: `sushi-free-us-20260518`
+- Legacy GCP project: `sushi-d9036`
 - Cloud Run service: `sushi-backend`
 - Cloud Run worker service: `sushi-analysis-worker`
-- Cloud Run region: `asia-southeast1`
+- Cloud Run region: `us-central1`
 - Production database: Supabase PostgreSQL session pooler (`aws-1-ap-southeast-2.pooler.supabase.com`)
 - Legacy Cloud SQL rollback instance: `sushi-d9036:asia-southeast1:sushi-d9036-instance` (stopped after 2026-05-06 migration)
-- Firebase Hosting project: `sushi-d9036` (rewrites to `sushi-backend`)
+- Firebase Hosting: not used for the free-tier pilot deployment. Use the Cloud Run service URL directly.
 
 ---
 
@@ -25,22 +26,45 @@ If deployment method changes, update this file in the same PR before deploying.
 1. Deploy only from the intended branch/commit.
 2. Do not put secrets in command history, docs, or source files.
 3. Do not put Supabase database passwords in markdown, git, or shell history.
-4. Run tests before deploy.
-5. Verify health immediately after deploy.
-6. If verification fails, rollback traffic to previous stable revision.
+4. Treat `.env` as local development configuration unless each production value has been explicitly reviewed.
+5. Never deploy Cloud Run production directly from local `.env` when it contains `DATABASE_URL=sqlite:///./sushi.db`.
+6. Production Cloud Run backend and worker must use the Supabase session pooler `DATABASE_URL`.
+7. Run tests before deploy.
+8. Verify health immediately after deploy.
+9. If verification fails, rollback traffic to previous stable revision.
 
 ---
 
 ## 3) Required runtime config
 
-Current production stores the Supabase PostgreSQL DSN as a Cloud Run environment variable:
+### Database configuration rule
+
+Local development and production intentionally use different database targets:
+
+| Environment | Required `DATABASE_URL` | Purpose |
+| --- | --- | --- |
+| Local development / unit testing | `sqlite:///./sushi.db` or in-memory SQLite fixtures | Fast local testing without touching production data |
+| Cloud Run production / pilot | Supabase PostgreSQL session pooler DSN | Existing shared production data |
+
+Current Cloud Run production stores the Supabase PostgreSQL DSN as a Cloud Run environment variable:
 
 - `DATABASE_URL`
 
-Preserve the existing value during code-only deploys. If runtime config must change, update it directly as a Cloud Run env var or move it to Secret Manager first. The expected production shape is:
+Preserve the existing value during code-only deploys. If runtime config must change, update it directly as a Cloud Run env var or move it to Secret Manager first. The expected production shape uses Supabase project ref `uzqsrsdpfxykujbjjsqu` and the session pooler host:
 
 ```text
 postgresql+psycopg2://postgres.PROJECT_REF:PASSWORD@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+Do not use `.env` as a Cloud Run env-var source unless the production Supabase `DATABASE_URL` is injected or preserved separately. If `.env` has `DATABASE_URL=sqlite:///./sushi.db`, deploying it to Cloud Run will create a separate container-local SQLite database and the app will not show existing Supabase data.
+
+Before and after deployment, verify Cloud Run is wired to Supabase without printing the password:
+
+```bash
+gcloud run services describe sushi-backend \
+  --region us-central1 \
+  --format=json \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); env=d["spec"]["template"]["spec"]["containers"][0].get("env", []); v=next((e.get("value","") for e in env if e.get("name")=="DATABASE_URL"), ""); print("postgresql", v.startswith("postgresql+psycopg2://"), "host", v.split("@")[-1] if "@" in v else "<missing>")'
 ```
 
 Do not attach Cloud SQL for normal deploys. The previous Cloud SQL instance is retained only as a short-term rollback source after the 2026-05-06 Supabase migration.
@@ -56,10 +80,10 @@ Expected non-secret runtime env:
 
 - `ENVIRONMENT=production`
 - `ENABLE_MOCK_DISCOVERY=false`
-- `GEMINI_MODEL_ANALYSIS=gemini-3-flash`
-- `GEMINI_MODEL_CHAT=gemini-3-flash`
-- `GCP_PROJECT_ID=sushi-d9036`
-- `GCP_REGION=asia-southeast1`
+- `GEMINI_MODEL_ANALYSIS=gemini-3.1-flash-lite`
+- `GEMINI_MODEL_CHAT=gemini-3.1-flash-lite`
+- `GCP_PROJECT_ID=sushi-free-us-20260518`
+- `GCP_REGION=us-central1`
 - `ANALYSIS_WORKER_URL=<sushi-analysis-worker Cloud Run URL>`
 - `ANALYSIS_WORKER_TASKS_QUEUE=sushi-analysis-worker`
 - `ANALYSIS_WORKER_TASK_SERVICE_ACCOUNT_EMAIL=<task invoker service account email>`
@@ -78,12 +102,9 @@ Run all commands from repo root.
 ```bash
 # 1) Authenticate and target project
 gcloud auth login
-gcloud config set project sushi-d9036
+gcloud config set project sushi-free-us-20260518
 
-# 2) Optional but recommended: confirm firebase target project
-firebase use sushi-d9036
-
-# 3) Run backend unit tests
+# 2) Run backend unit tests
 python3 -m pytest tests/unit -q
 ```
 
@@ -95,25 +116,27 @@ If tests fail, stop and fix first.
 gcloud run deploy sushi-backend \
   --source . \
   --platform managed \
-  --region asia-southeast1 \
+  --region us-central1 \
   --allow-unauthenticated \
   --clear-cloudsql-instances
 ```
 
 For code-only deploys, preserve the service's existing env vars. If runtime config must change, update only the specific keys with `--update-env-vars`; do not replace `DATABASE_URL` unless the Supabase connection string has first been verified.
 
+Do not pass `--env-vars-file .env` to production deploys while `.env` is configured for local SQLite. If an env vars file is used, build a production-only file that contains the Supabase `DATABASE_URL`, or preserve the existing Cloud Run `DATABASE_URL` and update only non-database keys.
+
 ### Step C - Post-deploy verification
 
 ```bash
 # 1) Resolve service URL
-SERVICE_URL="$(gcloud run services describe sushi-backend --region asia-southeast1 --format='value(status.url)')"
+SERVICE_URL="$(gcloud run services describe sushi-backend --region us-central1 --format='value(status.url)')"
 echo "$SERVICE_URL"
 
 # 2) Health check
 curl -fsS "$SERVICE_URL/health"
 
 # 3) Verify latest revision + traffic
-gcloud run revisions list --service=sushi-backend --region=asia-southeast1
+gcloud run revisions list --service=sushi-backend --region=us-central1
 
 # 4) Quick log scan for startup/runtime errors
 gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=sushi-backend" --limit=100
@@ -121,13 +144,9 @@ gcloud logging read "resource.type=cloud_run_revision AND resource.labels.servic
 
 If health check fails or logs show critical runtime errors, rollback immediately.
 
-### Step D - Deploy Firebase Hosting (only when needed)
+### Step D - Firebase Hosting
 
-Only run when `firebase.json` or `public/` changed.
-
-```bash
-firebase deploy --only hosting
-```
+Do not deploy Firebase Hosting for the free-tier pilot. Use the Cloud Run URL directly.
 
 ### Step E - Configure analysis worker wake queue
 
@@ -139,7 +158,7 @@ Create the queue once per region:
 gcloud services enable cloudtasks.googleapis.com
 
 gcloud tasks queues create sushi-analysis-worker \
-  --location asia-southeast1 \
+  --location us-central1 \
   --max-dispatches-per-second 1 \
   --max-concurrent-dispatches 1
 ```
@@ -151,22 +170,22 @@ gcloud iam service-accounts create sushi-analysis-worker-invoker \
   --display-name "Sushi analysis worker invoker"
 
 gcloud run services add-iam-policy-binding sushi-analysis-worker \
-  --region asia-southeast1 \
-  --member serviceAccount:sushi-analysis-worker-invoker@sushi-d9036.iam.gserviceaccount.com \
+  --region us-central1 \
+  --member serviceAccount:sushi-analysis-worker-invoker@sushi-free-us-20260518.iam.gserviceaccount.com \
   --role roles/run.invoker
 ```
 
 For the backend service account that enqueues tasks, grant queue enqueue permissions:
 
 ```bash
-gcloud projects add-iam-policy-binding sushi-d9036 \
+gcloud projects add-iam-policy-binding sushi-free-us-20260518 \
   --member serviceAccount:<BACKEND_RUNTIME_SERVICE_ACCOUNT> \
   --role roles/cloudtasks.enqueuer
 
 gcloud iam service-accounts add-iam-policy-binding \
-  sushi-analysis-worker-invoker@sushi-d9036.iam.gserviceaccount.com \
+  sushi-analysis-worker-invoker@sushi-free-us-20260518.iam.gserviceaccount.com \
   --member serviceAccount:<BACKEND_RUNTIME_SERVICE_ACCOUNT> \
-  --role roles/iam.serviceAccountUser
+  --role roles/iam.serviceAccountTokenCreator
 ```
 
 ### Step F - Deploy analysis worker after batch/analysis changes
@@ -177,7 +196,7 @@ Deploy the worker from the same backend image or source revision and override th
 gcloud run deploy sushi-analysis-worker \
   --image IMAGE_FROM_LATEST_BACKEND_REVISION \
   --platform managed \
-  --region asia-southeast1 \
+  --region us-central1 \
   --command python \
   --args=-m,app.workers.analysis_batch_worker \
   --clear-cloudsql-instances \
@@ -192,6 +211,8 @@ gcloud run deploy sushi-analysis-worker \
 
 The worker uses the same runtime env vars as `sushi-backend`, including `DATABASE_URL`, Gemini keys, YouTube transcript keys, YouTube Data API keys, and optional `ANALYSIS_WORKER_INTERNAL_TOKEN`. Do not set `--no-cpu-throttling`; the worker does useful work only while Cloud Tasks is calling the drain endpoint.
 
+The worker must use the same Supabase `DATABASE_URL` as the backend. If the backend points to Supabase but the worker points to local SQLite, async analysis will not read or update the existing production rows.
+
 After the worker is deployed, update `sushi-backend` with the worker task settings, especially `ANALYSIS_WORKER_URL` and `ANALYSIS_WORKER_TASK_SERVICE_ACCOUNT_EMAIL`.
 
 Optional fallback: add a Cloud Scheduler job every 5-10 minutes to enqueue or call the same drain endpoint so missed task creation events do not leave queued work idle.
@@ -203,7 +224,7 @@ Optional fallback: add a Cloud Scheduler job every 5-10 minutes to enqueue or ca
 ### Step A - Identify last stable revision
 
 ```bash
-gcloud run revisions list --service=sushi-backend --region=asia-southeast1
+gcloud run revisions list --service=sushi-backend --region=us-central1
 ```
 
 ### Step B - Route all traffic to stable revision
@@ -212,14 +233,14 @@ Replace `<STABLE_REVISION>` with the actual known-good revision.
 
 ```bash
 gcloud run services update-traffic sushi-backend \
-  --region asia-southeast1 \
+  --region us-central1 \
   --to-revisions <STABLE_REVISION>=100
 ```
 
 ### Step C - Re-verify
 
 ```bash
-SERVICE_URL="$(gcloud run services describe sushi-backend --region asia-southeast1 --format='value(status.url)')"
+SERVICE_URL="$(gcloud run services describe sushi-backend --region us-central1 --format='value(status.url)')"
 curl -fsS "$SERVICE_URL/health"
 ```
 
@@ -249,4 +270,18 @@ Also add a short note in `DEPLOY_LOG.md`:
 
 - Source-based Cloud Run deploy (`gcloud run deploy --source .`) is the active method.
 - No `scripts/deploy_backend_dual_region.sh` script is currently part of this repo workflow.
-- Web app OTA releases are governed by `OTA_DEPLOYMENT.md`; Cloud Run remains the deploy path unless only Firebase Hosting config or `public/` changed.
+- Web app OTA releases are governed by `OTA_DEPLOYMENT.md`; Cloud Run remains the deploy path. Firebase Hosting is not part of the free-tier pilot path.
+- The analysis worker must remain request-triggered with `min-instances=0` so it scales to zero when idle.
+- Current free-tier pilot uses `gemini-3.1-flash-lite` for both analysis and chat.
+
+### What Changed (2026-05-18, free-tier US pilot deployment)
+
+- What changed: Updated the deployment target from the legacy `sushi-d9036` / `asia-southeast1` Firebase-routed setup to the free-tier pilot project `sushi-free-us-20260518` in `us-central1`, using direct Cloud Run URLs and a scale-to-zero analysis worker.
+- Why it changed: Keep backend and worker runtime in a US Cloud Run region with free-tier-friendly settings and avoid Firebase for the pilot.
+- Impact on existing data and compatibility: Supabase remains the production database. No database schema, API contract, or Firebase config change is required.
+
+### What Changed (2026-05-18, local SQLite vs production Supabase rule)
+
+- What changed: Added explicit deployment rules that `.env` may remain local SQLite, but Cloud Run backend and worker must use the Supabase session pooler `DATABASE_URL`.
+- Why it changed: Prevent future production deploys from accidentally using the local SQLite default and hiding existing Supabase data.
+- Impact on existing data and compatibility: Documentation-only. The deployed backend and worker already point to Supabase; no schema or data migration is required.

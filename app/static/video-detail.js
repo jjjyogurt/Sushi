@@ -482,11 +482,6 @@ function videoDetailMarkup({
       ${analysisError ? `<div class="meta" style="color: var(--danger);">${escapeHtml(analysisError)}</div>` : ""}
 
       <div class="detail-grid">
-        <div class="detail-block">
-          <h5>${escapeHtml(t("summary"))}</h5>
-          <div>${summaryMarkup(analysis)}</div>
-        </div>
-        ${audienceUseCaseMarkup(analysis)}
         <div class="split-grid">
           <div class="detail-block">
             <h5>${escapeHtml(t("sentiment"))}</h5>
@@ -499,6 +494,11 @@ function videoDetailMarkup({
             <div><strong class="${riskClass}">${escapeHtml(riskLevel)}</strong></div>
           </div>
         </div>
+        <div class="detail-block">
+          <h5>${escapeHtml(t("summary"))}</h5>
+          <div>${summaryMarkup(analysis)}</div>
+        </div>
+        ${audienceUseCaseMarkup(analysis)}
         <div class="detail-block">
           <h5>${escapeHtml(t("assignee"))}</h5>
           <select id="assignee-select">
