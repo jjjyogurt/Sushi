@@ -346,3 +346,15 @@ if supports_stale_timestamp_check:
 - Firebase Hosting: not deployed
 - Verification: Cloud Run `/health` passed, revision `sushi-backend-00035-wr9` served 100% traffic, new revision ERROR log scan was clean, public URL returned HTTP 200, and deployed static assets included the new toast/discovery markers.
 - Rollback target: `sushi-backend-00034-6c2`
+
+## Date: 2026-05-19 12:02 CST
+
+- Type: Free-tier pilot Cloud Run backend release
+- Commit: `04fac7651ed27f6ff7215e435ba2d107a8e0783e`
+- Release owner: Codex
+- What changed: Updated Advanced Agent Prompt copy to clarify account/new-analysis behavior and added regression coverage proving new analyses use the latest saved account prompt.
+- Tests: `PYTHONPATH=. .venv/bin/pytest -q` passed with 145 tests; `git diff --check` passed.
+- Cloud Run revision: `sushi-backend-00005-5s5`
+- Firebase Hosting: not deployed
+- Verification: Cloud Run `/health` passed, revision `sushi-backend-00005-5s5` served 100% traffic, Supabase `DATABASE_URL` remained configured, new revision ERROR log scan was clean, and deployed HTML included the updated prompt copy.
+- Rollback target: `sushi-backend-00004-nbf`
