@@ -1006,3 +1006,9 @@
 - Changes: Updated backend deployment/setup docs to forbid deploying local SQLite `.env` to Cloud Run and require Supabase for backend and worker.
 - Check: `git diff --check` passed.
 - Next: Preserve or explicitly inject the Supabase `DATABASE_URL` on every production deploy.
+
+## 2026-05-19 10:54
+- Task: Clarify account prompt behavior for new video analysis.
+- Changes: Updated agent prompt UI copy and added a unit test proving new analysis uses the latest saved account prompt.
+- Check: `PYTHONPATH=. pytest -q tests/unit/test_analysis_service.py`.
+- Next: Completed videos remain unchanged unless manually re-analyzed.

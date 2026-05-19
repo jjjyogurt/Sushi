@@ -94,6 +94,33 @@ class StubGeminiClient:
         return analysis_output, comments_output
 
 
+class CapturingGeminiClient(StubGeminiClient):
+    def __init__(self):
+        self.agent_instructions_seen = None
+
+    def analyze_video(
+        self,
+        *,
+        title: str,
+        source_language: str,
+        target_output_language: str,
+        relevance_reason: str,
+        transcript_text: str,
+        knowledge_context: str = "",
+        agent_instructions: str = "",
+    ):
+        self.agent_instructions_seen = agent_instructions
+        return super().analyze_video(
+            title=title,
+            source_language=source_language,
+            target_output_language=target_output_language,
+            relevance_reason=relevance_reason,
+            transcript_text=transcript_text,
+            knowledge_context=knowledge_context,
+            agent_instructions=agent_instructions,
+        )
+
+
 class StubFailingGeminiClient:
     def ensure_ready(self):
         return None
@@ -217,6 +244,33 @@ def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session,
 
     settings.analysis_version = original_version
     settings.gemini_api_key = original_key
+
+
+def test_new_analysis_uses_latest_saved_account_agent_prompt(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    latest_prompt = "Use the updated account-specific prompt for new video analysis."
+    settings.analysis_version = "unit-latest-agent-prompt"
+    settings.gemini_api_key = "unit-test-key"
+    try:
+        AgentSettingsService(db_session).save_content(
+            user_id=discovered_video.monitor_profile.owner_user_id,
+            content=latest_prompt,
+        )
+        capturing_client = CapturingGeminiClient()
+        service = AnalysisService(db_session)
+        service.transcript_service = StubTranscriptService()
+        service.gemini_client = capturing_client
+
+        result = service.analyze_video(video_id=discovered_video.id, force_reanalyze=False)
+
+        assert result.status == AnalysisStatus.COMPLETED
+        assert capturing_client.agent_instructions_seen == latest_prompt
+        assert result.agent_settings_hash == AgentSettingsService.hash_content(latest_prompt)
+    finally:
+        settings.analysis_version = original_version
+        settings.gemini_api_key = original_key
 
 
 def test_analysis_cache_is_separated_by_project_owner_agent_settings(db_session):
