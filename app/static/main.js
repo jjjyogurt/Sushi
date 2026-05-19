@@ -1,7 +1,7 @@
 import { ApiError, request, requestForm } from "./api-client.js";
 import { createAuthController } from "./auth.js";
-import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js?v=20260515-icons";
-import { createQueueController } from "./queue.js?v=20260515-icons";
+import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js?v=20260519-monitoring";
+import { createQueueController } from "./queue.js?v=20260519-monitoring";
 import {
   clearVideoQueryParam,
   getProjectIdFromRoute,
@@ -26,7 +26,7 @@ import { createVocController } from "./voc.js";
 import { createAllVideosSettingsController } from "./all-videos-settings.js";
 import { createInsightsController } from "./insights.js?v=20260515-icons";
 import { createWatchlistController } from "./watchlist.js?v=20260515-icons";
-import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260515-icons";
+import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260519-monitoring";
 
 const DEFAULT_PROJECT_BRAND_KEYWORDS = Object.freeze([
   "HOVER",
@@ -160,6 +160,16 @@ function setEditPanelVisible(isVisible) {
     return;
   }
   container.classList.toggle("is-hidden", !isVisible);
+}
+
+function attachEditPanelToProjectCard(profileId) {
+  const container = getElement("edit-profile-container");
+  const slot = document.querySelector(`[data-project-card-edit-slot-id="${profileId}"]`);
+  if (!(container instanceof HTMLElement) || !(slot instanceof HTMLElement)) {
+    return false;
+  }
+  slot.appendChild(container);
+  return true;
 }
 
 function setActiveSection(sectionId) {
@@ -481,11 +491,77 @@ async function bootstrap() {
       selectedProfileId: state.selectedProfileId,
       openProjectMenuId: state.openProjectMenuId,
     });
+    syncMonitoringNotificationButton();
     if (queueController) {
       queueController.renderProfileSelect();
     }
     knowledgeSettingsController.syncProjectSelection();
     insightsController?.syncEntryVisibility();
+  }
+
+  function monitoringProfilesWithUpdates() {
+    const state = getState();
+    return state.profiles.filter((profile) => Number(profile.unseen_monitoring_update_count || 0) > 0);
+  }
+
+  function syncMonitoringNotificationButton() {
+    const button = getElement("topbar-monitoring-notification-btn");
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    const profilesWithUpdates = monitoringProfilesWithUpdates();
+    const total = profilesWithUpdates.reduce(
+      (sum, profile) => sum + Number(profile.unseen_monitoring_update_count || 0),
+      0
+    );
+    button.classList.toggle("has-updates", total > 0);
+    button.setAttribute(
+      "aria-label",
+      total > 0 ? t("monitoringNotificationAria", { count: String(total) }) : t("monitoringNoUpdates")
+    );
+    button.title = total > 0 ? t("monitoringNotificationAria", { count: String(total) }) : t("monitoringNoUpdates");
+  }
+
+  async function markProjectMonitoringUpdatesSeen(profileId) {
+    const current = getState().profiles.find((profile) => profile.id === profileId);
+    if (!current || Number(current.unseen_monitoring_update_count || 0) === 0) {
+      return;
+    }
+    try {
+      const updated = await request(`/monitor-profiles/${profileId}/monitoring-updates/seen`, {
+        method: "POST",
+      });
+      setState((previous) => ({
+        ...previous,
+        profiles: previous.profiles.map((profile) => (profile.id === updated.id ? updated : profile)),
+      }));
+      rerenderProfileArea();
+    } catch (_error) {
+      // Opening the project should not be blocked by best-effort read-state sync.
+    }
+  }
+
+  function showMonitoringNotificationDigest() {
+    const profilesWithUpdates = monitoringProfilesWithUpdates();
+    if (profilesWithUpdates.length === 0) {
+      showMessage(t("monitoringNoUpdates"));
+      return;
+    }
+    const topProfile = profilesWithUpdates[0];
+    const total = profilesWithUpdates.reduce(
+      (sum, profile) => sum + Number(profile.unseen_monitoring_update_count || 0),
+      0
+    );
+    const digest = String(topProfile.last_monitoring_digest || "").trim()
+      || t("monitoringGenericDigest", { count: String(total) });
+    showMessage(digest, "info", {
+      actionLabel: t("openProject"),
+      onAction: () => {
+        void markProjectMonitoringUpdatesSeen(topProfile.id).finally(() => {
+          navigateToProject(topProfile.id);
+        });
+      },
+    });
   }
 
   function bindLanguageSelector() {
@@ -535,6 +611,7 @@ async function bootstrap() {
     runTask,
     videoDetailController,
     onProfileSelectionChange: rerenderProfileArea,
+    onProjectOpened: markProjectMonitoringUpdatesSeen,
     onAnyVideoAction: clearNewVideoLabelsFromAnyAction,
     onWatchlistMutated: async () => {
       if (watchlistController) {
@@ -649,6 +726,8 @@ async function bootstrap() {
             languages: [...state.tokenInputs.languages],
             key_products: [...state.tokenInputs.keyProducts],
             alert_sensitivity: formData.get("alert_sensitivity"),
+            proactive_monitoring_enabled: false,
+            proactive_monitoring_cadence: "daily",
           }),
         });
 
@@ -713,8 +792,10 @@ async function bootstrap() {
     renderTokenList("languages", { prefix: "edit-", stateBucket: "editTokenInputs" });
     renderTokenList("key-products", { prefix: "edit-", stateBucket: "editTokenInputs" });
     setCreatePanelVisible(false);
-    setEditPanelVisible(true);
     rerenderProfileArea();
+    attachEditPanelToProjectCard(profileId);
+    setEditPanelVisible(true);
+    getElement("edit-profile-container")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   function bindEditProfileForm() {
@@ -746,6 +827,7 @@ async function bootstrap() {
         if (projectName.length < 2) {
           throw new Error(t("errorProjectNameMinLength"));
         }
+        const existingProfile = state.profiles.find((profile) => profile.id === profileId);
 
         await request(`/monitor-profiles/${profileId}`, {
           method: "PUT",
@@ -756,6 +838,8 @@ async function bootstrap() {
             languages: [...state.editTokenInputs.languages],
             key_products: [...state.editTokenInputs.keyProducts],
             alert_sensitivity: formData.get("alert_sensitivity"),
+            proactive_monitoring_enabled: Boolean(existingProfile?.proactive_monitoring_enabled),
+            proactive_monitoring_cadence: existingProfile?.proactive_monitoring_cadence || "daily",
           }),
         });
 
@@ -848,7 +932,48 @@ async function bootstrap() {
         await queueController.refreshVideos();
       }, t("projectDeleted"));
     },
+    onToggleMonitoring: (profileId, enabled) => {
+      void runTask(async () => {
+        const existing = getState().profiles.find((profile) => profile.id === profileId);
+        const updated = await request(`/monitor-profiles/${profileId}/monitoring-settings`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            proactive_monitoring_enabled: enabled,
+            proactive_monitoring_cadence: existing?.proactive_monitoring_cadence || "daily",
+          }),
+        });
+        setState((previous) => ({
+          ...previous,
+          profiles: previous.profiles.map((profile) => (profile.id === updated.id ? updated : profile)),
+        }));
+        rerenderProfileArea();
+        return enabled ? t("monitoringEnabled") : t("monitoringDisabled");
+      });
+    },
+    onChangeMonitoringCadence: (profileId, cadence) => {
+      void runTask(async () => {
+        const existing = getState().profiles.find((profile) => profile.id === profileId);
+        const updated = await request(`/monitor-profiles/${profileId}/monitoring-settings`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            proactive_monitoring_enabled: Boolean(existing?.proactive_monitoring_enabled),
+            proactive_monitoring_cadence: cadence,
+          }),
+        });
+        setState((previous) => ({
+          ...previous,
+          profiles: previous.profiles.map((profile) => (profile.id === updated.id ? updated : profile)),
+        }));
+        rerenderProfileArea();
+        return t("monitoringFrequencyUpdated");
+      });
+    },
   });
+
+  const monitoringNotificationButton = getElement("topbar-monitoring-notification-btn");
+  if (monitoringNotificationButton instanceof HTMLButtonElement) {
+    monitoringNotificationButton.addEventListener("click", showMonitoringNotificationDigest);
+  }
 
   setCreatePanelVisible(false);
   setEditPanelVisible(false);
@@ -856,6 +981,9 @@ async function bootstrap() {
   setActiveSection(routeProjectId ? "queue" : "dashboard");
 
   await loadProfiles();
+  if (getState().selectedProfileId) {
+    void markProjectMonitoringUpdatesSeen(getState().selectedProfileId);
+  }
   insightsController.syncEntryVisibility();
   await queueController.refreshVideos();
   await watchlistController.refresh();

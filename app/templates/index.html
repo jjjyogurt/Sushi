@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Project Sushi</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-    <link rel="stylesheet" href="/static/styles.css?v=20260515-icons" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260519-monitoring" />
   </head>
   <body>
     <div class="app-shell">
@@ -52,7 +52,15 @@
         <header class="topbar">
           <div class="topbar-title"></div>
           <div class="topbar-actions">
-            <button class="icon-btn"><svg class="app-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-notifications"></use></svg></button>
+            <button
+              id="topbar-monitoring-notification-btn"
+              class="icon-btn monitoring-notification-btn"
+              type="button"
+              aria-label="Monitoring notifications"
+            >
+              <svg class="app-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-notifications"></use></svg>
+              <span class="notification-dot" aria-hidden="true"></span>
+            </button>
             <button class="icon-btn" data-section="help-center" type="button" aria-label="Help Center">
               <svg class="app-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-help"></use></svg>
             </button>
@@ -1081,6 +1089,6 @@
         </form>
       </div>
     </div>
-    <script type="module" src="/static/main.js?v=20260515-icons"></script>
+    <script type="module" src="/static/main.js?v=20260519-monitoring"></script>
   </body>
 </html>

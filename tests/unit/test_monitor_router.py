@@ -7,6 +7,7 @@ from app.db import get_db_session
 from app.main import app
 from app.models.app_user import AppUser
 from app.models.base import Base
+from app.models.monitor_profile import MonitorProfile
 from app.services.security import hash_password
 
 
@@ -67,6 +68,9 @@ def test_monitor_profile_create_and_list_include_key_products():
         _login(client)
         created = _create_monitor_profile(client)
         assert created["key_products"] == ["falcon mini", "falcon mini pro"]
+        assert created["proactive_monitoring_enabled"] is False
+        assert created["proactive_monitoring_cadence"] == "daily"
+        assert created["unseen_monitoring_update_count"] == 0
 
         listed = client.get("/monitor-profiles")
         assert listed.status_code == 200
@@ -103,6 +107,43 @@ def test_monitor_profile_update_persists_key_products():
         assert payload["name"] == "Falcon Mini Updated"
         assert payload["key_products"] == ["falcon mini 2"]
         assert payload["alert_sensitivity"] == "high"
+        assert payload["proactive_monitoring_enabled"] is False
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+        session.close()
+
+
+def test_monitoring_settings_toggle_and_seen_contract():
+    client, session = _build_client()
+    try:
+        _create_user(session)
+        _login(client)
+        created = _create_monitor_profile(client)
+        profile_id = created["id"]
+
+        toggle_response = client.patch(
+            f"/monitor-profiles/{profile_id}/monitoring-settings",
+            json={
+                "proactive_monitoring_enabled": True,
+                "proactive_monitoring_cadence": "monthly",
+            },
+        )
+        assert toggle_response.status_code == 200
+        toggled = toggle_response.json()
+        assert toggled["proactive_monitoring_enabled"] is True
+        assert toggled["proactive_monitoring_cadence"] == "monthly"
+
+        profile = session.get(MonitorProfile, profile_id)
+        profile.unseen_monitoring_update_count = 3
+        profile.last_monitoring_digest = "3 new videos, 1 critical risk detected."
+        session.commit()
+
+        seen_response = client.post(f"/monitor-profiles/{profile_id}/monitoring-updates/seen")
+        assert seen_response.status_code == 200
+        seen = seen_response.json()
+        assert seen["unseen_monitoring_update_count"] == 0
+        assert seen["last_monitoring_digest"] == "3 new videos, 1 critical risk detected."
     finally:
         app.dependency_overrides.clear()
         client.close()

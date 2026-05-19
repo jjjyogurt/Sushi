@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -32,6 +33,8 @@ class MonitorRepository:
             languages=encode_json(payload.languages),
             key_products=encode_json(payload.key_products),
             alert_sensitivity=payload.alert_sensitivity,
+            proactive_monitoring_enabled=payload.proactive_monitoring_enabled,
+            proactive_monitoring_cadence=payload.proactive_monitoring_cadence,
         )
         self.session.add(profile)
         self.session.commit()
@@ -48,6 +51,35 @@ class MonitorRepository:
         profile.languages = encode_json(payload.languages)
         profile.key_products = encode_json(payload.key_products)
         profile.alert_sensitivity = payload.alert_sensitivity
+        profile.proactive_monitoring_enabled = payload.proactive_monitoring_enabled
+        profile.proactive_monitoring_cadence = payload.proactive_monitoring_cadence
+        self.session.commit()
+        self.session.refresh(profile)
+        return profile
+
+    def update_monitoring_settings(
+        self,
+        profile_id: int,
+        *,
+        owner_user_id: str,
+        enabled: bool,
+        cadence: str,
+    ) -> Optional[MonitorProfile]:
+        profile = self.get_for_user(profile_id, owner_user_id)
+        if profile is None:
+            return None
+        profile.proactive_monitoring_enabled = enabled
+        profile.proactive_monitoring_cadence = cadence
+        self.session.commit()
+        self.session.refresh(profile)
+        return profile
+
+    def mark_monitoring_updates_seen(self, profile_id: int, *, owner_user_id: str) -> Optional[MonitorProfile]:
+        profile = self.get_for_user(profile_id, owner_user_id)
+        if profile is None:
+            return None
+        profile.unseen_monitoring_update_count = 0
+        profile.monitoring_updates_seen_at = datetime.now(timezone.utc)
         self.session.commit()
         self.session.refresh(profile)
         return profile

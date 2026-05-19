@@ -21,6 +21,7 @@ from app.db_migrations import (
     ensure_default_app_users,
     ensure_monitor_profiles_owner_user_id,
     ensure_monitor_profiles_key_products_column,
+    ensure_monitoring_contract_columns,
     ensure_project_insight_reports_portfolio_columns,
     ensure_video_candidate_scoped_youtube_uniqueness,
     ensure_video_candidate_assignment_columns,
@@ -143,6 +144,7 @@ def bootstrap_db() -> None:
     ensure_agent_settings_table(engine)
     ensure_analysis_batch_tables(engine)
     ensure_monitor_profiles_key_products_column(engine)
+    ensure_monitoring_contract_columns(engine)
     ensure_monitor_profiles_owner_user_id(engine)
     ensure_analysis_results_summary_columns(engine)
     ensure_analysis_results_language_column_and_index(engine)

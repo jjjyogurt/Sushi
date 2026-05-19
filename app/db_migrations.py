@@ -302,6 +302,61 @@ def ensure_monitor_profiles_key_products_column(engine: Engine) -> None:
         )
 
 
+def ensure_monitoring_contract_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    statements = []
+
+    if "monitor_profiles" in table_names:
+        profile_columns = {column["name"] for column in inspector.get_columns("monitor_profiles")}
+        profile_indexes = {index["name"] for index in inspector.get_indexes("monitor_profiles")}
+        if "proactive_monitoring_enabled" not in profile_columns:
+            statements.append(
+                "ALTER TABLE monitor_profiles ADD COLUMN proactive_monitoring_enabled BOOLEAN NOT NULL DEFAULT false"
+            )
+        if "proactive_monitoring_cadence" not in profile_columns:
+            statements.append(
+                "ALTER TABLE monitor_profiles ADD COLUMN proactive_monitoring_cadence VARCHAR(20) NOT NULL DEFAULT 'daily'"
+            )
+        if "unseen_monitoring_update_count" not in profile_columns:
+            statements.append(
+                "ALTER TABLE monitor_profiles ADD COLUMN unseen_monitoring_update_count INTEGER NOT NULL DEFAULT 0"
+            )
+        if "last_monitoring_digest" not in profile_columns:
+            statements.append(
+                "ALTER TABLE monitor_profiles ADD COLUMN last_monitoring_digest TEXT NOT NULL DEFAULT ''"
+            )
+        if "monitoring_updates_seen_at" not in profile_columns:
+            statements.append("ALTER TABLE monitor_profiles ADD COLUMN monitoring_updates_seen_at DATETIME NULL")
+        if "ix_monitor_profiles_monitoring_enabled" not in profile_indexes:
+            statements.append(
+                "CREATE INDEX IF NOT EXISTS ix_monitor_profiles_monitoring_enabled "
+                "ON monitor_profiles (proactive_monitoring_enabled)"
+            )
+
+    if "video_candidates" in table_names:
+        video_columns = {column["name"] for column in inspector.get_columns("video_candidates")}
+        video_indexes = {index["name"] for index in inspector.get_indexes("video_candidates")}
+        if "discovery_source" not in video_columns:
+            statements.append("ALTER TABLE video_candidates ADD COLUMN discovery_source VARCHAR(40) NOT NULL DEFAULT 'manual'")
+        if "discovered_by_monitor_run_id" not in video_columns:
+            statements.append("ALTER TABLE video_candidates ADD COLUMN discovered_by_monitor_run_id INTEGER NULL")
+        if "proactive_seen_at" not in video_columns:
+            statements.append("ALTER TABLE video_candidates ADD COLUMN proactive_seen_at DATETIME NULL")
+        if "ix_video_candidates_discovery_source" not in video_indexes:
+            statements.append(
+                "CREATE INDEX IF NOT EXISTS ix_video_candidates_discovery_source "
+                "ON video_candidates (discovery_source)"
+            )
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
 def ensure_analysis_results_summary_columns(engine: Engine) -> None:
     inspector = inspect(engine)
     columns = {column["name"] for column in inspector.get_columns("analysis_results")}

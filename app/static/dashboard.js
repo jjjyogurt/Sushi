@@ -2,13 +2,31 @@ import { escapeHtml, formatLanguageLabel, formatMarketLabel, getElement } from "
 import { iconSvg } from "./icons.js";
 import { t } from "./i18n.js";
 
+const MONITORING_CADENCES = ["daily", "weekly", "monthly"];
+
 function profileCardMarkup(profile, isSelected, openProjectMenuId) {
   const isMenuOpen = openProjectMenuId === profile.id;
   const keyProducts = Array.isArray(profile.key_products) ? profile.key_products : [];
+  const monitoringEnabled = Boolean(profile.proactive_monitoring_enabled);
+  const unseenCount = Number(profile.unseen_monitoring_update_count || 0);
+  const cadence = MONITORING_CADENCES.includes(profile.proactive_monitoring_cadence)
+    ? profile.proactive_monitoring_cadence
+    : "daily";
+  const cadenceOptions = MONITORING_CADENCES.map(
+    (item) => `<option value="${item}" ${item === cadence ? "selected" : ""}>${escapeHtml(t(`monitoringCadence${item}`))}</option>`
+  ).join("");
+  const editingMarkup = isSelected
+    ? `
+      <div class="project-card-edit-slot" data-project-card-edit-slot-id="${profile.id}"></div>
+    `
+    : "";
   return `
     <article class="project-card ${isSelected ? "active" : ""}" data-project-id="${profile.id}">
       <div class="project-card-header">
-        <h4>${escapeHtml(profile.name)}</h4>
+        <h4>
+          ${unseenCount > 0 ? `<span class="project-update-dot" aria-label="${escapeHtml(t("newMonitoringUpdates"))}"></span>` : ""}
+          ${escapeHtml(profile.name)}
+        </h4>
         <div class="project-card-actions">
           <button
             class="icon-btn project-menu-btn"
@@ -44,6 +62,26 @@ function profileCardMarkup(profile, isSelected, openProjectMenuId) {
           .map((language) => `<span class="badge">${escapeHtml(formatLanguageLabel(language))}</span>`)
           .join("")}
       </div>
+      <label class="monitoring-toggle-row" data-monitoring-toggle-wrap-id="${profile.id}">
+        <span class="monitoring-toggle-title">${escapeHtml(t("proactiveMonitoring"))}</span>
+        <select
+          class="monitoring-cadence-select ${monitoringEnabled ? "" : "is-hidden"}"
+          data-monitoring-cadence-id="${profile.id}"
+          aria-label="${escapeHtml(t("monitoringFrequency"))}"
+        >
+          ${cadenceOptions}
+        </select>
+        <span class="monitoring-toggle-control">
+          <input
+            type="checkbox"
+            data-monitoring-toggle-id="${profile.id}"
+            ${monitoringEnabled ? "checked" : ""}
+            aria-label="${escapeHtml(t("proactiveMonitoring"))}"
+          />
+          <span class="monitoring-toggle-track" aria-hidden="true"></span>
+        </span>
+      </label>
+      ${editingMarkup}
       <button class="open-project-btn btn btn-secondary" type="button" data-open-project-id="${profile.id}">
         ${escapeHtml(t("openProject"))}
       </button>
@@ -73,6 +111,8 @@ export function bindDashboardInteractions({
   onEditProject,
   onToggleProjectMenu,
   onCloseProjectMenu,
+  onToggleMonitoring,
+  onChangeMonitoringCadence,
 }) {
   const profileGrid = getElement("profile-grid");
   if (!profileGrid) {
@@ -108,6 +148,36 @@ export function bindDashboardInteractions({
       const profileId = Number(menuToggle.dataset.projectMenuToggleId);
       if (!Number.isNaN(profileId)) {
         onToggleProjectMenu(profileId);
+      }
+      return;
+    }
+
+    const monitoringToggle = target.closest("[data-monitoring-toggle-id]");
+    if (monitoringToggle instanceof HTMLInputElement) {
+      event.stopPropagation();
+      const profileId = Number(monitoringToggle.dataset.monitoringToggleId);
+      if (!Number.isNaN(profileId)) {
+        onToggleMonitoring(profileId, monitoringToggle.checked);
+      }
+      return;
+    }
+
+    const cadenceSelect = target.closest("[data-monitoring-cadence-id]");
+    if (cadenceSelect instanceof HTMLSelectElement) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const monitoringRow = target.closest("[data-monitoring-toggle-wrap-id]");
+    if (monitoringRow instanceof HTMLElement) {
+      event.preventDefault();
+      event.stopPropagation();
+      const profileId = Number(monitoringRow.dataset.monitoringToggleWrapId);
+      const checkbox = monitoringRow.querySelector("[data-monitoring-toggle-id]");
+      if (checkbox instanceof HTMLInputElement && !Number.isNaN(profileId)) {
+        checkbox.checked = !checkbox.checked;
+        onToggleMonitoring(profileId, checkbox.checked);
       }
       return;
     }
@@ -151,6 +221,21 @@ export function bindDashboardInteractions({
       const profileId = Number(card.dataset.projectId);
       if (!Number.isNaN(profileId)) {
         onOpenProject(profileId);
+      }
+    }
+  });
+
+  profileGrid.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+    const cadenceSelect = target.closest("[data-monitoring-cadence-id]");
+    if (cadenceSelect instanceof HTMLSelectElement) {
+      event.stopPropagation();
+      const profileId = Number(cadenceSelect.dataset.monitoringCadenceId);
+      if (!Number.isNaN(profileId)) {
+        onChangeMonitoringCadence(profileId, cadenceSelect.value);
       }
     }
   });

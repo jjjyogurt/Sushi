@@ -137,6 +137,8 @@ class TriageService:
         relevance_score: float,
         relevance_reason: str,
         raise_on_conflict: bool,
+        discovery_source: str = "manual",
+        discovered_by_monitor_run_id: Optional[int] = None,
     ):
         return self.video_repository.upsert_candidate(
             monitor_profile_id=monitor_profile_id,
@@ -148,6 +150,8 @@ class TriageService:
             published_at=discovered_video.published_at,
             relevance_score=relevance_score,
             relevance_reason=relevance_reason,
+            discovery_source=discovery_source,
+            discovered_by_monitor_run_id=discovered_by_monitor_run_id,
         )
 
     def get_monitor_profile_names_for_videos(self, videos) -> Dict[int, str]:
@@ -248,6 +252,7 @@ class TriageService:
                 relevance_score=relevance_score,
                 relevance_reason=relevance_reason,
                 raise_on_conflict=False,
+                discovery_source="manual_discovery",
             )
             if candidate is not None:
                 persisted.append(candidate)
@@ -379,6 +384,7 @@ class TriageService:
                 relevance_score=relevance_score,
                 relevance_reason=relevance_reason,
                 raise_on_conflict=True,
+                discovery_source="manual_search",
             )
             if persisted_candidate is not None:
                 persisted.append(persisted_candidate)
@@ -471,6 +477,7 @@ class TriageService:
             relevance_score=relevance_score,
             relevance_reason=relevance_reason,
             raise_on_conflict=True,
+            discovery_source="manual",
         )
         self.audit_repository.record(
             actor="marketing-user",

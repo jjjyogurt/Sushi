@@ -935,6 +935,30 @@
 - Check: `ReadLints`; `PYTHONPATH=. pytest tests/unit/test_api_mappers.py tests/unit/test_analysis_service.py` (11 passed).
 - Next: Run a new analysis and verify the section appears below Summary.
 
+## 2026-05-19 17:57
+- Task: Align project card open buttons.
+- Changes: Anchored Open Project to the bottom-left of project cards regardless of card content length.
+- Check: `git diff --check`; local HTTP smoke.
+- Next: Refresh the browser and compare cards with different keyword/product counts.
+
+## 2026-05-19 17:56
+- Task: Clean proactive monitoring card spacing.
+- Changes: Shortened the card label to Monitoring, moved cadence to the right side, and reduced the cadence selector label size.
+- Check: JS syntax checks; `git diff --check`; local HTTP smoke.
+- Next: Refresh the browser and visually confirm the card row spacing.
+
+## 2026-05-19 17:44
+- Task: Refine proactive monitoring project-card UX.
+- Changes: Moved edit form inline under the selected project card and added clickable daily/weekly/monthly cadence beside the proactive monitoring label when enabled.
+- Check: `.venv/bin/python -m pytest -q tests/unit` (148 passed); JS syntax checks; `git diff --check`.
+- Next: Visually confirm card edit expansion and cadence selector in the browser.
+
+## 2026-05-19 17:35
+- Task: Add proactive monitoring UI-first contract.
+- Changes: Added persisted monitoring toggle/read-state fields, dashboard red dot, topbar digest button, proactive video New labels, API endpoints, migration docs, and tests.
+- Check: `.venv/bin/python -m pytest -q tests/unit` (148 passed); JS syntax checks; `git diff --check`; local HTTP smoke on `127.0.0.1:8001`.
+- Next: Implement backend scheduler, layered project-keyword YouTube discovery, monitor runs/items, and automatic analysis enqueue.
+
 ## 2026-05-14 18:24
 - Task: Fix local startup migration failure.
 - Changes: Skipped the legacy three-column analysis unique index when hash-aware analysis uniqueness is already present.

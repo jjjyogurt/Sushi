@@ -6,6 +6,7 @@ from app.db_migrations import (
     ensure_analysis_results_language_column_and_index,
     cleanup_orphan_video_data,
     ensure_monitor_profiles_owner_user_id,
+    ensure_monitoring_contract_columns,
     ensure_analysis_results_summary_columns,
     ensure_video_candidate_scoped_youtube_uniqueness,
     ensure_video_comments_table,
@@ -39,6 +40,59 @@ def test_ensure_monitor_profiles_key_products_column_adds_missing_column():
 
     columns = {column["name"] for column in inspect(engine).get_columns("monitor_profiles")}
     assert "key_products" in columns
+
+
+def test_ensure_monitoring_contract_columns_adds_profile_and_video_fields():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE monitor_profiles (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    brand_keywords TEXT NOT NULL,
+                    markets TEXT NOT NULL,
+                    languages TEXT NOT NULL,
+                    key_products TEXT NOT NULL DEFAULT '[]',
+                    alert_sensitivity TEXT,
+                    is_active BOOLEAN
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                CREATE TABLE video_candidates (
+                    id INTEGER PRIMARY KEY,
+                    monitor_profile_id INTEGER NOT NULL,
+                    youtube_video_id TEXT NOT NULL,
+                    video_url TEXT NOT NULL,
+                    title TEXT NOT NULL
+                )
+                """
+            )
+        )
+
+    ensure_monitoring_contract_columns(engine)
+    ensure_monitoring_contract_columns(engine)
+
+    profile_columns = {column["name"] for column in inspect(engine).get_columns("monitor_profiles")}
+    video_columns = {column["name"] for column in inspect(engine).get_columns("video_candidates")}
+    profile_indexes = {index["name"] for index in inspect(engine).get_indexes("monitor_profiles")}
+    video_indexes = {index["name"] for index in inspect(engine).get_indexes("video_candidates")}
+
+    assert {
+        "proactive_monitoring_enabled",
+        "proactive_monitoring_cadence",
+        "unseen_monitoring_update_count",
+        "last_monitoring_digest",
+        "monitoring_updates_seen_at",
+    }.issubset(profile_columns)
+    assert {"discovery_source", "discovered_by_monitor_run_id", "proactive_seen_at"}.issubset(video_columns)
+    assert "ix_monitor_profiles_monitoring_enabled" in profile_indexes
+    assert "ix_video_candidates_discovery_source" in video_indexes
 
 
 def test_ensure_analysis_results_summary_columns_adds_missing_columns():

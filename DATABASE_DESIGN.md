@@ -137,10 +137,17 @@ erDiagram
 ### 1) Monitoring + Video Intake
 
 - `monitor_profiles`: project-level monitoring settings owned by `owner_user_id`.
+  - proactive monitoring UI contract:
+    - `proactive_monitoring_enabled`
+    - `proactive_monitoring_cadence`
+    - `unseen_monitoring_update_count`
+    - `last_monitoring_digest`
+    - `monitoring_updates_seen_at`
 - `video_candidates`: discovered/manual videos tied to a monitor profile.
   - scoped unique index: `(monitor_profile_id, youtube_video_id)`
   - queue state: `discovered`, `approved`, `rejected`
   - includes assignment fields (`assigned_user_id`, `assigned_by`, `assigned_at`)
+  - includes proactive discovery read-state fields (`discovery_source`, `discovered_by_monitor_run_id`, `proactive_seen_at`)
 
 ### 2) Analysis + Comments + Insights
 
@@ -235,6 +242,7 @@ Startup migration helpers currently ensure/repair:
 
 - monitor profile `key_products` column
 - monitor profile `owner_user_id` column with legacy backfill to `Sushi_1`
+- proactive monitoring UI/read-state contract columns on `monitor_profiles` and `video_candidates`
 - scoped video uniqueness by `(monitor_profile_id, youtube_video_id)`
 - per-user `agent_settings` table
 - analysis summary columns
@@ -249,6 +257,11 @@ Startup migration helpers currently ensure/repair:
 - orphan/stale cleanup across dependent tables
 
 Because this project uses imperative startup migrations, changes to models should also include corresponding migration helper updates when needed.
+
+### What Changed (2026-05-19, proactive monitoring UI contract)
+- What changed: Added lightweight proactive monitoring/read-state fields to `monitor_profiles` and `video_candidates`. Profiles now store whether proactive monitoring is enabled, the selected cadence, unseen update count, latest digest, and when project-level monitoring updates were last seen. Videos now store discovery source, the future monitor-run id that discovered them, and whether a proactive video has been seen.
+- Why it changed: The dashboard needs a persistent monitoring toggle, project red dot, top-right notification digest, and per-video `New` label before the scheduler/search implementation lands.
+- Impact on existing data and compatibility: Existing projects default to proactive monitoring disabled with daily cadence and zero unseen updates. Existing videos default to `discovery_source='manual'`, so they do not appear as proactive-new videos. No existing analysis or video queue data is rewritten.
 
 ### What Changed (2026-05-14, analysis startup migration hotfix)
 - What changed: Stopped the `analysis_results` language-column migration from recreating the obsolete unique index on `(video_candidate_id, analysis_version, language)`. The only intended analysis uniqueness is the hash-aware index on `(video_candidate_id, analysis_version, language, agent_settings_hash)`.

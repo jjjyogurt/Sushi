@@ -119,6 +119,8 @@ class VideoResponse(TimestampedResponse):
     latest_analysis_status: Optional[AnalysisStatus] = None
     is_bookmarked: bool = False
     assigned_user_id: Optional[str] = None
+    discovery_source: str = "manual"
+    is_proactive_new: bool = False
 
 
 class VideoReachResponse(BaseModel):
@@ -139,4 +141,3 @@ class VideoListResponse(BaseModel):
 class VideoBulkAddResponse(BaseModel):
     items: List[VideoResponse]
     total: int
-

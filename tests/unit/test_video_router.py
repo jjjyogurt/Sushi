@@ -214,6 +214,32 @@ def test_get_video_reach_returns_unknown_metrics_when_provider_fails(
     }
 
 
+def test_proactive_video_seen_endpoint_clears_new_label(client, api_db_session, api_monitor_profile):
+    video = VideoRepository(api_db_session).upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="proactive-new-video",
+        video_url="https://youtu.be/proactive-new-video",
+        title="HOVERAir proactive monitoring find",
+        channel_name="Creator",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.9,
+        relevance_reason="title matched: hoverair",
+        discovery_source="proactive_monitoring",
+    )
+
+    list_response = client.get(f"/videos?monitor_profile_id={api_monitor_profile.id}")
+    assert list_response.status_code == 200
+    listed = list_response.json()["items"][0]
+    assert listed["id"] == video.id
+    assert listed["is_proactive_new"] is True
+    assert listed["discovery_source"] == "proactive_monitoring"
+
+    seen_response = client.post(f"/videos/{video.id}/monitoring-seen")
+    assert seen_response.status_code == 200
+    assert seen_response.json()["is_proactive_new"] is False
+
+
 def test_list_videos_supports_risk_and_sentiment_filters(client, api_db_session, api_monitor_profile):
     repository = VideoRepository(api_db_session)
     matching_video = repository.upsert_candidate(

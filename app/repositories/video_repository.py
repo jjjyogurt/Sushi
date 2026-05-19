@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from sqlalchemy import desc
@@ -49,6 +50,8 @@ class VideoRepository:
         published_at,
         relevance_score: float,
         relevance_reason: str,
+        discovery_source: str = "manual",
+        discovered_by_monitor_run_id: Optional[int] = None,
     ) -> VideoCandidate:
         existing = self.get_by_youtube_id(youtube_video_id, monitor_profile_id=monitor_profile_id)
         if existing:
@@ -61,6 +64,10 @@ class VideoRepository:
             existing.published_at = published_at
             existing.relevance_score = relevance_score
             existing.relevance_reason = relevance_reason
+            if discovery_source == "proactive_monitoring" or not existing.discovery_source:
+                existing.discovery_source = discovery_source or "manual"
+            if discovered_by_monitor_run_id is not None:
+                existing.discovered_by_monitor_run_id = discovered_by_monitor_run_id
             self.session.commit()
             self.session.refresh(existing)
             return existing
@@ -77,10 +84,22 @@ class VideoRepository:
             published_at=published_at,
             relevance_score=relevance_score,
             relevance_reason=relevance_reason,
+            discovery_source=discovery_source or "manual",
+            discovered_by_monitor_run_id=discovered_by_monitor_run_id,
         )
         self.session.add(candidate)
         self.session.commit()
         self.session.refresh(candidate)
+        return candidate
+
+    def mark_proactive_seen_for_user(self, *, video_id: int, owner_user_id: str) -> Optional[VideoCandidate]:
+        candidate = self.get_by_id_for_user(video_id=video_id, owner_user_id=owner_user_id)
+        if candidate is None:
+            return None
+        if candidate.discovery_source == "proactive_monitoring" and candidate.proactive_seen_at is None:
+            candidate.proactive_seen_at = datetime.now(timezone.utc)
+            self.session.commit()
+            self.session.refresh(candidate)
         return candidate
 
     def update_queue_state(self, video_id: int, approved: bool) -> Optional[VideoCandidate]:

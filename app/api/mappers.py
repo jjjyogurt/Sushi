@@ -66,6 +66,10 @@ def map_monitor_response(model: MonitorProfile) -> MonitorProfileResponse:
         key_products=decode_json(model.key_products, []),
         alert_sensitivity=model.alert_sensitivity,
         is_active=model.is_active,
+        proactive_monitoring_enabled=bool(model.proactive_monitoring_enabled),
+        proactive_monitoring_cadence=model.proactive_monitoring_cadence or "daily",
+        unseen_monitoring_update_count=int(model.unseen_monitoring_update_count or 0),
+        last_monitoring_digest=model.last_monitoring_digest or "",
     )
 
 
@@ -96,6 +100,11 @@ def map_video_response(
         latest_analysis_status=latest_analysis_status,
         is_bookmarked=is_bookmarked,
         assigned_user_id=(model.assigned_user_id or None),
+        discovery_source=model.discovery_source or "manual",
+        is_proactive_new=(
+            (model.discovery_source or "") == "proactive_monitoring"
+            and model.proactive_seen_at is None
+        ),
     )
 
 

@@ -8,7 +8,12 @@ from app.api.mappers import map_monitor_response
 from app.db import get_db_session
 from app.models.app_user import AppUser
 from app.repositories.monitor_repository import MonitorRepository
-from app.schemas.monitor import MonitorProfileCreate, MonitorProfileResponse, MonitorProfileUpdate
+from app.schemas.monitor import (
+    MonitorProfileCreate,
+    MonitorProfileMonitoringUpdate,
+    MonitorProfileResponse,
+    MonitorProfileUpdate,
+)
 
 router = APIRouter(prefix="/monitor-profiles", tags=["monitor-profiles"])
 
@@ -55,6 +60,38 @@ def update_profile(
 ):
     repository = MonitorRepository(db)
     profile = repository.update(profile_id, payload, owner_user_id=current_user.id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Monitor profile not found.")
+    return map_monitor_response(profile)
+
+
+@router.patch("/{profile_id}/monitoring-settings", response_model=MonitorProfileResponse)
+def update_monitoring_settings(
+    profile_id: int,
+    payload: MonitorProfileMonitoringUpdate,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
+    repository = MonitorRepository(db)
+    profile = repository.update_monitoring_settings(
+        profile_id,
+        owner_user_id=current_user.id,
+        enabled=payload.proactive_monitoring_enabled,
+        cadence=payload.proactive_monitoring_cadence,
+    )
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Monitor profile not found.")
+    return map_monitor_response(profile)
+
+
+@router.post("/{profile_id}/monitoring-updates/seen", response_model=MonitorProfileResponse)
+def mark_monitoring_updates_seen(
+    profile_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
+    repository = MonitorRepository(db)
+    profile = repository.mark_monitoring_updates_seen(profile_id, owner_user_id=current_user.id)
     if profile is None:
         raise HTTPException(status_code=404, detail="Monitor profile not found.")
     return map_monitor_response(profile)

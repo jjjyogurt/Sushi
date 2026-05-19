@@ -12,6 +12,8 @@ class MonitorProfileCreate(BaseModel):
     languages: List[str] = Field(min_length=1)
     key_products: List[str] = Field(default_factory=list)
     alert_sensitivity: str = Field(default="medium")
+    proactive_monitoring_enabled: bool = False
+    proactive_monitoring_cadence: str = Field(default="daily", pattern="^(daily|weekly|monthly)$")
 
 
 class MonitorProfileUpdate(BaseModel):
@@ -21,6 +23,13 @@ class MonitorProfileUpdate(BaseModel):
     languages: List[str] = Field(min_length=1)
     key_products: List[str] = Field(default_factory=list)
     alert_sensitivity: str = Field(default="medium")
+    proactive_monitoring_enabled: bool = False
+    proactive_monitoring_cadence: str = Field(default="daily", pattern="^(daily|weekly|monthly)$")
+
+
+class MonitorProfileMonitoringUpdate(BaseModel):
+    proactive_monitoring_enabled: bool
+    proactive_monitoring_cadence: str = Field(default="daily", pattern="^(daily|weekly|monthly)$")
 
 
 class MonitorProfileResponse(TimestampedResponse):
@@ -31,4 +40,7 @@ class MonitorProfileResponse(TimestampedResponse):
     key_products: List[str]
     alert_sensitivity: str
     is_active: bool
-
+    proactive_monitoring_enabled: bool
+    proactive_monitoring_cadence: str
+    unseen_monitoring_update_count: int
+    last_monitoring_digest: str

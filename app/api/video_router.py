@@ -284,6 +284,23 @@ def get_video_reach(
     )
 
 
+@router.post("/{video_id}/monitoring-seen")
+def mark_video_monitoring_seen(
+    video_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
+    service = TriageService(db)
+    candidate = service.video_repository.mark_proactive_seen_for_user(
+        video_id=video_id,
+        owner_user_id=current_user.id,
+    )
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Video not found.")
+    responses = map_videos_with_context(service, [candidate], current_user_id=current_user.id)
+    return responses[0]
+
+
 @router.post("/{video_id}/analyze", response_model=AnalysisResponse)
 def analyze_video(
     video_id: int,

@@ -204,6 +204,7 @@ export function createQueueController({
   runTask,
   videoDetailController,
   onProfileSelectionChange,
+  onProjectOpened,
   onAnyVideoAction,
   onWatchlistMutated,
 }) {
@@ -385,7 +386,12 @@ export function createQueueController({
 
     list.innerHTML = state.videos
       .map((video) =>
-        renderVideoListItem(video, isGlobalScope, video.id === state.selectedVideoId, newVideoIdSet.has(video.id))
+        renderVideoListItem(
+          video,
+          isGlobalScope,
+          video.id === state.selectedVideoId,
+          newVideoIdSet.has(video.id) || Boolean(video.is_proactive_new)
+        )
       )
       .join("");
   }
@@ -742,6 +748,21 @@ export function createQueueController({
     }));
     renderVideos();
     void videoDetailController.renderVideoDetail();
+    const selected = getState().videos.find((video) => video.id === videoId);
+    if (selected?.is_proactive_new) {
+      void request(`/videos/${videoId}/monitoring-seen`, { method: "POST" })
+        .then((updatedVideo) => {
+          if (!updatedVideo || typeof updatedVideo.id === "undefined") {
+            return;
+          }
+          setState((previous) => ({
+            ...previous,
+            videos: previous.videos.map((video) => (video.id === updatedVideo.id ? updatedVideo : video)),
+          }));
+          renderVideos();
+        })
+        .catch(() => {});
+    }
   }
 
   function bindQueueInteractions() {
@@ -796,6 +817,9 @@ export function createQueueController({
         }));
         syncProjectRoute(selectedProfileId);
         onProfileSelectionChange();
+        if (selectedProfileId) {
+          void onProjectOpened?.(selectedProfileId);
+        }
         renderSearchCandidates();
         void runTask(async () => {
           await refreshVideos();
