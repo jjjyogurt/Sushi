@@ -3,6 +3,7 @@ function initialState() {
     profiles: [],
     selectedProfileId: null,
     openProjectMenuId: null,
+    expandedProjectIds: [],
     editingProjectId: null,
     videos: [],
     selectedVideoId: null,

@@ -1,5 +1,75 @@
 # Agent Work Log
 
+## 2026-05-21 15:22
+
+- Task: Allow multiple risk levels in the video list filter.
+- Changes: Reworked the risk filter as a dropdown with checkbox options and updated `/videos` filtering to accept repeated `risk_level` values.
+- Check: `PYTHONPATH=. ./.venv/bin/pytest tests/unit/test_video_router.py -q` passed.
+- Next: Use the dropdown to combine High and Critical risk views in the project workspace.
+
+## 2026-05-21 11:31
+
+- Task: Tune the project card expand icon size and placement.
+- Changes: Made the two-corner expand icon 15% smaller, nudged it right, and cache-busted CSS.
+- Check: `node --check`, `git diff --check`, and in-app browser verified 13.6px icon size.
+- Next: None.
+
+## 2026-05-21 11:25
+
+- Task: Clean up the project card expand icon.
+- Changes: Replaced the four-arrow expand artwork with a corner-only icon and cache-busted the related frontend modules.
+- Check: `node --check`, `git diff --check`, and in-app browser reload verified the new sprite URL and visual.
+- Next: None.
+
+## 2026-05-21 11:23
+
+- Task: Run alpha release QA for analysis and insights.
+- Changes: Added local QA report with screenshots and release-case evidence.
+- Check: Fast gate 37 passed; focused insights/async 12 passed; full unit 145 passed; browser analysis/chat/insights smoke.
+- Next: Fix stale queue-row analysis status if approved.
+
+## 2026-05-21 11:03
+
+- Task: Add playful Sushi topbar detail.
+- Changes: Added a subtle decorative sushi emoji cluster to the topbar and cache-busted CSS.
+- Check: Frontend JS checks, SVG validation, diff check, and in-app browser verified spacing.
+- Next: None.
+
+## 2026-05-21 11:01
+
+- Task: Remove flash between Project Dashboard and Project Workspace.
+- Changes: Converted project open/back navigation to client-side state and history updates; versioned route helper imports.
+- Check: JS syntax, SVG validation, diff check, and in-app browser verified open/back/browser-back panel transitions.
+- Next: None.
+
+## 2026-05-21 10:47
+
+- Task: Refine sidebar panel toggle styling.
+- Changes: Removed the default gray fill from the sidebar toggle so only the panel icon line art shows.
+- Check: JS syntax, SVG validation, diff check, and in-app browser verified transparent default background.
+- Next: None.
+
+## 2026-05-21 10:45
+
+- Task: Add compact sidebar control and dashboard header cleanup.
+- Changes: Added panel-style sidebar compact toggle, removed topbar Help icon, and renamed Projects to Project Dashboard.
+- Check: JS syntax, SVG validation, diff check, and in-app browser verified toggle, icon, title, and Help icon removal.
+- Next: None.
+
+## 2026-05-21 10:32
+
+- Task: Add language to expanded project card details.
+- Changes: Added a Languages row to the expanded card only and bumped the dashboard asset version.
+- Check: `node --check` for changed JS, `git diff --check`, and in-app browser verified Languages appears after expand.
+- Next: None.
+
+## 2026-05-20 22:02
+
+- Task: Update dashboard project card UI with inline expansion.
+- Changes: Removed language badges, kept market badges, pinned Open Project to card bottom, added expand details button and cache-busted assets.
+- Check: JS syntax, SVG validation, diff check, designer/engineer/test agents, and browser click-through on localhost.
+- Next: Review screenshots for final visual approval.
+
 ## 2026-05-19 10:13
 
 - Task: Deploy backend for video detail summary order update.

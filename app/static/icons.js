@@ -22,6 +22,7 @@ const ICON_IDS = Object.freeze({
   more_vert: "more-vert",
   notifications: "notifications",
   notifications_active: "notifications-active",
+  open_in_full: "open-in-full",
   queue_play_next: "queue-play-next",
   settings: "settings",
   video_library: "video-library",
@@ -34,5 +35,5 @@ export function iconSvg(name, className = "") {
     return "";
   }
   const extraClass = className ? ` ${escapeHtml(className)}` : "";
-  return `<svg class="app-icon${extraClass}" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-${iconId}"></use></svg>`;
+  return `<svg class="app-icon${extraClass}" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260521-two-corner-expand#icon-${iconId}"></use></svg>`;
 }

@@ -276,7 +276,7 @@ class TriageService:
         monitor_profile_id: int = None,
         owner_user_id: Optional[str] = None,
         queue_state=None,
-        risk_level: str = None,
+        risk_level=None,
         sentiment: str = None,
         title_query: str = None,
     ):

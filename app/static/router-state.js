@@ -13,12 +13,16 @@ export function navigateToProject(projectId) {
   if (!projectId) {
     return;
   }
-  window.location.assign(`/projects/${projectId}`);
+  const target = `/projects/${projectId}`;
+  if (`${window.location.pathname}${window.location.search}` === target) {
+    return;
+  }
+  window.history.pushState({}, "", target);
 }
 
 export function syncProjectRoute(projectId) {
   const target = projectId ? `/projects/${projectId}` : "/";
-  if (window.location.pathname === target) {
+  if (`${window.location.pathname}${window.location.search}` === target) {
     return;
   }
   window.history.replaceState({}, "", target);
@@ -43,5 +47,9 @@ export function navigateToProjectVideo(projectId, videoId) {
   if (!projectId || !videoId) {
     return;
   }
-  window.location.assign(`/projects/${projectId}?video=${videoId}`);
+  const target = `/projects/${projectId}?video=${videoId}`;
+  if (`${window.location.pathname}${window.location.search}` === target) {
+    return;
+  }
+  window.history.pushState({}, "", target);
 }

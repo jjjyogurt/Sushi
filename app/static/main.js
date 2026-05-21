@@ -1,14 +1,14 @@
 import { ApiError, request, requestForm } from "./api-client.js";
 import { createAuthController } from "./auth.js";
-import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js?v=20260515-icons";
-import { createQueueController } from "./queue.js?v=20260515-icons";
+import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js?v=20260521-two-corner-expand";
+import { createQueueController } from "./queue.js?v=20260521-risk-dropdown-native";
 import {
   clearVideoQueryParam,
   getProjectIdFromRoute,
   getVideoIdFromRouteSearch,
   navigateToProject,
   syncProjectRoute,
-} from "./router-state.js";
+} from "./router-state.js?v=20260521-client-nav";
 import { getState, setState } from "./state.js";
 import {
   debounce,
@@ -26,7 +26,7 @@ import { createVocController } from "./voc.js";
 import { createAllVideosSettingsController } from "./all-videos-settings.js";
 import { createInsightsController } from "./insights.js?v=20260515-icons";
 import { createWatchlistController } from "./watchlist.js?v=20260515-icons";
-import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260515-icons";
+import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260521-sidebar-toggle";
 
 const DEFAULT_PROJECT_BRAND_KEYWORDS = Object.freeze([
   "HOVER",
@@ -42,6 +42,8 @@ const DEFAULT_PROJECT_BRAND_KEYWORDS = Object.freeze([
   "HOVERAir X1",
   "HOVERAir X1 Smart",
 ]);
+
+const SIDEBAR_COMPACT_STORAGE_KEY = "project-sushi.sidebar-compact";
 
 const DEFAULT_MESSAGE_DISMISS_MS = 5100;
 const ACTION_MESSAGE_DISMISS_MS = 14000;
@@ -171,6 +173,50 @@ function setActiveSection(sectionId) {
   });
   document.querySelectorAll(".nav-btn[data-section]").forEach((button) => {
     button.classList.toggle("active", button.dataset.section === sectionId);
+  });
+}
+
+function readSidebarCompactPreference() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_COMPACT_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function persistSidebarCompactPreference(isCompact) {
+  try {
+    window.localStorage.setItem(SIDEBAR_COMPACT_STORAGE_KEY, String(isCompact));
+  } catch {
+    // localStorage can be unavailable in hardened browser contexts.
+  }
+}
+
+function updateSidebarCompactState(isCompact) {
+  const appShell = document.querySelector(".app-shell");
+  const toggleButton = getElement("sidebar-toggle-btn");
+  if (appShell) {
+    appShell.classList.toggle("sidebar-compact", isCompact);
+  }
+  if (toggleButton) {
+    const label = t(isCompact ? "expandSidebar" : "collapseSidebar");
+    toggleButton.setAttribute("aria-label", label);
+    toggleButton.setAttribute("title", label);
+    toggleButton.setAttribute("aria-expanded", String(!isCompact));
+  }
+}
+
+function bindSidebarToggle() {
+  const toggleButton = getElement("sidebar-toggle-btn");
+  if (!toggleButton) {
+    return;
+  }
+  updateSidebarCompactState(readSidebarCompactPreference());
+  toggleButton.addEventListener("click", () => {
+    const appShell = document.querySelector(".app-shell");
+    const nextIsCompact = !(appShell instanceof HTMLElement && appShell.classList.contains("sidebar-compact"));
+    persistSidebarCompactPreference(nextIsCompact);
+    updateSidebarCompactState(nextIsCompact);
   });
 }
 
@@ -390,16 +436,18 @@ function bindNav(onSectionChange = () => {}) {
   });
 }
 
-function bindProjectBackButton() {
+function bindProjectBackButton(onBack = null) {
   const backButton = getElement("back-to-dashboard-btn");
   if (!backButton) {
     return;
   }
 
   backButton.addEventListener("click", () => {
-    syncProjectRoute(null);
+    if (typeof onBack === "function") {
+      onBack();
+      return;
+    }
     setActiveSection("dashboard");
-    window.location.assign("/");
   });
 }
 
@@ -480,6 +528,7 @@ async function bootstrap() {
       profiles: state.profiles,
       selectedProfileId: state.selectedProfileId,
       openProjectMenuId: state.openProjectMenuId,
+      expandedProjectIds: state.expandedProjectIds || [],
     });
     if (queueController) {
       queueController.renderProfileSelect();
@@ -501,6 +550,7 @@ async function bootstrap() {
 
   async function rerenderLocalizedUi() {
     applyStaticTranslations();
+    updateSidebarCompactState(document.querySelector(".app-shell")?.classList.contains("sidebar-compact") || false);
     const currentUser = getState().currentUser;
     const topbarLabel = getElement("topbar-user-label");
     if (topbarLabel) {
@@ -612,6 +662,60 @@ async function bootstrap() {
     rerenderProfileArea();
     queueController.renderSearchCandidates();
   }
+
+  function openProjectWorkspace(profileId, { pushRoute = true } = {}) {
+    const profileExists = getState().profiles.some((profile) => profile.id === profileId);
+    if (!profileExists) {
+      return;
+    }
+    setState((previous) => ({
+      ...previous,
+      selectedProfileId: profileId,
+      selectedVideoId: null,
+      transcriptExpanded: false,
+      searchCandidates: [],
+      openProjectMenuId: null,
+    }));
+    if (pushRoute) {
+      navigateToProject(profileId);
+    } else {
+      syncProjectRoute(profileId);
+    }
+    queueController.renderProfileSelect();
+    queueController.renderSearchCandidates();
+    rerenderProfileArea();
+    setActiveSection("queue");
+    void runTask(async () => {
+      await queueController.refreshVideos();
+    });
+  }
+
+  function openDashboard({ replaceRoute = true } = {}) {
+    setState((previous) => ({
+      ...previous,
+      selectedProfileId: null,
+      selectedVideoId: null,
+      transcriptExpanded: false,
+      searchCandidates: [],
+      openProjectMenuId: null,
+    }));
+    if (replaceRoute) {
+      syncProjectRoute(null);
+    }
+    queueController.renderProfileSelect();
+    queueController.renderSearchCandidates();
+    rerenderProfileArea();
+    setActiveSection("dashboard");
+  }
+
+  window.addEventListener("popstate", () => {
+    const routeProjectId = getProjectIdFromRoute();
+    if (routeProjectId === null) {
+      openDashboard({ replaceRoute: false });
+      return;
+    }
+    openProjectWorkspace(routeProjectId, { pushRoute: false });
+  });
 
   function bindProfileForm() {
     const profileForm = getElement("profile-form");
@@ -776,6 +880,10 @@ async function bootstrap() {
   }
 
   bindNav((sectionId) => {
+    if (sectionId === "dashboard") {
+      openDashboard();
+      return;
+    }
     if (sectionId === "watchlist") {
       void runTask(async () => {
         await watchlistController?.refresh();
@@ -788,9 +896,10 @@ async function bootstrap() {
   bindTokenInputs();
   bindAlertsControls();
   bindLanguageSelector();
+  bindSidebarToggle();
   bindProfileForm();
   bindEditProfileForm();
-  bindProjectBackButton();
+  bindProjectBackButton(() => openDashboard());
   agentSettingsController.bindAgentSettingsControls();
   knowledgeSettingsController.bindKnowledgeSettingsControls();
   vocController.bindVocControls();
@@ -800,11 +909,7 @@ async function bootstrap() {
   allVideosSettingsController.bindAllVideosSettings();
   bindDashboardInteractions({
     onOpenProject: (profileId) => {
-      const card = document.querySelector(`[data-project-id="${profileId}"]`);
-      if (card instanceof HTMLElement) {
-        card.classList.add("is-opening");
-      }
-      window.setTimeout(() => navigateToProject(profileId), 140);
+      openProjectWorkspace(profileId);
     },
     onEditProject: (profileId) => {
       openEditProject(profileId);
@@ -814,6 +919,20 @@ async function bootstrap() {
         ...previous,
         openProjectMenuId: previous.openProjectMenuId === profileId ? null : profileId,
       }));
+      rerenderProfileArea();
+    },
+    onToggleProjectDetails: (profileId) => {
+      setState((previous) => {
+        const currentExpandedProjectIds = previous.expandedProjectIds || [];
+        const expandedProjectIds = currentExpandedProjectIds.includes(profileId)
+          ? currentExpandedProjectIds.filter((id) => id !== profileId)
+          : [...currentExpandedProjectIds, profileId];
+        return {
+          ...previous,
+          expandedProjectIds,
+          openProjectMenuId: null,
+        };
+      });
       rerenderProfileArea();
     },
     onCloseProjectMenu: () => {

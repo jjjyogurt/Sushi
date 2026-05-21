@@ -1,4 +1,4 @@
-import { syncProjectRoute } from "./router-state.js";
+import { syncProjectRoute } from "./router-state.js?v=20260521-client-nav";
 import {
   debounce,
   escapeHtml,
@@ -424,17 +424,48 @@ export function createQueueController({
     candidateList.innerHTML = "";
   }
 
+  function getSelectedRiskLevels() {
+    return Array.from(document.querySelectorAll('input[name="risk-filter"]:checked'))
+      .map((input) => input.value.trim())
+      .filter(Boolean);
+  }
+
+  function updateRiskFilterLabel() {
+    const label = getElement("risk-filter-label");
+    if (!label) {
+      return;
+    }
+    const selectedLabels = Array.from(document.querySelectorAll('input[name="risk-filter"]:checked'))
+      .map((input) => input.closest("label")?.innerText?.trim() || input.value)
+      .filter(Boolean);
+    label.textContent = selectedLabels.length > 0 ? selectedLabels.join(", ") : t("allRiskLevels");
+  }
+
+  function setRiskFilterOpen(isOpen) {
+    const dropdown = getElement("risk-filter");
+    const toggle = getElement("risk-filter-toggle");
+    if (!dropdown || !toggle) {
+      return;
+    }
+    if (isOpen) {
+      dropdown.setAttribute("open", "");
+    } else {
+      dropdown.removeAttribute("open");
+    }
+    toggle.setAttribute("aria-expanded", String(isOpen));
+  }
+
   async function refreshVideos() {
     const state = getState();
-    const riskFilter = (getElement("risk-filter")?.value || "").trim();
+    const riskFilters = getSelectedRiskLevels();
     const sentimentFilter = (getElement("sentiment-filter")?.value || "").trim();
     const titleFilter = getKeywordSearchValue();
     const query = new URLSearchParams();
     if (state.selectedProfileId) {
       query.set("monitor_profile_id", String(state.selectedProfileId));
     }
-    if (riskFilter) {
-      query.set("risk_level", riskFilter);
+    for (const riskFilter of riskFilters) {
+      query.append("risk_level", riskFilter);
     }
     if (sentimentFilter) {
       query.set("sentiment", sentimentFilter);
@@ -1022,14 +1053,35 @@ export function createQueueController({
       });
     }
 
-    const riskFilterSelect = getElement("risk-filter");
-    if (riskFilterSelect) {
-      riskFilterSelect.addEventListener("change", () => {
+    const riskFilterGroup = getElement("risk-filter");
+    if (riskFilterGroup) {
+      updateRiskFilterLabel();
+      riskFilterGroup.addEventListener("change", () => {
+        updateRiskFilterLabel();
         void runTask(async () => {
           await refreshVideos();
         });
       });
     }
+
+    const riskFilterToggle = getElement("risk-filter-toggle");
+    if (riskFilterToggle) {
+      riskFilterToggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+    }
+
+    document.addEventListener("click", (event) => {
+      if (riskFilterGroup && !riskFilterGroup.contains(event.target)) {
+        setRiskFilterOpen(false);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        setRiskFilterOpen(false);
+      }
+    });
 
     const sentimentFilterSelect = getElement("sentiment-filter");
     if (sentimentFilterSelect) {

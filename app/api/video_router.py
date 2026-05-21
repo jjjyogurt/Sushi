@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -116,7 +116,7 @@ def add_manual_video(
 def list_videos(
     monitor_profile_id: Optional[int] = None,
     queue_state: Optional[QueueState] = Query(default=None),
-    risk_level: Optional[str] = None,
+    risk_level: Optional[List[str]] = Query(default=None),
     sentiment: Optional[str] = None,
     title: Optional[str] = Query(default=None, max_length=255),
     current_user: AppUser = Depends(get_current_user),
@@ -147,7 +147,7 @@ def list_videos(
     return VideoListResponse(
         items=responses,
         total=len(responses),
-        risk_level=risk_level,
+        risk_level=",".join(risk_level or []) or None,
         sentiment=sentiment,
     )
 

@@ -137,7 +137,7 @@ class VideoRepository:
         *,
         monitor_profile_id: Optional[int] = None,
         queue_state: Optional[QueueState] = None,
-        risk_level: Optional[str] = None,
+        risk_level=None,
         sentiment: Optional[str] = None,
         title_query: Optional[str] = None,
         owner_user_id: Optional[str] = None,
@@ -174,7 +174,14 @@ class VideoRepository:
                 ),
             )
             if risk_level:
-                query = query.filter(AnalysisResult.risk_level == risk_level.upper())
+                risk_levels = risk_level if isinstance(risk_level, list) else [risk_level]
+                normalized_risk_levels = [
+                    str(item).strip().upper()
+                    for item in risk_levels
+                    if str(item).strip()
+                ]
+                if normalized_risk_levels:
+                    query = query.filter(AnalysisResult.risk_level.in_(normalized_risk_levels))
             if sentiment:
                 query = query.filter(AnalysisResult.sentiment == sentiment.upper())
 

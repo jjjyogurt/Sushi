@@ -280,6 +280,14 @@ def test_list_videos_supports_risk_and_sentiment_filters(client, api_db_session,
     risk_items = risk_response.json()["items"]
     assert [item["youtube_video_id"] for item in risk_items] == ["router-filter-match"]
 
+    multi_risk_response = client.get("/videos?risk_level=high&risk_level=low")
+    assert multi_risk_response.status_code == 200
+    multi_risk_items = multi_risk_response.json()["items"]
+    assert {item["youtube_video_id"] for item in multi_risk_items} == {
+        "router-filter-match",
+        "router-filter-miss",
+    }
+
     sentiment_response = client.get("/videos?sentiment=negative")
     assert sentiment_response.status_code == 200
     sentiment_items = sentiment_response.json()["items"]

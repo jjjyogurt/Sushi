@@ -5,57 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Project Sushi</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-    <link rel="stylesheet" href="/static/styles.css?v=20260515-icons" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260521-expand-icon-tune" />
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar">
-        <div class="brand-block">
-          <h1>Project Sushi</h1>
-          <p>Content Monitoring</p>
+        <div class="sidebar-header">
+          <div class="brand-block">
+            <h1>Project Sushi</h1>
+            <p>Content Monitoring</p>
+          </div>
+          <button id="sidebar-toggle-btn" class="icon-btn sidebar-toggle-btn" type="button" aria-label="Collapse sidebar" aria-expanded="true">
+            <svg class="app-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260521-sidebar-panel-toggle#icon-panel-left"></use></svg>
+          </button>
         </div>
         <nav class="sidebar-nav">
           <button class="nav-btn active" data-section="dashboard" type="button">
             <svg class="app-icon icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-dashboard"></use></svg>
-            Dashboard
+            <span class="nav-label">Dashboard</span>
           </button>
           <button class="nav-btn" data-section="queue" type="button">
             <svg class="app-icon icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-queue-play-next"></use></svg>
-            Project
+            <span class="nav-label">Project</span>
           </button>
           <button class="nav-btn" data-section="voc" type="button">
             <svg class="app-icon icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-voice-chat"></use></svg>
-            VOC
+            <span class="nav-label">VOC</span>
           </button>
           <button class="nav-btn" data-section="watchlist" type="button">
             <svg class="app-icon icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-bookmarks"></use></svg>
-            Watch list
+            <span class="nav-label">Watch list</span>
           </button>
           <button class="nav-btn" data-section="alerts" type="button">
             <svg class="app-icon icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-notifications-active"></use></svg>
-            Alerts
+            <span class="nav-label">Alerts</span>
           </button>
           <button class="nav-btn" data-section="settings" type="button">
             <svg class="app-icon icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-settings"></use></svg>
-            Settings
+            <span class="nav-label">Settings</span>
           </button>
         </nav>
         <div class="sidebar-footer">
           <button class="nav-btn" data-section="help-center" type="button">
             <svg class="app-icon icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-help"></use></svg>
-            Help Center
+            <span class="nav-label">Help Center</span>
           </button>
         </div>
       </aside>
 
       <div class="main-shell">
         <header class="topbar">
-          <div class="topbar-title"></div>
+          <div class="topbar-title">
+            <div class="topbar-sushi-mark" aria-hidden="true">
+              <span>🍣</span>
+              <span>🍙</span>
+              <span>🍱</span>
+            </div>
+          </div>
           <div class="topbar-actions">
             <button class="icon-btn"><svg class="app-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-notifications"></use></svg></button>
-            <button class="icon-btn" data-section="help-center" type="button" aria-label="Help Center">
-              <svg class="app-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-help"></use></svg>
-            </button>
             <div class="user-avatar user-avatar-account">
               <span id="topbar-user-label">-</span>
             </div>
@@ -476,13 +484,29 @@
                   <button id="run-all-analysis-btn" class="btn btn-secondary btn-sm" type="button">Run All Analysis</button>
                 </div>
                 <div class="list-filters">
-                  <select id="risk-filter">
-                    <option value="">All Risk Levels</option>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
+                  <details class="risk-filter-dropdown" id="risk-filter">
+                    <summary id="risk-filter-toggle" class="risk-filter-toggle">
+                      <span id="risk-filter-label">All Risk Levels</span>
+                    </summary>
+                    <div class="risk-filter-menu" id="risk-filter-menu" role="menu" aria-label="Risk level filter">
+                      <label>
+                        <input type="checkbox" name="risk-filter" value="low" />
+                        <span>Low</span>
+                      </label>
+                      <label>
+                        <input type="checkbox" name="risk-filter" value="medium" />
+                        <span>Medium</span>
+                      </label>
+                      <label>
+                        <input type="checkbox" name="risk-filter" value="high" />
+                        <span>High</span>
+                      </label>
+                      <label>
+                        <input type="checkbox" name="risk-filter" value="critical" />
+                        <span>Critical</span>
+                      </label>
+                    </div>
+                  </details>
                   <select id="sentiment-filter">
                     <option value="">All Sentiments</option>
                     <option value="positive">Positive</option>
@@ -1081,6 +1105,6 @@
         </form>
       </div>
     </div>
-    <script type="module" src="/static/main.js?v=20260515-icons"></script>
+    <script type="module" src="/static/main.js?v=20260521-risk-dropdown-native"></script>
   </body>
 </html>
