@@ -736,6 +736,7 @@ export function createVideoDetailController({
               [videoId]: false,
             };
             analysisCache = {};
+            await onVideosChanged?.();
             await renderVideoDetail();
           } catch (error) {
             rerunStateByVideoId = {
@@ -743,6 +744,7 @@ export function createVideoDetailController({
               [videoId]: false,
             };
             analysisCache = {};
+            await onVideosChanged?.();
             await renderVideoDetail();
             const errorMessage = error instanceof Error ? error.message : t("analysisFailed");
             throw new Error(normalizeAnalysisErrorMessage(errorMessage));

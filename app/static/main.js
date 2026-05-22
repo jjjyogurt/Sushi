@@ -1,6 +1,6 @@
 import { ApiError, request, requestForm } from "./api-client.js";
-import { createAuthController } from "./auth.js";
-import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js?v=20260521-two-corner-expand";
+import { createAuthController } from "./auth.js?v=20260521-sushi-login-spin";
+import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js?v=20260521-inline-edit-row";
 import { createQueueController } from "./queue.js?v=20260521-risk-dropdown-native";
 import {
   clearVideoQueryParam,
@@ -19,7 +19,7 @@ import {
   normalizeSelectableValue,
   splitCsv,
 } from "./ui-utils.js";
-import { createVideoDetailController } from "./video-detail.js?v=20260515-icons";
+import { createVideoDetailController } from "./video-detail.js?v=20260521-analysis-status-2";
 import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js?v=20260515-icons";
 import { createVocController } from "./voc.js";
@@ -162,6 +162,31 @@ function setEditPanelVisible(isVisible) {
     return;
   }
   container.classList.toggle("is-hidden", !isVisible);
+}
+
+function parkEditPanelBeforeRender() {
+  const container = getElement("edit-profile-container");
+  const profileGrid = getElement("profile-grid");
+  if (!container || !profileGrid || !profileGrid.contains(container)) {
+    return;
+  }
+  profileGrid.parentElement?.insertBefore(container, profileGrid);
+}
+
+function syncEditPanelPlacement() {
+  const container = getElement("edit-profile-container");
+  const profileGrid = getElement("profile-grid");
+  if (!container || !profileGrid) {
+    return;
+  }
+  const slot = getElement("project-edit-panel-slot");
+  if (slot) {
+    slot.appendChild(container);
+    return;
+  }
+  if (container.parentElement === profileGrid) {
+    profileGrid.parentElement?.insertBefore(container, profileGrid);
+  }
 }
 
 function setActiveSection(sectionId) {
@@ -329,13 +354,18 @@ function bindTokenInputs() {
   });
 }
 
-function bindDashboardControls() {
+function bindDashboardControls({ onDashboardNeedsRender = () => {} } = {}) {
   const toggleButton = getElement("toggle-create-btn");
   if (toggleButton) {
     toggleButton.addEventListener("click", () => {
       const isHidden = getElement("create-profile-container")?.classList.contains("is-hidden");
       if (isHidden) {
+        setState((previous) => ({
+          ...previous,
+          editingProjectId: null,
+        }));
         setEditPanelVisible(false);
+        onDashboardNeedsRender();
       }
       setCreatePanelVisible(Boolean(isHidden));
     });
@@ -356,6 +386,7 @@ function bindDashboardControls() {
         editingProjectId: null,
       }));
       setEditPanelVisible(false);
+      onDashboardNeedsRender();
     });
   }
 }
@@ -524,12 +555,15 @@ async function bootstrap() {
 
   function rerenderProfileArea() {
     const state = getState();
+    parkEditPanelBeforeRender();
     renderProfileGrid({
       profiles: state.profiles,
       selectedProfileId: state.selectedProfileId,
       openProjectMenuId: state.openProjectMenuId,
       expandedProjectIds: state.expandedProjectIds || [],
+      editingProjectId: state.editingProjectId,
     });
+    syncEditPanelPlacement();
     if (queueController) {
       queueController.renderProfileSelect();
     }
@@ -892,7 +926,7 @@ async function bootstrap() {
     }
     insightsController?.handleSectionChange(sectionId);
   });
-  bindDashboardControls();
+  bindDashboardControls({ onDashboardNeedsRender: rerenderProfileArea });
   bindTokenInputs();
   bindAlertsControls();
   bindLanguageSelector();

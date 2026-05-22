@@ -18,6 +18,19 @@ function setAuthGateVisible(isVisible) {
   gate.classList.toggle("is-hidden", !isVisible);
 }
 
+function playSignedInSushiAnimation() {
+  const sushiMark = document.querySelector(".topbar-sushi-mark");
+  if (!(sushiMark instanceof HTMLElement)) {
+    return;
+  }
+  sushiMark.classList.remove("is-animating");
+  void sushiMark.offsetWidth;
+  sushiMark.classList.add("is-animating");
+  window.setTimeout(() => {
+    sushiMark.classList.remove("is-animating");
+  }, 1400);
+}
+
 export function createAuthController({ request, setState }) {
   let users = [];
   let currentUser = null;
@@ -115,6 +128,7 @@ export function createAuthController({ request, setState }) {
       passwordInput.value = "";
       setCurrentUser(currentUser);
       setAuthGateVisible(false);
+      playSignedInSushiAnimation();
       if (waitingResolver) {
         waitingResolver(currentUser);
         waitingResolver = null;

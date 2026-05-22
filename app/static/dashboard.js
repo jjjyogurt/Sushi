@@ -29,17 +29,21 @@ function formatProjectStatus(profile) {
   return profile.is_active ? t("projectStatusActive") : t("projectStatusInactive");
 }
 
-function profileCardMarkup(profile, isSelected, openProjectMenuId, expandedProjectIds) {
+function profileCardMarkup(profile, isSelected, openProjectMenuId, expandedProjectIds, editingProjectId) {
   const isMenuOpen = openProjectMenuId === profile.id;
   const expandedIds = Array.isArray(expandedProjectIds) ? expandedProjectIds : [];
   const isExpanded = expandedIds.includes(profile.id);
+  const isEditing = editingProjectId === profile.id;
   const keyProducts = Array.isArray(profile.key_products) ? profile.key_products : [];
   const languages = Array.isArray(profile.languages) ? profile.languages : [];
   const detailsId = `project-details-${profile.id}`;
   const createdAt = formatProjectDateTime(profile.created_at);
   const updatedAt = formatProjectDateTime(profile.updated_at);
   return `
-    <article class="project-card ${isSelected ? "active" : ""} ${isExpanded ? "is-expanded" : ""}" data-project-id="${profile.id}">
+    <article
+      class="project-card ${isSelected ? "active" : ""} ${isExpanded ? "is-expanded" : ""} ${isEditing ? "is-editing" : ""}"
+      data-project-id="${profile.id}"
+    >
       <div class="project-card-header">
         <h4>${escapeHtml(profile.name)}</h4>
         <div class="project-card-actions">
@@ -120,10 +124,17 @@ function profileCardMarkup(profile, isSelected, openProjectMenuId, expandedProje
         ${escapeHtml(t("openProject"))}
       </button>
     </article>
+    ${isEditing ? `<div id="project-edit-panel-slot" class="project-edit-panel-slot"></div>` : ""}
   `;
 }
 
-export function renderProfileGrid({ profiles, selectedProfileId, openProjectMenuId = null, expandedProjectIds = [] }) {
+export function renderProfileGrid({
+  profiles,
+  selectedProfileId,
+  openProjectMenuId = null,
+  expandedProjectIds = [],
+  editingProjectId = null,
+}) {
   const profileGrid = getElement("profile-grid");
   if (!profileGrid) {
     return;
@@ -135,7 +146,15 @@ export function renderProfileGrid({ profiles, selectedProfileId, openProjectMenu
   }
 
   profileGrid.innerHTML = profiles
-    .map((profile) => profileCardMarkup(profile, profile.id === selectedProfileId, openProjectMenuId, expandedProjectIds))
+    .map((profile) =>
+      profileCardMarkup(
+        profile,
+        profile.id === selectedProfileId,
+        openProjectMenuId,
+        expandedProjectIds,
+        editingProjectId
+      )
+    )
     .join("");
 }
 

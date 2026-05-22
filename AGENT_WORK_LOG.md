@@ -1,5 +1,26 @@
 # Agent Work Log
 
+## 2026-05-21 16:18
+
+- Task: Fix stale queue-row analysis status.
+- Changes: Refreshed the video queue after single-video analysis succeeds or fails, and cache-busted the detail module.
+- Check: Full unit suite 145 passed; JS/SVG/diff checks passed; browser verified row and detail status update together.
+- Next: Run alpha deploy smoke after staging deploy.
+
+## 2026-05-21 16:07
+
+- Task: Tune sushi animation timing and trigger.
+- Changes: Reduced rotation amplitude by 40%, moved animation behind an `is-animating` class, and trigger it only after successful login.
+- Check: `git diff --check`; `PYTHONPATH=. ./.venv/bin/pytest tests/unit/test_video_router.py -q`; browser verified no reload animation and new cache keys.
+- Next: None.
+
+## 2026-05-21 15:46
+
+- Task: Add topbar sushi entrance animation.
+- Changes: Added staggered one-by-one rotation animation for the sushi emoji mark and cache-busted the stylesheet.
+- Check: `git diff --check`; `PYTHONPATH=. ./.venv/bin/pytest tests/unit/test_video_router.py -q`; browser verified animation CSS and cache key.
+- Next: None.
+
 ## 2026-05-21 15:22
 
 - Task: Allow multiple risk levels in the video list filter.
@@ -1082,3 +1103,27 @@
 - Changes: Updated agent prompt UI copy and added a unit test proving new analysis uses the latest saved account prompt.
 - Check: `PYTHONPATH=. pytest -q tests/unit/test_analysis_service.py`.
 - Next: Completed videos remain unchanged unless manually re-analyzed.
+
+## 2026-05-21 16:13
+- Task: Run alpha release deploy gate checks.
+- Changes: Executed documented P0 fast gate, full unit regression, local clean-DB startup, health, Gemini health, auth guard, and rollback-doc checks.
+- Check: Fast gate 37 passed; full unit regression 145 passed; local `/health` 200; `/watchlist` unauthenticated 401.
+- Next: Complete staging/manual P0 cases before production deploy.
+
+## 2026-05-21 20:58
+- Task: Move project edit form inline under the selected card.
+- Changes: Added an inline grid slot for the active edit form, preserved the existing form node/listeners, and refreshed static cache keys.
+- Check: `node --check`; `git diff --check`; Browser verified second-row edit placement and cancel cleanup.
+- Next: None.
+
+## 2026-05-21 21:52
+- Task: Run alpha release backend deploy gates.
+- Changes: Executed documented P0 fast gate, full unit regression, clean SQLite startup/health, local health, auth guard, and rollback-doc checks.
+- Check: Fast gate 37 passed; full unit regression 145 passed; clean `/health` 200; local `/health` 200; `/watchlist` 401.
+- Next: Complete manual/E2E P0 cases before a strict release GO.
+
+## 2026-05-21 22:32
+- Task: Deploy backend to Cloud Run and smoke test production.
+- Changes: Deployed `sushi-backend-00007-d4c` with 100% traffic and updated deploy log.
+- Check: Full unit suite 145 passed; Supabase env preserved; Browser verified deployed health, login, dashboard load, and inline edit/cancel.
+- Next: Monitor production logs and roll back to `sushi-backend-00005-5s5` if UI regressions appear.

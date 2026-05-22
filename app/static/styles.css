@@ -230,6 +230,40 @@ body {
   font-size: 1.05rem;
   line-height: 1;
   place-items: center;
+  transform-origin: 50% 58%;
+}
+
+.topbar-sushi-mark.is-animating span:nth-child(1) {
+  animation: sushi-mark-spin-in 0.62s cubic-bezier(0.2, 0.78, 0.22, 1.08) 0.18s both;
+}
+
+.topbar-sushi-mark.is-animating span:nth-child(2) {
+  animation: sushi-mark-spin-in 0.62s cubic-bezier(0.2, 0.78, 0.22, 1.08) 0.34s both;
+}
+
+.topbar-sushi-mark.is-animating span:nth-child(3) {
+  animation: sushi-mark-spin-in 0.62s cubic-bezier(0.2, 0.78, 0.22, 1.08) 0.5s both;
+}
+
+@keyframes sushi-mark-spin-in {
+  0% {
+    opacity: 0;
+    transform: rotate(-69deg) scale(0.72);
+  }
+  62% {
+    opacity: 1;
+    transform: rotate(11deg) scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar-sushi-mark span {
+    animation: none;
+  }
 }
 
 .topbar-actions {
@@ -357,6 +391,11 @@ body {
 
 .project-card.is-expanded {
   border-color: #d8dee0;
+}
+
+.project-card.is-editing {
+  border-color: #007aff;
+  box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.18), 0 4px 14px rgba(0, 122, 255, 0.08);
 }
 
 .project-card:hover {
@@ -791,6 +830,14 @@ body {
 #dashboard .project-grid {
   margin-top: 0;
   gap: 24px;
+}
+
+.project-edit-panel-slot {
+  grid-column: 1 / -1;
+}
+
+.project-edit-panel-slot #edit-profile-container {
+  margin-bottom: 0;
 }
 
 #dashboard .dashboard-create-btn {

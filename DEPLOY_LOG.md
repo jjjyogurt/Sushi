@@ -1,5 +1,15 @@
 # Deployment Log - Sushi App to Firebase + Cloud Run
 
+## Date: 2026-05-21 22:32 CST
+
+### Inline Project Edit Row Backend Deploy
+
+- Deployed `sushi-backend` revision `sushi-backend-00007-d4c` to `sushi-free-us-20260518` in `us-central1`, with 100% traffic.
+- Scope: refreshed backend-served static assets for inline project edit row placement, latest video detail status refresh assets, and sushi login animation assets. Worker was not deployed because no batch/worker code changed.
+- Verification: full unit suite passed (`145 passed, 1 warning`), Cloud Run env inspection confirmed the Supabase pooler host, revision `sushi-backend-00007-d4c` served 100% traffic, Browser verified deployed `/health`, app load, login, dashboard project load, and inline edit/cancel behavior. Recent new-revision ERROR log scan was empty.
+- Deploy note: initial `gcloud run deploy --source .` attempts hit transient local TLS EOF failures against Cloud Build; retry with explicit build service account completed successfully.
+- Rollback impact: route backend traffic back to `sushi-backend-00005-5s5` if this static/UI deploy regresses. Firebase Hosting was not deployed.
+
 ## Date: 2026-05-19
 
 ### Video Detail Summary Order Backend Deploy
