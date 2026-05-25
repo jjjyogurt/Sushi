@@ -50,6 +50,8 @@ flowchart LR
     C --> I[video_comments]
     C --> J[chat_messages]
     C --> K[project_insight_reports]
+    C --> L[project_insight_jobs]
+    W --> L
 ```
 
 
@@ -109,6 +111,8 @@ erDiagram
     VIDEO_CANDIDATES ||--o{ INCIDENTS : escalates_to
     INCIDENTS ||--o{ ALERTS : notifies
     MONITOR_PROFILES ||--o{ PROJECT_INSIGHT_REPORTS : aggregates
+    MONITOR_PROFILES ||--o{ PROJECT_INSIGHT_JOBS : queues
+    PROJECT_INSIGHT_JOBS }o--o| PROJECT_INSIGHT_REPORTS : produces
 
     APP_USERS ||--o{ AUTH_SESSIONS : logs_in
     APP_USERS ||--o{ VIDEO_WATCHLIST_ENTRIES : bookmarks
@@ -156,6 +160,11 @@ erDiagram
     - `risk_breakdown_json` (low/medium/high/critical counts)
     - `reach_metrics_json` (reach-weighted impact metrics)
     - `top_negative_videos_json` (top 5 negative videos by reach)
+- `project_insight_jobs`: durable async project insight refresh jobs.
+  - state: `queued/running/completed/failed/cancelled`
+  - one active job (`queued` or `running`) is allowed per `monitor_profile_id`
+  - different projects can refresh insights concurrently, including across users
+  - completed jobs link to the generated `project_insight_reports.id`
 - `analysis_batches`: durable async batch runs for “Run all analysis” with aggregate progress counters.
 - `analysis_batch_items`: per-video execution state for each batch (`queued/running/completed/failed/cancelled`), including attempts and failure message.
   - production processing is request-triggered: the backend inserts queued rows, enqueues a Cloud Task, and the worker claims work from these tables.
@@ -224,8 +233,11 @@ Notes:
 6. Escalate incident:
   - create `incidents` + `alerts`
 7. Refresh project insights:
+  - insert or return active `project_insight_jobs` row for the selected project
+  - Cloud Tasks wakes the analysis worker, or local/dev background fallback drains the queued job
   - aggregate latest completed analysis rows
   - write `project_insight_reports`
+  - mark the job `completed` with `report_id`, or `failed` with `last_error`
 
 ---
 
@@ -242,6 +254,7 @@ Startup migration helpers currently ensure/repair:
 - analysis `agent_settings_hash` column + hash-aware unique index
 - analysis comment summary columns
 - analysis batch tables (`analysis_batches`, `analysis_batch_items`)
+- project insight job table and one-active-job-per-project guard
 - `video_comments` table
 - video assignment columns
 - project insight portfolio metrics columns
@@ -249,6 +262,11 @@ Startup migration helpers currently ensure/repair:
 - orphan/stale cleanup across dependent tables
 
 Because this project uses imperative startup migrations, changes to models should also include corresponding migration helper updates when needed.
+
+### What Changed (2026-05-22, async project insight jobs)
+- What changed: Added `project_insight_jobs` with queued/running/completed/failed/cancelled status, creator tracking, error tracking, timestamps, optional `report_id`, and a partial unique guard that allows only one active insight job per project while allowing separate projects to run concurrently.
+- Why it changed: Refreshing project insights can take a long time because it aggregates completed transcripts and calls Gemini. The previous synchronous request path blocked the UI and could make every project appear occupied by the same refresh state.
+- Impact on existing data and compatibility: Additive schema change. Existing `project_insight_reports` rows remain valid and continue to serve current/history reads. New refresh requests create job rows and the worker writes reports asynchronously; startup cleanup removes orphaned job rows and clears invalid report links.
 
 ### What Changed (2026-05-14, analysis startup migration hotfix)
 - What changed: Stopped the `analysis_results` language-column migration from recreating the obsolete unique index on `(video_candidate_id, analysis_version, language)`. The only intended analysis uniqueness is the hash-aware index on `(video_candidate_id, analysis_version, language, agent_settings_hash)`.

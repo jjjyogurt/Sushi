@@ -2,6 +2,9 @@ import { escapeHtml, getElement } from "./ui-utils.js";
 import { iconSvg } from "./icons.js";
 import { t } from "./i18n.js";
 
+const INSIGHT_JOB_POLL_INTERVAL_MS = 2500;
+const INSIGHT_JOB_MAX_POLLS = 720;
+
 function formatDateTime(isoString) {
   const raw = String(isoString || "").trim();
   if (!raw) {
@@ -174,7 +177,8 @@ export function createInsightsController({
 }) {
   let historyItems = [];
   let activeReportId = null;
-  let isRefreshing = false;
+  const refreshingProjectIds = new Set();
+  const pollingJobs = new Map();
   let isHistoryDrawerOpen = false;
 
   function selectedProjectId() {
@@ -194,6 +198,44 @@ export function createInsightsController({
 
   function isProjectSelected() {
     return Boolean(selectedProjectId());
+  }
+
+  function projectKey(projectId) {
+    const parsed = Number(projectId);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  function isCurrentProject(projectId) {
+    return projectKey(selectedProjectId()) === projectKey(projectId);
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
+  }
+
+  function normalizeJobStatus(job) {
+    return String(job?.status || "").trim().toLowerCase();
+  }
+
+  function isActiveJob(job) {
+    return ["queued", "running"].includes(normalizeJobStatus(job));
+  }
+
+  function setProjectRefreshing(projectId, refreshing) {
+    const key = projectKey(projectId);
+    if (key === null) {
+      return;
+    }
+    if (refreshing) {
+      refreshingProjectIds.add(key);
+    } else {
+      refreshingProjectIds.delete(key);
+    }
+    if (isCurrentProject(projectId)) {
+      syncRefreshButtonState();
+    }
   }
 
   function syncProjectContext() {
@@ -216,8 +258,9 @@ export function createInsightsController({
     if (!(refreshButton instanceof HTMLButtonElement)) {
       return;
     }
-    const projectSelected = isProjectSelected();
-    const shouldDisable = !projectSelected || isRefreshing;
+    const currentProjectKey = projectKey(selectedProjectId());
+    const isRefreshing = currentProjectKey !== null && refreshingProjectIds.has(currentProjectKey);
+    const shouldDisable = currentProjectKey === null || isRefreshing;
     refreshButton.disabled = shouldDisable;
     refreshButton.classList.toggle("is-generating", isRefreshing);
     refreshButton.setAttribute("aria-busy", isRefreshing ? "true" : "false");
@@ -261,9 +304,48 @@ export function createInsightsController({
     if (!(emptyState instanceof HTMLElement) || !(content instanceof HTMLElement)) {
       return;
     }
+    clearReportContent();
+    activeReportId = null;
     emptyState.classList.remove("is-hidden");
     content.classList.add("is-hidden");
     emptyState.innerHTML = `<p class="meta">${escapeHtml(message)}</p>`;
+  }
+
+  function renderLoadingState(message = t("insightsLoadingReport")) {
+    const emptyState = getElement("insights-empty-state");
+    const content = getElement("insights-content");
+    if (!(emptyState instanceof HTMLElement) || !(content instanceof HTMLElement)) {
+      return;
+    }
+    clearReportContent();
+    activeReportId = null;
+    emptyState.classList.remove("is-hidden");
+    content.classList.add("is-hidden");
+    emptyState.innerHTML = `
+      <div class="insights-loading-state" role="status" aria-live="polite">
+        <span class="insights-loading-spinner" aria-hidden="true"></span>
+        <span>${escapeHtml(message)}</span>
+      </div>
+    `;
+  }
+
+  function clearReportContent() {
+    const targets = [
+      "insights-meta",
+      "insights-visual-summary",
+      "insights-summary",
+      "insights-goods-list",
+      "insights-bads-list",
+      "insights-recommendations-list",
+      "insights-team-actions-list",
+      "insights-top-negative-list",
+    ];
+    targets.forEach((id) => {
+      const target = getElement(id);
+      if (target instanceof HTMLElement) {
+        target.innerHTML = "";
+      }
+    });
   }
 
   function renderHistoryList(items) {
@@ -308,7 +390,15 @@ export function createInsightsController({
       .join("");
   }
 
-  function renderReport(report) {
+  function renderReport(report, expectedProjectId = selectedProjectId()) {
+    if (!isCurrentProject(expectedProjectId)) {
+      return;
+    }
+    if (projectKey(report?.monitor_profile_id) !== projectKey(expectedProjectId)) {
+      renderEmptyState(t("insightsNoReportYet"));
+      return;
+    }
+
     const emptyState = getElement("insights-empty-state");
     const content = getElement("insights-content");
     const meta = getElement("insights-meta");
@@ -372,6 +462,9 @@ export function createInsightsController({
       return [];
     }
     const payload = await request(`/monitor-profiles/${projectId}/insights/history?limit=30`);
+    if (!isCurrentProject(projectId)) {
+      return [];
+    }
     const items = Array.isArray(payload.items) ? payload.items : [];
     historyItems = [...items];
     renderHistoryList(historyItems);
@@ -385,24 +478,119 @@ export function createInsightsController({
       return;
     }
     const payload = await request(`/monitor-profiles/${projectId}/insights/current`);
+    if (!isCurrentProject(projectId)) {
+      return;
+    }
     const current = payload?.current || null;
     if (!current) {
       renderEmptyState(t("insightsNoReportYet"));
       return;
     }
-    renderReport(current);
+    renderReport(current, projectId);
   }
 
-  async function refreshInsights() {
-    const projectId = selectedProjectId();
+  async function loadActiveJob(projectId = selectedProjectId(), { startPolling = true } = {}) {
+    if (!projectId) {
+      return null;
+    }
+    const payload = await request(`/monitor-profiles/${projectId}/insights/jobs/active`);
+    const job = payload?.active || null;
+    setProjectRefreshing(projectId, isActiveJob(job));
+    if (job && isActiveJob(job) && startPolling) {
+      void pollJobUntilDone(projectId, job.id).catch(() => {
+        if (isCurrentProject(projectId)) {
+          syncRefreshButtonState();
+        }
+      });
+    }
+    return job;
+  }
+
+  async function finishCompletedJob(projectId) {
+    if (!isCurrentProject(projectId)) {
+      return;
+    }
+    await loadHistory();
+    if (!isCurrentProject(projectId)) {
+      return;
+    }
+    await loadCurrent();
+  }
+
+  async function pollJobUntilDone(projectId, jobId) {
+    const key = projectKey(projectId);
+    const parsedJobId = Number(jobId);
+    if (key === null || Number.isNaN(parsedJobId)) {
+      return null;
+    }
+    const pollKey = `${key}:${parsedJobId}`;
+    if (pollingJobs.has(pollKey)) {
+      return pollingJobs.get(pollKey);
+    }
+
+    const pollTask = (async () => {
+      for (let attempt = 0; attempt < INSIGHT_JOB_MAX_POLLS; attempt += 1) {
+        const job = await request(`/monitor-profiles/${projectId}/insights/jobs/${parsedJobId}`);
+        if (isActiveJob(job)) {
+          setProjectRefreshing(projectId, true);
+          await sleep(INSIGHT_JOB_POLL_INTERVAL_MS);
+          continue;
+        }
+
+        setProjectRefreshing(projectId, false);
+        const status = normalizeJobStatus(job);
+        if (status === "completed") {
+          await finishCompletedJob(projectId);
+          return job;
+        }
+        if (status === "failed") {
+          throw new Error(job.last_error || "Insights generation failed.");
+        }
+        if (status === "cancelled") {
+          throw new Error("Insights generation was cancelled.");
+        }
+        return job;
+      }
+
+      await loadActiveJob(projectId, { startPolling: false });
+      throw new Error("Insights generation is still running.");
+    })().finally(() => {
+      pollingJobs.delete(pollKey);
+    });
+
+    pollingJobs.set(pollKey, pollTask);
+    return pollTask;
+  }
+
+  async function refreshInsights(projectId = selectedProjectId()) {
     if (!projectId) {
       throw new Error(t("errorSelectProjectFirst"));
     }
-    const report = await request(`/monitor-profiles/${projectId}/insights/refresh`, {
-      method: "POST",
-    });
-    await loadHistory();
-    renderReport(report);
+    let job = null;
+    try {
+      job = await request(`/monitor-profiles/${projectId}/insights/refresh`, {
+        method: "POST",
+      });
+    } catch (error) {
+      setProjectRefreshing(projectId, false);
+      throw error;
+    }
+
+    setProjectRefreshing(projectId, isActiveJob(job));
+    const status = normalizeJobStatus(job);
+    if (status === "completed") {
+      await finishCompletedJob(projectId);
+      return;
+    }
+    if (status === "failed") {
+      setProjectRefreshing(projectId, false);
+      throw new Error(job.last_error || "Insights generation failed.");
+    }
+    if (status === "cancelled") {
+      setProjectRefreshing(projectId, false);
+      throw new Error("Insights generation was cancelled.");
+    }
+    await pollJobUntilDone(projectId, job.id);
   }
 
   async function deleteHistoryItem(reportId) {
@@ -416,7 +604,7 @@ export function createInsightsController({
     historyItems = historyItems.filter((entry) => Number(entry.id) !== Number(reportId));
     if (Number(activeReportId) === Number(reportId)) {
       if (historyItems.length > 0) {
-        renderReport(historyItems[0]);
+        renderReport(historyItems[0], projectId);
         return;
       }
       activeReportId = null;
@@ -447,6 +635,8 @@ export function createInsightsController({
     }
     setActiveSection("insights");
     setHistoryDrawerOpen(false);
+    renderLoadingState();
+    await loadActiveJob();
     await loadHistory();
     await loadCurrent();
   }
@@ -466,15 +656,16 @@ export function createInsightsController({
     const refreshInsightsButton = getElement("refresh-insights-btn");
     if (refreshInsightsButton) {
       refreshInsightsButton.addEventListener("click", () => {
-        if (isRefreshing || !isProjectSelected()) {
+        const projectId = selectedProjectId();
+        const currentProjectKey = projectKey(projectId);
+        if (currentProjectKey === null || refreshingProjectIds.has(currentProjectKey)) {
           return;
         }
-        isRefreshing = true;
+        refreshingProjectIds.add(currentProjectKey);
         syncRefreshButtonState();
         void runTask(async () => {
-          await refreshInsights();
+          await refreshInsights(projectId);
         }, t("insightsRefreshCompleted")).finally(() => {
-          isRefreshing = false;
           syncRefreshButtonState();
         });
       });
@@ -556,7 +747,7 @@ export function createInsightsController({
         if (!matched) {
           return;
         }
-        renderReport(matched);
+        renderReport(matched, selectedProjectId());
         setHistoryDrawerOpen(false);
       });
     }
@@ -569,7 +760,9 @@ export function createInsightsController({
     }
     syncProjectContext();
     syncRefreshButtonState();
+    renderLoadingState();
     void runTask(async () => {
+      await loadActiveJob();
       await loadHistory();
       await loadCurrent();
     });

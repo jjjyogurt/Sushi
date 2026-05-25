@@ -12,6 +12,7 @@ from app.models.knowledge_snapshot import KnowledgeSnapshot
 from app.models.knowledge_source import KnowledgeSource
 from app.models.monitor_profile import MonitorProfile
 from app.models.project_insight_report import ProjectInsightReport
+from app.models.project_insight_job import ProjectInsightJob
 from app.models.video_candidate import VideoCandidate
 from app.models.video_comment import VideoComment
 from app.models.video_watchlist_entry import VideoWatchlistEntry
@@ -121,6 +122,9 @@ class MonitorRepository:
                 ).delete(synchronize_session=False)
             self.session.query(AnalysisBatch).filter(
                 AnalysisBatch.monitor_profile_id == profile_id
+            ).delete(synchronize_session=False)
+            self.session.query(ProjectInsightJob).filter(
+                ProjectInsightJob.monitor_profile_id == profile_id
             ).delete(synchronize_session=False)
             self.session.query(ProjectInsightReport).filter(
                 ProjectInsightReport.monitor_profile_id == profile_id

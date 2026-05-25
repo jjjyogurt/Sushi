@@ -1,5 +1,18 @@
 # Agent Work Log
 
+## 2026-05-22 20:15
+- Task: Fix cross-project Insights report bleed.
+- Changes: Guarded Insights async renders by project id, cleared stale report DOM on empty states, made hidden content actually hide, added cache busts and alpha isolation case.
+- Check: `.venv/bin/python -m pytest -q tests/unit/test_static_insights_regression.py tests/unit/test_project_insights_router.py`; `node --check`; `git diff --check`; local browser CSS verification.
+- Next: Deploy Cloud Run so production gets the cache-busted static assets.
+
+## 2026-05-22 17:52
+
+- Task: Add project keyword help tooltips.
+- Changes: Added concise hover/focus explanations for brand keywords and key products in create/edit project forms, with EN/ZH i18n and cache busts.
+- Check: `node --check app/static/i18n.js && node --check app/static/main.js`; `git diff --check`; browser verified create/edit tooltip display.
+- Next: None.
+
 ## 2026-05-21 16:18
 
 - Task: Fix stale queue-row analysis status.
@@ -1127,3 +1140,39 @@
 - Changes: Deployed `sushi-backend-00007-d4c` with 100% traffic and updated deploy log.
 - Check: Full unit suite 145 passed; Supabase env preserved; Browser verified deployed health, login, dashboard load, and inline edit/cancel.
 - Next: Monitor production logs and roll back to `sushi-backend-00005-5s5` if UI regressions appear.
+
+## 2026-05-22 22:46
+- Task: Make project insights refresh production-grade and project-scoped.
+- Changes: Added durable `project_insight_jobs`, worker draining, per-project UI polling, DB docs, and alpha release coverage.
+- Check: Alpha fast gate 37 passed; full unit suite 152 passed; browser verified active job disables only its project.
+- Next: Deploy backend and frontend together so the async job API and cache-busted UI stay in sync.
+
+## 2026-05-23 16:58
+- Task: Update backend docs for async insights jobs.
+- Changes: Documented video analysis batches, project insight jobs, shared worker draining, deploy alignment, and stuck-job checks.
+- Check: Alpha P0 fast gate 37 passed; `git diff --check` passed for backend docs.
+- Next: Finish full alpha runbook after provider-dependent Gemini issue is handled.
+
+## 2026-05-23 17:37
+- Task: Deploy async insights job release to Cloud Run.
+- Changes: Deployed backend revision `sushi-backend-00008-ndq` and worker revision `sushi-analysis-worker-00004-5q7` from the same image digest.
+- Check: Unit suite 152 passed; backend/worker health 200; Gemini config ready; auth guard 401; no Cloud Run error logs.
+- Next: Monitor insight jobs for Gemini provider hangs.
+
+## 2026-05-23 18:24
+- Task: Fix Insights loading and stale empty-state UI.
+- Changes: Added a loading spinner state and cleared stale report content before showing confirmed empty reports.
+- Check: Static JS checks; `test_static_insights_regression.py` 6 passed; Browser verified report and no-report states.
+- Next: Deploy static cache-busted UI when ready.
+
+## 2026-05-23 19:48
+- Task: Run alpha release test gate after Insights UX fix.
+- Changes: Executed P0 fast gate, full unit regression, static hygiene, local health/auth guard, and browser smoke.
+- Check: P0 37 passed; full unit 154 passed; health 200; watchlist auth 401; Browser verified video list and Insights report.
+- Next: Deploy the local fix before production users can see it.
+
+## 2026-05-23 20:33
+- Task: Deploy Insights UI fix to backend Cloud Run.
+- Changes: Deployed `sushi-backend-00009-r5h` with 100% traffic and cache-busted static assets.
+- Check: Production health 200; Gemini ready; auth guard 401; no revision error logs; Browser verified VCOPTER Insights.
+- Next: Monitor production while users exercise Insights.

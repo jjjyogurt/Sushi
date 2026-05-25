@@ -7,6 +7,7 @@ from app.db_migrations import (
     cleanup_orphan_video_data,
     ensure_monitor_profiles_owner_user_id,
     ensure_analysis_results_summary_columns,
+    ensure_project_insight_job_tables,
     ensure_video_candidate_scoped_youtube_uniqueness,
     ensure_video_comments_table,
     ensure_monitor_profiles_key_products_column,
@@ -169,6 +170,72 @@ def test_ensure_project_insight_reports_portfolio_columns_adds_missing_columns()
     assert "risk_breakdown_json" in columns
     assert "reach_metrics_json" in columns
     assert "top_negative_videos_json" in columns
+
+
+def test_ensure_project_insight_job_tables_adds_one_active_job_per_project_guard():
+    engine = create_engine("sqlite:///:memory:")
+    ensure_project_insight_job_tables(engine)
+    ensure_project_insight_job_tables(engine)
+
+    tables = set(inspect(engine).get_table_names())
+    columns = {column["name"] for column in inspect(engine).get_columns("project_insight_jobs")}
+    indexes = {index["name"] for index in inspect(engine).get_indexes("project_insight_jobs")}
+    assert "project_insight_jobs" in tables
+    assert {"monitor_profile_id", "created_by", "status", "report_id", "last_error"}.issubset(columns)
+    assert "ix_project_insight_jobs_profile_status_created" in indexes
+    assert "ix_project_insight_jobs_status_created" in indexes
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO project_insight_jobs (monitor_profile_id, created_by, status)
+                VALUES (1, 'Sushi_1', 'QUEUED')
+                """
+            )
+        )
+
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO project_insight_jobs (monitor_profile_id, created_by, status)
+                    VALUES (1, 'Sushi_1', 'RUNNING')
+                    """
+                )
+            )
+    except IntegrityError:
+        pass
+    else:
+        raise AssertionError("Expected a second active insight job for the same project to fail.")
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO project_insight_jobs (monitor_profile_id, created_by, status)
+                VALUES (2, 'Sushi_1', 'QUEUED')
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                UPDATE project_insight_jobs
+                SET status = 'COMPLETED'
+                WHERE monitor_profile_id = 1
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO project_insight_jobs (monitor_profile_id, created_by, status)
+                VALUES (1, 'Sushi_1', 'QUEUED')
+                """
+            )
+        )
 
 
 def test_retire_legacy_business_impact_columns_drops_legacy_columns():

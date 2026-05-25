@@ -284,6 +284,68 @@ def ensure_analysis_batch_tables(engine: Engine) -> None:
                 text("CREATE INDEX ix_analysis_batch_items_batch_status ON analysis_batch_items (batch_id, status)")
             )
 
+
+def ensure_project_insight_job_tables(engine: Engine) -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    with engine.begin() as connection:
+        dialect_name = connection.dialect.name
+        timestamp_type = "DATETIME" if dialect_name == "sqlite" else "TIMESTAMP WITH TIME ZONE"
+        id_definition = "INTEGER PRIMARY KEY" if dialect_name == "sqlite" else "SERIAL PRIMARY KEY"
+        if "project_insight_jobs" not in table_names:
+            connection.execute(
+                text(
+                    f"""
+                    CREATE TABLE project_insight_jobs (
+                        id {id_definition},
+                        monitor_profile_id INTEGER NOT NULL,
+                        created_by VARCHAR(80) NOT NULL DEFAULT 'system',
+                        status VARCHAR(20) NOT NULL DEFAULT 'QUEUED',
+                        report_id INTEGER NULL,
+                        last_error TEXT NOT NULL DEFAULT '',
+                        started_at {timestamp_type} NULL,
+                        finished_at {timestamp_type} NULL,
+                        created_at {timestamp_type} DEFAULT CURRENT_TIMESTAMP,
+                        updated_at {timestamp_type} DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(monitor_profile_id) REFERENCES monitor_profiles(id),
+                        FOREIGN KEY(report_id) REFERENCES project_insight_reports(id)
+                    )
+                    """
+                )
+            )
+
+        indexes = {index["name"] for index in inspect(connection).get_indexes("project_insight_jobs")}
+        if "ix_project_insight_jobs_monitor_profile_id" not in indexes:
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_project_insight_jobs_monitor_profile_id ON project_insight_jobs (monitor_profile_id)")
+            )
+        if "ix_project_insight_jobs_report_id" not in indexes:
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_project_insight_jobs_report_id ON project_insight_jobs (report_id)")
+            )
+        if "ix_project_insight_jobs_profile_status_created" not in indexes:
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_project_insight_jobs_profile_status_created "
+                    "ON project_insight_jobs (monitor_profile_id, status, created_at)"
+                )
+            )
+        if "ix_project_insight_jobs_status_created" not in indexes:
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_project_insight_jobs_status_created "
+                    "ON project_insight_jobs (status, created_at)"
+                )
+            )
+        if "ux_project_insight_jobs_one_active_per_profile" not in indexes:
+            connection.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_project_insight_jobs_one_active_per_profile "
+                    "ON project_insight_jobs (monitor_profile_id) "
+                    "WHERE status IN ('QUEUED', 'RUNNING')"
+                )
+            )
+
 def ensure_monitor_profiles_key_products_column(engine: Engine) -> None:
     inspector = inspect(engine)
     columns = {column["name"] for column in inspector.get_columns("monitor_profiles")}
@@ -607,6 +669,21 @@ def cleanup_orphan_video_data(engine: Engine) -> None:
                     "WHERE monitor_profile_id NOT IN (SELECT id FROM monitor_profiles)"
                 )
             )
+
+        if "project_insight_jobs" in table_names:
+            connection.execute(
+                text(
+                    "DELETE FROM project_insight_jobs "
+                    "WHERE monitor_profile_id NOT IN (SELECT id FROM monitor_profiles)"
+                )
+            )
+            if "project_insight_reports" in table_names:
+                connection.execute(
+                    text(
+                        "UPDATE project_insight_jobs SET report_id = NULL "
+                        "WHERE report_id IS NOT NULL AND report_id NOT IN (SELECT id FROM project_insight_reports)"
+                    )
+                )
 
         connection.execute(text(f"DELETE FROM video_candidates WHERE id IN ({stale_or_orphan_video_subquery})"))
 

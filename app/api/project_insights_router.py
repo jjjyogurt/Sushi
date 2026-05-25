@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.auth_dependencies import get_current_user
@@ -6,9 +6,13 @@ from app.db import get_db_session
 from app.models.app_user import AppUser
 from app.schemas.project_insights import (
     ProjectInsightCurrentResponse,
+    ProjectInsightActiveJobResponse,
+    ProjectInsightJobResponse,
     ProjectInsightHistoryResponse,
     ProjectInsightReportResponse,
 )
+from app.services.analysis_worker_tasks import AnalysisWorkerTaskClient
+from app.services.project_insight_job_service import ProjectInsightJobService
 from app.services.project_insights_service import ProjectInsightsService
 from app.services.access_control import AccessControlService
 from app.utils.json_codec import decode_json
@@ -48,6 +52,28 @@ def _map_report(model) -> ProjectInsightReportResponse:
     )
 
 
+def _map_job(model) -> ProjectInsightJobResponse:
+    return ProjectInsightJobResponse(
+        id=model.id,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+        monitor_profile_id=model.monitor_profile_id,
+        created_by=model.created_by,
+        status=getattr(model.status, "value", str(model.status)).lower(),
+        report_id=model.report_id,
+        last_error=model.last_error,
+        started_at=model.started_at,
+        finished_at=model.finished_at,
+    )
+
+
+def _enqueue_or_process_project_insight_job(*, db: Session, reason: str) -> None:
+    task_client = AnalysisWorkerTaskClient()
+    if task_client.enqueue_drain(reason=reason):
+        return
+    ProjectInsightJobService(db).process_next_job()
+
+
 @router.get("/current", response_model=ProjectInsightCurrentResponse)
 def get_current_report(
     monitor_profile_id: int,
@@ -80,19 +106,57 @@ def list_report_history(
     return ProjectInsightHistoryResponse(items=mapped, total=len(mapped))
 
 
-@router.post("/refresh", response_model=ProjectInsightReportResponse)
+@router.post("/refresh", response_model=ProjectInsightJobResponse)
 def refresh_report(
+    monitor_profile_id: int,
+    background_tasks: BackgroundTasks,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
+    service = ProjectInsightJobService(db)
+    try:
+        AccessControlService(db).require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
+        active_job = service.get_active_job(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
+        if active_job is not None:
+            return _map_job(active_job)
+        job = service.create_or_get_active_job(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
+        background_tasks.add_task(
+            _enqueue_or_process_project_insight_job,
+            db=db,
+            reason=f"project_insight_job:{job.id}",
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return _map_job(job)
+
+
+@router.get("/jobs/active", response_model=ProjectInsightActiveJobResponse)
+def get_active_job(
     monitor_profile_id: int,
     current_user: AppUser = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ):
-    service = ProjectInsightsService(db)
+    service = ProjectInsightJobService(db)
     try:
-        AccessControlService(db).require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
-        report = service.refresh_report(monitor_profile_id)
+        job = service.get_active_job(monitor_profile_id=monitor_profile_id, user_id=current_user.id)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
-    return _map_report(report)
+    return ProjectInsightActiveJobResponse(active=_map_job(job) if job is not None else None)
+
+
+@router.get("/jobs/{job_id}", response_model=ProjectInsightJobResponse)
+def get_job(
+    monitor_profile_id: int,
+    job_id: int,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
+    service = ProjectInsightJobService(db)
+    try:
+        job = service.get_job(monitor_profile_id=monitor_profile_id, job_id=job_id, user_id=current_user.id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return _map_job(job)
 
 
 @router.delete("/history/{report_id}")

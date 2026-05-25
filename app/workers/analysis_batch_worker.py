@@ -21,6 +21,7 @@ from app.db_migrations import (
     ensure_default_app_users,
     ensure_monitor_profiles_owner_user_id,
     ensure_monitor_profiles_key_products_column,
+    ensure_project_insight_job_tables,
     ensure_project_insight_reports_portfolio_columns,
     ensure_video_candidate_scoped_youtube_uniqueness,
     ensure_video_candidate_assignment_columns,
@@ -30,6 +31,7 @@ from app.db_migrations import (
 from app.models.base import Base
 from app.services.analysis_batch_service import AnalysisBatchService
 from app.services.analysis_worker_tasks import AnalysisWorkerTaskClient
+from app.services.project_insight_job_service import ProjectInsightJobService
 from sqlalchemy.orm import sessionmaker
 
 logging.basicConfig(level=logging.INFO)
@@ -144,6 +146,7 @@ def bootstrap_db() -> None:
     ensure_analysis_batch_tables(engine)
     ensure_monitor_profiles_key_products_column(engine)
     ensure_monitor_profiles_owner_user_id(engine)
+    ensure_project_insight_job_tables(engine)
     ensure_analysis_results_summary_columns(engine)
     ensure_analysis_results_language_column_and_index(engine)
     ensure_analysis_results_agent_settings_hash_column_and_index(engine)
@@ -191,8 +194,9 @@ def drain_queue(
             break
 
         with SessionLocal() as session:
-            service = AnalysisBatchService(session)
-            processed = service.process_next_item()
+            processed = ProjectInsightJobService(session).process_next_job()
+            if not processed:
+                processed = AnalysisBatchService(session).process_next_item()
         if not processed:
             queue_empty = True
             break
@@ -200,7 +204,10 @@ def drain_queue(
 
     if not queue_empty and (time_budget_exhausted or item_limit_reached):
         with SessionLocal() as session:
-            queue_empty = not AnalysisBatchService(session).has_queued_items()
+            queue_empty = not (
+                ProjectInsightJobService(session).has_queued_jobs()
+                or AnalysisBatchService(session).has_queued_items()
+            )
 
     status = "drained" if queue_empty else "paused"
     return DrainResult(
@@ -224,8 +231,9 @@ def run_forever(poll_interval_seconds: float = 2.0) -> None:
     while True:
         processed = False
         with SessionLocal() as session:
-            service = AnalysisBatchService(session)
-            processed = service.process_next_item()
+            processed = ProjectInsightJobService(session).process_next_job()
+            if not processed:
+                processed = AnalysisBatchService(session).process_next_item()
         if not processed:
             time.sleep(poll_interval_seconds)
 

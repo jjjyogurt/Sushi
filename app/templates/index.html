@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Project Sushi</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-    <link rel="stylesheet" href="/static/styles.css?v=20260521-inline-edit-row" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260523-insights-loading" />
   </head>
   <body>
     <div class="app-shell">
@@ -92,7 +92,17 @@
                     <input type="text" name="name" placeholder="HoverAir Global Monitoring" required />
                   </label>
                   <label>
-                    <span id="profile-form-brand-keywords-label">Brand Keywords (comma-separated)</span>
+                    <span class="field-label-row">
+                      <span id="profile-form-brand-keywords-label">Brand Keywords (comma-separated)</span>
+                      <span
+                        id="profile-form-brand-keywords-help"
+                        class="field-help-tooltip"
+                        tabindex="0"
+                        aria-label="Keywords are matched with OR logic, are case-insensitive, and guide discovery/relevance. They do not guarantee exhaustive coverage."
+                        title="Keywords are matched with OR logic, are case-insensitive, and guide discovery/relevance. They do not guarantee exhaustive coverage."
+                        data-tooltip="Keywords are matched with OR logic, are case-insensitive, and guide discovery/relevance. They do not guarantee exhaustive coverage."
+                      >?</span>
+                    </span>
                     <input type="text" name="brand_keywords" placeholder="hoverair, hover air x1" required />
                   </label>
                 </div>
@@ -171,7 +181,17 @@
                   </label>
                 </div>
                 <label>
-                  <span id="profile-form-key-products-label">Key Products to Monitor</span>
+                  <span class="field-label-row">
+                    <span id="profile-form-key-products-label">Key Products to Monitor</span>
+                    <span
+                      id="profile-form-key-products-help"
+                      class="field-help-tooltip"
+                      tabindex="0"
+                      aria-label="When set, discovered videos must mention at least one key product in the title. Leave empty for broader brand monitoring."
+                      title="When set, discovered videos must mention at least one key product in the title. Leave empty for broader brand monitoring."
+                      data-tooltip="When set, discovered videos must mention at least one key product in the title. Leave empty for broader brand monitoring."
+                    >?</span>
+                  </span>
                   <input type="hidden" name="key_products" id="key-products-hidden" />
                   <div class="token-input-group">
                     <div id="key-products-tokens" class="token-list"></div>
@@ -206,7 +226,17 @@
                     <input type="text" name="name" id="edit-profile-name" placeholder="Project name" required />
                   </label>
                   <label>
-                    <span id="edit-profile-form-brand-keywords-label">Brand Keywords (comma-separated)</span>
+                    <span class="field-label-row">
+                      <span id="edit-profile-form-brand-keywords-label">Brand Keywords (comma-separated)</span>
+                      <span
+                        id="edit-profile-form-brand-keywords-help"
+                        class="field-help-tooltip"
+                        tabindex="0"
+                        aria-label="Keywords are matched with OR logic, are case-insensitive, and guide discovery/relevance. They do not guarantee exhaustive coverage."
+                        title="Keywords are matched with OR logic, are case-insensitive, and guide discovery/relevance. They do not guarantee exhaustive coverage."
+                        data-tooltip="Keywords are matched with OR logic, are case-insensitive, and guide discovery/relevance. They do not guarantee exhaustive coverage."
+                      >?</span>
+                    </span>
                     <input
                       type="text"
                       name="brand_keywords"
@@ -245,7 +275,17 @@
                   </label>
                 </div>
                 <label>
-                  <span id="edit-profile-form-key-products-label">Key Products to Monitor</span>
+                  <span class="field-label-row">
+                    <span id="edit-profile-form-key-products-label">Key Products to Monitor</span>
+                    <span
+                      id="edit-profile-form-key-products-help"
+                      class="field-help-tooltip"
+                      tabindex="0"
+                      aria-label="When set, discovered videos must mention at least one key product in the title. Leave empty for broader brand monitoring."
+                      title="When set, discovered videos must mention at least one key product in the title. Leave empty for broader brand monitoring."
+                      data-tooltip="When set, discovered videos must mention at least one key product in the title. Leave empty for broader brand monitoring."
+                    >?</span>
+                  </span>
                   <input type="hidden" name="key_products" id="edit-key-products-hidden" />
                   <div class="token-input-group">
                     <div id="edit-key-products-tokens" class="token-list"></div>
@@ -1105,6 +1145,6 @@
         </form>
       </div>
     </div>
-    <script type="module" src="/static/main.js?v=20260521-inline-edit-row-2"></script>
+    <script type="module" src="/static/main.js?v=20260523-insights-loading"></script>
   </body>
 </html>

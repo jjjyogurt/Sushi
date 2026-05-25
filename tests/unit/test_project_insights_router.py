@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import get_db_session
 from app.main import app
+from app.api import project_insights_router
 from app.models.analysis_result import AnalysisResult
 from app.models.app_user import AppUser
 from app.models.base import Base
@@ -166,7 +167,13 @@ def test_refresh_insights_uses_only_completed_with_db_transcripts(client, insigh
 
     response = client.post(f"/monitor-profiles/{profile.id}/insights/refresh")
     assert response.status_code == 200
-    payload = response.json()
+    job_payload = response.json()
+    assert job_payload["monitor_profile_id"] == profile.id
+    assert job_payload["status"] == "queued"
+
+    current_response = client.get(f"/monitor-profiles/{profile.id}/insights/current")
+    assert current_response.status_code == 200
+    payload = current_response.json()["current"]
     assert payload["monitor_profile_id"] == profile.id
     assert payload["analyzed_video_count"] == 1
     assert payload["total_video_count"] == 3
@@ -211,7 +218,9 @@ def test_insights_history_tracks_snapshots_in_latest_first_order(client, insight
 
     first_refresh = client.post(f"/monitor-profiles/{profile.id}/insights/refresh")
     assert first_refresh.status_code == 200
-    first_payload = first_refresh.json()
+    first_current_response = client.get(f"/monitor-profiles/{profile.id}/insights/current")
+    assert first_current_response.status_code == 200
+    first_payload = first_current_response.json()["current"]
     assert first_payload["analyzed_video_count"] == 1
 
     second_analysis = AnalysisResult(
@@ -242,7 +251,9 @@ def test_insights_history_tracks_snapshots_in_latest_first_order(client, insight
 
     second_refresh = client.post(f"/monitor-profiles/{profile.id}/insights/refresh")
     assert second_refresh.status_code == 200
-    second_payload = second_refresh.json()
+    second_current_response = client.get(f"/monitor-profiles/{profile.id}/insights/current")
+    assert second_current_response.status_code == 200
+    second_payload = second_current_response.json()["current"]
     assert second_payload["analyzed_video_count"] == 2
 
     current_response = client.get(f"/monitor-profiles/{profile.id}/insights/current")
@@ -256,6 +267,42 @@ def test_insights_history_tracks_snapshots_in_latest_first_order(client, insight
     assert history_payload["total"] == 2
     assert history_payload["items"][0]["id"] == second_payload["id"]
     assert history_payload["items"][1]["id"] == first_payload["id"]
+
+
+def test_refresh_jobs_dedupe_per_project_but_allow_other_projects(client, insights_db_session, monkeypatch):
+    monkeypatch.setattr(
+        project_insights_router,
+        "_enqueue_or_process_project_insight_job",
+        lambda **_kwargs: None,
+    )
+    profile_a = create_profile(insights_db_session, "VCOPTER")
+    profile_b = create_profile(insights_db_session, "HOVERAir PROMAX")
+
+    first = client.post(f"/monitor-profiles/{profile_a.id}/insights/refresh")
+    duplicate = client.post(f"/monitor-profiles/{profile_a.id}/insights/refresh")
+    other_project = client.post(f"/monitor-profiles/{profile_b.id}/insights/refresh")
+
+    assert first.status_code == 200
+    assert duplicate.status_code == 200
+    assert other_project.status_code == 200
+    first_payload = first.json()
+    duplicate_payload = duplicate.json()
+    other_payload = other_project.json()
+
+    assert first_payload["id"] == duplicate_payload["id"]
+    assert first_payload["monitor_profile_id"] == profile_a.id
+    assert duplicate_payload["monitor_profile_id"] == profile_a.id
+    assert other_payload["id"] != first_payload["id"]
+    assert other_payload["monitor_profile_id"] == profile_b.id
+    assert first_payload["status"] == "queued"
+    assert other_payload["status"] == "queued"
+
+    active_a = client.get(f"/monitor-profiles/{profile_a.id}/insights/jobs/active")
+    active_b = client.get(f"/monitor-profiles/{profile_b.id}/insights/jobs/active")
+    assert active_a.status_code == 200
+    assert active_b.status_code == 200
+    assert active_a.json()["active"]["id"] == first_payload["id"]
+    assert active_b.json()["active"]["id"] == other_payload["id"]
 
 
 def test_insights_history_delete_single_and_clear_all(client, insights_db_session):
@@ -286,7 +333,9 @@ def test_insights_history_delete_single_and_clear_all(client, insights_db_sessio
     refresh_two = client.post(f"/monitor-profiles/{profile.id}/insights/refresh")
     assert refresh_two.status_code == 200
 
-    second_id = refresh_two.json()["id"]
+    history_before_delete = client.get(f"/monitor-profiles/{profile.id}/insights/history")
+    assert history_before_delete.status_code == 200
+    second_id = history_before_delete.json()["items"][0]["id"]
     delete_single = client.delete(f"/monitor-profiles/{profile.id}/insights/history/{second_id}")
     assert delete_single.status_code == 200
     assert delete_single.json()["status"] == "success"

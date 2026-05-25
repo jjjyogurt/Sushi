@@ -24,9 +24,9 @@ import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js?v=20260515-icons";
 import { createVocController } from "./voc.js";
 import { createAllVideosSettingsController } from "./all-videos-settings.js";
-import { createInsightsController } from "./insights.js?v=20260515-icons";
+import { createInsightsController } from "./insights.js?v=20260523-insights-loading";
 import { createWatchlistController } from "./watchlist.js?v=20260515-icons";
-import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260521-sidebar-toggle";
+import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260522-field-tooltips";
 
 const DEFAULT_PROJECT_BRAND_KEYWORDS = Object.freeze([
   "HOVER",

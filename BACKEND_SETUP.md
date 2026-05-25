@@ -1,6 +1,6 @@
 # Backend setup
 
-**Document date:** 2026-05-18
+**Document date:** 2026-05-23
 **Scope:** Backend runtime, persistence, integrations, and deployment as implemented in this repository.
 
 ---
@@ -48,7 +48,7 @@
 ## Runtime
 
 - **Entry:** `uvicorn app.main:app` (locally `--reload`; Docker/cmd uses `--host 0.0.0.0`).
-- **Async analysis worker:** Production runs `sushi-analysis-worker` with `python -m app.workers.analysis_batch_worker`. The backend enqueues a Cloud Task after creating an analysis batch, and the worker drains queued items through `POST /internal/analysis-worker/drain`. The worker scales to zero when idle.
+- **Async worker:** Production runs `sushi-analysis-worker` with `python -m app.workers.analysis_batch_worker`. The backend enqueues a Cloud Task after creating either an analysis batch or a project insights refresh job, and the worker drains queued work through `POST /internal/analysis-worker/drain`. The worker scales to zero when idle.
 - **App identity:** `FastAPI(title="Influencer Video Intelligence", version="0.1.0")` in `app/main.py`.
 - **Startup:** After DB connection (with retries for managed databases), SQLAlchemy `Base.metadata.create_all` runs, then helpers in `app/db_migrations.py`.
 
@@ -63,6 +63,11 @@
 - **SQLite handling:** `check_same_thread=False` when URL starts with `sqlite`.
 - **PostgreSQL handling:** `pool_pre_ping=True`; connection retries in `get_db_engine()` help managed Postgres / cold starts.
 - **Schema evolution:** `create_all` + imperative migrations in code (no Alembic in dependencies).
+
+Current durable async tables:
+
+- `analysis_batches` and `analysis_batch_items`: created by `/analysis/batches` for the “Run all analysis” workflow. Items are claimed by the worker and processed with `AnalysisService.analyze_video()`.
+- `project_insight_jobs`: created by project insights refresh. One active job (`queued` or `running`) is allowed per project, while different projects can refresh concurrently. Completed jobs link to the generated `project_insight_reports.id`.
 
 ---
 
@@ -102,11 +107,39 @@ Routers are registered from `app/main.py`, including:
 
 - Health, authentication, monitors, videos, chat, incidents, agent settings, knowledge, VOC, watchlist.
 - Async analysis batches (`/analysis/batches` create/status/items/cancel).
+- Project insights reports and async refresh jobs:
+  - `GET /monitor-profiles/{id}/insights/current`
+  - `GET /monitor-profiles/{id}/insights/history`
+  - `POST /monitor-profiles/{id}/insights/refresh`
+  - `GET /monitor-profiles/{id}/insights/jobs/active`
+  - `GET /monitor-profiles/{id}/insights/jobs/{job_id}`
 - Project, video, analysis, batch, knowledge, chat, incident, alert, watchlist, and agent settings APIs are authenticated and scoped to the current account. Account-wide list/batch requests mean “all projects owned by the current user,” not global database access.
 
 **Multipart uploads:** `python-multipart` where file uploads apply.
 
 **Agent settings:** Runtime analysis instructions are stored per user in the `agent_settings` database table. The root `AGENTS.md` is not shared product settings.
+
+### Video analysis pipeline
+
+1. A project owns `video_candidates`.
+2. Single-video analysis runs through `POST /videos/{id}/analyze`.
+3. Batch analysis creates `analysis_batches` plus `analysis_batch_items`.
+4. The backend enqueues a Cloud Task to wake `sushi-analysis-worker`.
+5. The worker claims queued batch items, fetches transcript/comments, calls Gemini, and writes `analysis_results`.
+6. Analysis reads the current owner’s DB-backed agent settings, so the same video in another account/project can have a separate analysis cache row.
+7. Completed analysis rows store transcript text in `analysis_results.transcript_text`; project insights and chat read from that stored transcript instead of fetching transcripts again.
+
+### Project insights pipeline
+
+1. The user clicks `Refresh Report` in a selected project.
+2. `POST /monitor-profiles/{id}/insights/refresh` creates or returns the project’s active `project_insight_jobs` row. It does not return a finished report.
+3. The frontend disables only that project’s refresh button and polls `/insights/jobs/active` plus `/insights/jobs/{job_id}`.
+4. The backend enqueues a Cloud Task for the shared worker drain endpoint. In local/dev, the backend can fall back to processing after the HTTP response when Cloud Tasks is not configured.
+5. The worker claims queued insight jobs before normal analysis batch items.
+6. The job aggregates the latest completed transcript-backed analysis rows, calls Gemini for executive synthesis, writes `project_insight_reports`, then marks the job `completed` with `report_id`.
+7. Same-project double clicks return the same active job. Different projects can refresh concurrently, including across users, because the active-job guard is scoped to `monitor_profile_id`.
+
+Operational note: Gemini provider calls currently determine the long tail for insight generation. A normal small/medium refresh should finish in seconds to a few minutes, but a provider/network hang can leave jobs `running` until timeout or recovery behavior handles them. If the UI stays on `Generating...`, inspect `project_insight_jobs.status`, `last_error`, and worker logs first.
 
 ---
 
@@ -118,8 +151,8 @@ Deployments are described in `DEPLOY_LOG.md` and implied by `firebase.json` and 
 | Piece                           | Typical setup                                                                                                                        |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **Cloud Run**                   | Service name `sushi-backend`, free-tier pilot region `us-central1`, listens on `PORT` (8080).                                        |
-| **Cloud Run worker**            | Service name `sushi-analysis-worker`, command `python -m app.workers.analysis_batch_worker`, request-triggered with `min-instances=0`, `max-instances=1`, `concurrency=1`. |
-| **Cloud Tasks**                 | Queue `sushi-analysis-worker` in `us-central1`; backend enqueues drain tasks and the queue invokes the private worker service.         |
+| **Cloud Run worker**            | Service name `sushi-analysis-worker`, command `python -m app.workers.analysis_batch_worker`, drains both analysis batch items and project insight jobs, request-triggered with `min-instances=0`, `max-instances=1`, `concurrency=1`. |
+| **Cloud Tasks**                 | Queue `sushi-analysis-worker` in `us-central1`; backend enqueues drain tasks for analysis batches and insights refresh jobs, and the queue invokes the private worker service.         |
 | **Supabase PostgreSQL**         | Production database accessed through the Supabase session pooler.                                                                     |
 | `DATABASE_URL` on Cloud Run     | Must use Supabase TCP/TLS DSN via `postgresql+psycopg2://postgres.PROJECT_REF:PASSWORD@HOST:5432/postgres?sslmode=require`; never local SQLite. |
 | **Artifact Registry**           | Docker image builds created by Cloud Run source deploys.                                                                              |
@@ -145,6 +178,8 @@ gcloud run services describe sushi-analysis-worker --region us-central1 --format
 
 Inspect only the `DATABASE_URL` host/ref, not the password. It must contain the Supabase pooler host, not `sqlite:///./sushi.db`.
 
+If a release changes analysis batch processing, project insight refresh, Gemini client behavior, or any worker-drained job, deploy and verify both `sushi-backend` and `sushi-analysis-worker` from the same code revision. Deploying only the backend can leave new queued job rows unprocessed by an older worker.
+
 ---
 
 ## Testing
@@ -165,6 +200,12 @@ Database structure, migration, persistence behavior, production database target,
 - What changed: Updated this setup document date, fixed Cloud Run table formatting, and clarified the documentation update rule for backend and database changes.
 - Why it changed: Keep the setup document aligned with the current Supabase-backed backend design and make future documentation updates mandatory when backend or database behavior changes.
 - Impact on existing data and compatibility: Documentation-only. No runtime, API, schema, or persisted data behavior changed.
+
+### What Changed (2026-05-23, async project insights jobs)
+
+- What changed: Documented `project_insight_jobs`, the async project insights refresh API contract, frontend job polling, and the shared worker drain behavior for both analysis batch items and project insight jobs.
+- Why it changed: Project insights refresh is now durable and project-scoped instead of a synchronous report-generation request. The docs must make clear that same-project duplicate clicks reuse one job while different projects can refresh concurrently.
+- Impact on existing data and compatibility: Documentation-only. Runtime schema is covered in `DATABASE_DESIGN.md`; deployment must keep backend and worker revisions aligned when changing insight refresh behavior.
 
 ### What Changed (2026-05-18, free-tier US pilot deployment)
 

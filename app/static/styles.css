@@ -19,7 +19,7 @@
 }
 
 .is-hidden {
-  display: none;
+  display: none !important;
 }
 
 .bg-on-background { background-color: #2d3435; }
@@ -354,6 +354,76 @@ body {
   color: #5a6061;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.field-label-row {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-help-tooltip {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #c9d1d3;
+  border-radius: 50%;
+  color: #5a6061;
+  cursor: help;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 800;
+  height: 16px;
+  justify-content: center;
+  letter-spacing: 0;
+  line-height: 1;
+  position: relative;
+  text-transform: none;
+  width: 16px;
+}
+
+.field-help-tooltip::after {
+  background: #2d3435;
+  border-radius: 6px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  color: #ffffff;
+  content: attr(data-tooltip);
+  font-size: 0.72rem;
+  font-weight: 600;
+  left: 50%;
+  letter-spacing: 0;
+  line-height: 1.45;
+  max-width: 280px;
+  opacity: 0;
+  padding: 8px 10px;
+  pointer-events: none;
+  position: absolute;
+  text-transform: none;
+  top: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-2px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  visibility: hidden;
+  white-space: normal;
+  width: max-content;
+  z-index: 40;
+}
+
+.field-help-tooltip:hover,
+.field-help-tooltip:focus,
+.field-help-tooltip:focus-visible {
+  background: #f2f4f4;
+  border-color: #9ea9ac;
+  color: #2d3435;
+  outline: none;
+}
+
+.field-help-tooltip:hover::after,
+.field-help-tooltip:focus::after,
+.field-help-tooltip:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  visibility: visible;
 }
 
 .form-grid input, 
@@ -909,6 +979,10 @@ body {
   max-height: 1200px;
   opacity: 1;
   overflow: hidden;
+}
+
+.form-panel:not(.is-hidden) {
+  overflow: visible;
 }
 
 .form-panel.is-hidden {
@@ -3280,6 +3354,30 @@ body {
 
 .insights-empty-state {
   padding: 18px;
+}
+
+.insights-loading-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.insights-loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: insights-loading-spin 800ms linear infinite;
+  flex: 0 0 auto;
+}
+
+@keyframes insights-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 1080px) {

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel
@@ -35,3 +36,17 @@ class ProjectInsightHistoryResponse(BaseModel):
 
 class ProjectInsightCurrentResponse(BaseModel):
     current: Optional[ProjectInsightReportResponse]
+
+
+class ProjectInsightJobResponse(TimestampedResponse):
+    monitor_profile_id: int
+    created_by: str
+    status: str
+    report_id: Optional[int] = None
+    last_error: str = ""
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+
+class ProjectInsightActiveJobResponse(BaseModel):
+    active: Optional[ProjectInsightJobResponse]

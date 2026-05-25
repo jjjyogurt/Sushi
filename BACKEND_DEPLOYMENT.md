@@ -91,6 +91,8 @@ Expected non-secret runtime env:
 - `ANALYSIS_WORKER_DISPATCH_DEADLINE_SECONDS=1800`
 - `ANALYSIS_WORKER_DRAIN_MAX_SECONDS=1200`
 
+The same worker drain service handles both durable video analysis batch items and durable project insights refresh jobs. Any release that changes `analysis_batches`, `analysis_batch_items`, `project_insight_jobs`, `AnalysisBatchService`, `ProjectInsightJobService`, `ProjectInsightsService`, or `app/workers/analysis_batch_worker.py` must deploy the backend and worker from the same code revision.
+
 ---
 
 ## 4) Standard deployment steps
@@ -148,9 +150,13 @@ If health check fails or logs show critical runtime errors, rollback immediately
 
 Do not deploy Firebase Hosting for the free-tier pilot. Use the Cloud Run URL directly.
 
-### Step E - Configure analysis worker wake queue
+### Step E - Configure analysis and insights worker wake queue
 
-The async "Run all analysis" flow is request-triggered. The backend creates the durable database batch and enqueues a Cloud Task that wakes the private worker drain endpoint.
+The async "Run all analysis" and "Refresh Insights" flows are request-triggered. The backend creates durable database work rows and enqueues a Cloud Task that wakes the private worker drain endpoint.
+
+- Analysis batch work is stored in `analysis_batches` and `analysis_batch_items`.
+- Project insights refresh work is stored in `project_insight_jobs`.
+- The worker claims queued project insight jobs before queued analysis batch items.
 
 Create the queue once per region:
 
@@ -188,7 +194,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   --role roles/iam.serviceAccountTokenCreator
 ```
 
-### Step F - Deploy analysis worker after batch/analysis changes
+### Step F - Deploy worker after batch, analysis, or insights changes
 
 Deploy the worker from the same backend image or source revision and override the command. The worker now exposes an HTTP drain endpoint and scales to zero when idle:
 
@@ -211,11 +217,36 @@ gcloud run deploy sushi-analysis-worker \
 
 The worker uses the same runtime env vars as `sushi-backend`, including `DATABASE_URL`, Gemini keys, YouTube transcript keys, YouTube Data API keys, and optional `ANALYSIS_WORKER_INTERNAL_TOKEN`. Do not set `--no-cpu-throttling`; the worker does useful work only while Cloud Tasks is calling the drain endpoint.
 
-The worker must use the same Supabase `DATABASE_URL` as the backend. If the backend points to Supabase but the worker points to local SQLite, async analysis will not read or update the existing production rows.
+The worker must use the same Supabase `DATABASE_URL` as the backend. If the backend points to Supabase but the worker points to local SQLite, async analysis and insights refresh will not read or update the existing production rows.
 
 After the worker is deployed, update `sushi-backend` with the worker task settings, especially `ANALYSIS_WORKER_URL` and `ANALYSIS_WORKER_TASK_SERVICE_ACCOUNT_EMAIL`.
 
 Optional fallback: add a Cloud Scheduler job every 5-10 minutes to enqueue or call the same drain endpoint so missed task creation events do not leave queued work idle.
+
+### Step G - Verify async worker-backed features
+
+After deploying both services, verify the queue and worker path with at least one backend API smoke:
+
+```bash
+# Backend can report health.
+curl -fsS "$SERVICE_URL/health"
+
+# Gemini config is present. Use probe=true only when provider latency is acceptable.
+curl -fsS "$SERVICE_URL/health/gemini"
+```
+
+Then verify one UI/API flow:
+
+- Analysis: create an analysis batch, confirm it moves out of `queued`, and confirm item progress persists after refresh.
+- Insights: click `Refresh Report`, confirm `POST /monitor-profiles/{id}/insights/refresh` returns a job, confirm `/insights/jobs/active` reports only that project’s active job, and confirm the job eventually reaches `completed` or `failed`.
+
+If insights remain `running` for an abnormal period, check:
+
+- `project_insight_jobs.status`, `started_at`, `finished_at`, `last_error`, and `report_id`
+- `sushi-analysis-worker` logs for Gemini/provider errors
+- `/health/gemini?probe=true` response time
+
+Do not mark the deploy healthy if project insight jobs remain stuck in `queued` because that usually means Cloud Tasks or worker IAM/config is wrong. If jobs remain stuck in `running`, suspect provider timeout, worker crash, or missing stale-job recovery.
 
 ---
 
@@ -272,7 +303,14 @@ Also add a short note in `DEPLOY_LOG.md`:
 - No `scripts/deploy_backend_dual_region.sh` script is currently part of this repo workflow.
 - Web app OTA releases are governed by `OTA_DEPLOYMENT.md`; Cloud Run remains the deploy path. Firebase Hosting is not part of the free-tier pilot path.
 - The analysis worker must remain request-triggered with `min-instances=0` so it scales to zero when idle.
+- The worker drains both project insight jobs and analysis batch items. Keep backend and worker revisions aligned for any job/schema/API change.
 - Current free-tier pilot uses `gemini-3.1-flash-lite` for both analysis and chat.
+
+### What Changed (2026-05-23, async project insights worker deployment)
+
+- What changed: Updated the deployment runbook to include `project_insight_jobs`, the `Refresh Insights` async flow, worker revision alignment requirements, and post-deploy checks for insight job completion/failure.
+- Why it changed: The same Cloud Tasks-triggered worker now drains both analysis batch items and project insight jobs. Deploying only one service after insights changes can leave refresh jobs stuck.
+- Impact on existing data and compatibility: Documentation-only. Existing reports remain valid; production deploys must ensure backend and worker share the same Supabase `DATABASE_URL` and code revision for async jobs.
 
 ### What Changed (2026-05-18, free-tier US pilot deployment)
 

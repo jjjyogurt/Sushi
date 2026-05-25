@@ -31,6 +31,14 @@ class AnalysisBatchItemStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class ProjectInsightJobStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class Sentiment(str, Enum):
     POSITIVE = "positive"
     NEUTRAL = "neutral"
