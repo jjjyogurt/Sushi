@@ -26,8 +26,30 @@ def test_static_cache_busts_insights_isolation_assets():
     template = (ROOT / "app/templates/index.html").read_text()
 
     assert "./insights.js?v=20260525-insights-language" in main_source
-    assert "/static/styles.css?v=20260525-video-list-panel-shorter" in template
-    assert "/static/main.js?v=20260525-video-list-bulk-sort" in template
+    assert "/static/styles.css?v=20260525-mobile-layout" in template
+    assert "/static/main.js?v=20260525-mobile-layout" in template
+
+
+def test_sidebar_slogan_stays_on_one_line():
+    styles = (ROOT / "app/static/styles.css").read_text()
+    template = (ROOT / "app/templates/index.html").read_text()
+    translations = (ROOT / "app/static/i18n.js").read_text()
+
+    assert "Get the market’s view,&nbsp;early." in template
+    assert 'appSubtitle: "Get the market’s view,\\u00a0early."' in translations
+    assert ".brand-block p" in styles
+    assert "white-space: nowrap;" in styles
+
+
+def test_sidebar_brand_text_is_hidden_cleanly_when_compact():
+    styles = (ROOT / "app/static/styles.css").read_text()
+
+    assert ".brand-block {" in styles
+    assert "transition: opacity 0.12s ease 0.1s;" in styles
+    assert ".app-shell.sidebar-compact .brand-block {" in styles
+    assert "visibility: hidden;" in styles
+    assert "width: 0;" in styles
+    assert "overflow: hidden;" in styles
 
 
 def test_static_sushi_emoji_icon_is_used_for_favicon():

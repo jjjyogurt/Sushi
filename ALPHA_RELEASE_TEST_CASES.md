@@ -55,6 +55,10 @@ Every executed case must record:
 - `Evidence` (screenshot, API response, logs, query snippet)
 - `Defect Link` (if failed)
 
+### Browser Evidence Requirement
+
+**Added 2026-05-25:** Any UI, E2E, or Manual case that depends on visible browser behavior must be verified with Codex `@Browser` in addition to API/unit evidence. Record the target URL, viewport size, screenshot path, and observed browser state. For responsive checks, capture at least one desktop viewport and one phone-width viewport.
+
 ## P0 Blocking Cases (Must Pass Before Deploy)
 
 | Case ID | Area | Preconditions | Steps | Expected Result | Automation |
@@ -75,8 +79,8 @@ Every executed case must record:
 | RPT-ISO-001 | Insights Project Isolation | At least two projects exist; project A has an insights report and project B has no current report or a different report | Open project A Insights, start/finish Refresh Report, immediately switch to project B Insights, and inspect `/monitor-profiles/{id}/insights/current` for both projects | Project B never shows project A metrics, history, summary, or refresh loading state; hidden Insights content is not visible; API `monitor_profile_id` always matches the requested project | E2E + API |
 | RPT-JOB-001 | Concurrent Insights Jobs | At least two projects exist; current user can access both; worker queue is enabled | Click Refresh Report twice on project A, then click Refresh Report on project B while A is still queued/running; inspect `/insights/jobs/active` for both projects | Project A creates one active job and keeps only A's button disabled; the duplicate click returns the same job; project B creates a separate active job and remains independent; completed reports write only to their own `monitor_profile_id` | Unit/API + E2E |
 | RPT-LANG-001 | Insights Language Switch | Project has completed English and Chinese video analyses, or Chinese analysis can be generated during the test | Open project Insights -> verify English is selected -> switch to `中文` -> refresh report if no Chinese report exists -> switch back to English; inspect `/monitor-profiles/{id}/insights/current?language=en` and `?language=zh-Hans` | UI toggles active state correctly; Chinese report uses `zh-Hans` rows and Chinese user-facing text; English report remains unchanged; history/current/refresh/job APIs stay separated by `language`; no cross-language stale content or loading state appears | Unit/API + E2E |
-| NAV-001 | VOC Navigation Hidden | User is signed in on desktop and mobile-width viewports | Open the app shell, inspect the left sidebar and mobile bottom navigation, then navigate between Dashboard, Project, Watch list, Alerts, and Settings | VOC is not visible or keyboard-focusable in sidebar/mobile navigation; remaining navigation entries continue to switch panels correctly; VOC implementation remains untouched for later re-enabling | E2E + Manual |
-| BRAND-001 | Sushi Browser Tab Icon | New frontend build is loaded in a browser with cache disabled or cache-busted assets | Open the app and inspect the browser tab | Browser tab uses the sushi emoji favicon; in-page header layout is unchanged; icon remains visible at normal tab size | Unit + Manual |
+| NAV-001 | VOC Navigation Hidden | User is signed in on desktop and mobile-width viewports | Open the app shell with `@Browser`, inspect the left sidebar and mobile bottom navigation, then navigate between Dashboard, Project, Watch list, Alerts, and Settings | VOC is not visible or keyboard-focusable in sidebar/mobile navigation; remaining navigation entries continue to switch panels correctly; VOC implementation remains untouched for later re-enabling | Browser E2E + Manual |
+| BRAND-001 | Sushi Browser Tab Icon | New frontend build is loaded in a browser with cache disabled or cache-busted assets | Open the app with `@Browser` and inspect the browser tab/favicon asset | Browser tab uses the sushi emoji favicon; in-page header layout is unchanged; icon remains visible at normal tab size | Unit + Browser Manual |
 | CHAT-001 | Agent Grounding | Analysis exists | Ask chatbot for summary and top risks | Response is grounded in analysis context and evidence moments; no fabricated claims | E2E + Manual |
 | PIPE-REAL-001 | End-to-End Real User Flow | One new YouTube URL not analyzed in current env | Create/select project -> import URL -> analyze -> open report -> ask chatbot -> cross-check evidence | Pipeline completes without manual DB fixes; output quality is decision-usable | E2E + Manual |
 
@@ -104,8 +108,10 @@ Every executed case must record:
 | Case ID | Area | Preconditions | Steps | Expected Result | Automation |
 |---|---|---|---|---|---|
 | UX-001 | Empty States | No projects/videos/watchlist | Visit dashboard/queue/watchlist | Useful empty-state guidance appears | E2E |
-| UX-002 | Responsive Layout | Narrow viewport | Open dashboard forms | Controls remain visible and usable | E2E |
-| I18N-001 | Copy Coverage | EN and ZH locales | Scan key pages | No missing/fallback keys on critical paths | Manual/E2E |
+| UX-002 | Responsive Layout | Narrow viewport | Open dashboard forms with `@Browser` | Controls remain visible and usable | Browser E2E |
+| UX-003 | Dashboard Create Button Hover State | Dashboard is loaded on desktop and keyboard navigation is available | Use `@Browser` to hover and keyboard-focus `+ New Project` | Button keeps text legible, shows one thin silver-lavender beam moving around the frame, adds no halo/shadow, does not shift layout, and respects reduced-motion settings | Browser Manual/E2E |
+| UX-004 | Phone Project Workspace Layout | 390px-wide phone viewport with at least one project | Use `@Browser` at 390px width to open Dashboard, expand `New Project`, open Project Workspace, and switch bottom navigation tabs | Mobile layout matches the web information hierarchy, form fields stack cleanly, bottom nav uses the same icon/label structure as the sidebar, and no page-level horizontal scroll appears | Browser Manual/E2E |
+| I18N-001 | Copy Coverage | EN and ZH locales | Scan key pages with `@Browser` | No missing/fallback keys on critical paths, the sidebar slogan renders `Get the market’s view, early.` on one line, and `early.` stays visually attached after the comma | Browser Manual/E2E |
 | PERF-001 | Queue API Latency Smoke | Seeded data | Measure `GET /videos` latency | Meets agreed alpha baseline | Integration |
 | AUDIT-001 | AI Traceability | Completed analysis and report | Inspect stored metadata | Prompt/model/version/time/source video ID are traceable | Integration |
 

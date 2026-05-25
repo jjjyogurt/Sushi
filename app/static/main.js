@@ -1,7 +1,7 @@
 import { ApiError, request, requestForm } from "./api-client.js";
 import { createAuthController } from "./auth.js?v=20260521-sushi-login-spin";
 import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js?v=20260521-inline-edit-row";
-import { createQueueController } from "./queue.js?v=20260525-video-list-bulk-sort";
+import { createQueueController } from "./queue.js?v=20260525-mobile-layout";
 import {
   clearVideoQueryParam,
   getProjectIdFromRoute,
@@ -26,7 +26,7 @@ import { createVocController } from "./voc.js";
 import { createAllVideosSettingsController } from "./all-videos-settings.js";
 import { createInsightsController } from "./insights.js?v=20260525-insights-language";
 import { createWatchlistController } from "./watchlist.js?v=20260515-icons";
-import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260522-field-tooltips";
+import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260525-mobile-layout";
 
 const DEFAULT_PROJECT_BRAND_KEYWORDS = Object.freeze([
   "HOVER",

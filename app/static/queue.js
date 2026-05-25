@@ -14,6 +14,10 @@ const MAX_MANUAL_VIDEO_URLS = 100;
 const MAX_VISIBLE_MANUAL_URL_ROWS = 5;
 const ACTIVE_ANALYSIS_BATCH_KEY = "active_analysis_batch_id";
 
+function arrayOrEmpty(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 function discoveryCompletedMessage(count) {
   if (!Number.isFinite(count)) {
     return t("discoveryCompleted");
@@ -392,8 +396,8 @@ export function createQueueController({
     }
     const state = getState();
     const isGlobalScope = state.selectedProfileId === null;
-    const newVideoIdSet = new Set(state.newVideoIds);
-    const selectedIdSet = new Set(state.selectedVideoIds);
+    const newVideoIdSet = new Set(arrayOrEmpty(state.newVideoIds));
+    const selectedIdSet = new Set(arrayOrEmpty(state.selectedVideoIds));
 
     count.textContent = String(state.videos.length);
     renderBulkSelectionControls();
@@ -420,7 +424,7 @@ export function createQueueController({
 
   function renderBulkSelectionControls() {
     const state = getState();
-    const selectedVisibleIds = state.selectedVideoIds.filter((videoId) =>
+    const selectedVisibleIds = arrayOrEmpty(state.selectedVideoIds).filter((videoId) =>
       state.videos.some((video) => video.id === videoId)
     );
     const toolbar = getElement("video-bulk-toolbar");
@@ -452,13 +456,13 @@ export function createQueueController({
     }
     setState((previous) => ({
       ...previous,
-      newVideoIds: [...new Set([...previous.newVideoIds, ...newlyAddedIds])],
+      newVideoIds: [...new Set([...arrayOrEmpty(previous.newVideoIds), ...newlyAddedIds])],
     }));
   }
 
   function clearNewVideoLabels() {
     const state = getState();
-    if (state.newVideoIds.length === 0) {
+    if (arrayOrEmpty(state.newVideoIds).length === 0) {
       return;
     }
     setState((previous) => ({
@@ -553,10 +557,12 @@ export function createQueueController({
       ...previous,
       videos: nextVideos,
       selectedVideoId,
-      selectedVideoIds: previous.selectedVideoIds.filter((videoId) =>
+      selectedVideoIds: arrayOrEmpty(previous.selectedVideoIds).filter((videoId) =>
         nextVideos.some((video) => video.id === videoId)
       ),
-      newVideoIds: previous.newVideoIds.filter((videoId) => nextVideos.some((video) => video.id === videoId)),
+      newVideoIds: arrayOrEmpty(previous.newVideoIds).filter((videoId) =>
+        nextVideos.some((video) => video.id === videoId)
+      ),
       analysisLanguageByVideoId: Object.fromEntries(
         Object.entries(previous.analysisLanguageByVideoId || {}).filter(([videoId]) =>
           nextVideos.some((video) => String(video.id) === String(videoId))
@@ -808,7 +814,7 @@ export function createQueueController({
 
   async function deleteSelectedVideos() {
     const state = getState();
-    const selectedIds = state.selectedVideoIds.filter((videoId) =>
+    const selectedIds = arrayOrEmpty(state.selectedVideoIds).filter((videoId) =>
       state.videos.some((video) => video.id === videoId)
     );
     if (selectedIds.length === 0) {
@@ -842,7 +848,7 @@ export function createQueueController({
 
   function toggleVideoSelection(videoId, isSelected) {
     setState((previous) => {
-      const selectedSet = new Set(previous.selectedVideoIds);
+      const selectedSet = new Set(arrayOrEmpty(previous.selectedVideoIds));
       if (isSelected) {
         selectedSet.add(videoId);
       } else {
@@ -863,12 +869,12 @@ export function createQueueController({
       if (!isSelected) {
         return {
           ...previous,
-          selectedVideoIds: previous.selectedVideoIds.filter((videoId) => !visibleIds.includes(videoId)),
+          selectedVideoIds: arrayOrEmpty(previous.selectedVideoIds).filter((videoId) => !visibleIds.includes(videoId)),
         };
       }
       return {
         ...previous,
-        selectedVideoIds: Array.from(new Set([...previous.selectedVideoIds, ...visibleIds])),
+        selectedVideoIds: Array.from(new Set([...arrayOrEmpty(previous.selectedVideoIds), ...visibleIds])),
       };
     });
     renderVideos();

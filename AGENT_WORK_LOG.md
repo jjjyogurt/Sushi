@@ -1,5 +1,77 @@
 # Agent Work Log
 
+## 2026-05-25 20:44
+- Task: Darken dashboard create button purple beam shadow.
+- Changes: Replaced the gray-lavender glow with a darker, purer purple drop-shadow on the traveling beam.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-25 19:18
+- Task: Add purple beam shadow.
+- Changes: Added a subtle purple drop-shadow to the single metallic traveling frame beam.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-25 19:15
+- Task: Lengthen dashboard create button beam core.
+- Changes: Extended the bright white center of the single metallic traveling beam.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-25 19:14
+- Task: Increase dashboard create button beam contrast.
+- Changes: Brightened the white core and deepened the silver edge contrast while keeping the single beam thin.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-25 19:11
+- Task: Make dashboard create button beam more metallic.
+- Changes: Shifted the single traveling beam to a brighter white and silver-blue metallic palette.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-25 18:14
+- Task: Revise phone UI layout.
+- Changes: Stacked mobile project forms, aligned bottom nav with web sidebar icons, fixed Project Workspace overflow, and hardened queue selection arrays.
+- Check: `git diff --check`; `python3 -m py_compile app/main.py`; browser phone/desktop responsive metrics.
+- Next: None.
+
+## 2026-05-25 18:07
+- Task: Return dashboard create button to one beam.
+- Changes: Removed the counter-rotating secondary beam and kept one bright silver-lavender traveling frame beam.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-25 18:06
+- Task: Brighten and slow dashboard create button beams.
+- Changes: Increased the silver-lavender beam brightness and slowed both opposing beam animations by 15%.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-25 18:05
+- Task: Add opposing dashboard create button beams.
+- Changes: Added a softer counter-rotating frame beam and updated the alpha visual expectation.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-25 18:02
+- Task: Tune dashboard create button beam color and speed.
+- Changes: Added a subtle purple tint to the silver beam and slowed the frame travel by 15%.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-25 18:01
+- Task: Tune dashboard create button beam.
+- Changes: Shifted the frame beam toward silver-white and narrowed the animated segment by about 15%.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-25 17:50
+- Task: Add XREAL-style dashboard create button glow.
+- Changes: Added CSS-only thin traveling frame beam hover/focus animation without halo or shadow, plus alpha visual test case.
+- Check: `git diff --check`; `python3 -m py_compile app/main.py`; browser CSSOM verification on `127.0.0.1:8001`.
+- Next: Manually hover the dashboard `+ New Project` button in a full browser pass before release.
+
 ## 2026-05-22 20:15
 - Task: Fix cross-project Insights report bleed.
 - Changes: Guarded Insights async renders by project id, cleared stale report DOM on empty states, made hidden content actually hide, added cache busts and alpha isolation case.
@@ -1217,3 +1289,39 @@
 - Changes: Added an emoji SVG favicon and wired it in the HTML head without changing the in-page topbar.
 - Check: Static regression test 8 passed; SVG validation; `git diff --check`; Browser verified favicon URL and unchanged topbar markup.
 - Next: Deploy static assets when this frontend batch is ready.
+
+## 2026-05-25 18:16
+- Task: Replace the app sidebar slogan.
+- Changes: Updated the sidebar, i18n subtitle, tutorial mock sidebar, and alpha copy coverage check to `Get the market’s view, early.`
+- Check: `rg` confirmed old slogan removal; `git diff --check` passed.
+- Next: No follow-up needed.
+
+## 2026-05-25 18:18
+- Task: Keep the slogan comma phrase together.
+- Changes: Added a non-breaking space between the comma and `early.` in rendered slogan copy and documented the visual check.
+- Check: `node --check app/static/i18n.js`; `git diff --check`.
+- Next: No follow-up needed.
+
+## 2026-05-25 18:27
+- Task: Keep the sidebar slogan on one line.
+- Changes: Let the slogan use the full sidebar header width, prevented wrapping, and added a static regression assertion.
+- Check: `PYTHONPATH=. ./.venv/bin/pytest -q tests/unit/test_static_insights_regression.py`; JS syntax checks; `git diff --check`.
+- Next: No follow-up needed.
+
+## 2026-05-25 19:11
+- Task: Remove sidebar expand ghosting from brand text.
+- Changes: Clipped the sidebar during width transitions and changed compact brand hiding from instant display removal to a clean hidden/fade behavior.
+- Check: `PYTHONPATH=. ./.venv/bin/pytest -q tests/unit/test_static_insights_regression.py`; JS syntax checks; `git diff --check`.
+- Next: Visually confirm the expand/collapse feel on desktop.
+
+## 2026-05-25 18:48
+- Task: Run alpha release backend test gate.
+- Changes: Executed the documented P0 fast gate, full unit regression, isolated startup/migration health, and Gemini config health.
+- Check: Fast gate 41 passed; full unit 165 passed; `/health` 200; Gemini configured; Docker/pre-commit/coverage unavailable locally.
+- Next: Run staging/production E2E, rollback, and deployment artifact checks before final GO.
+
+## 2026-05-25 19:22
+- Task: Add Browser evidence to alpha release requirements.
+- Changes: Added `@Browser` evidence rules and updated UI/manual/E2E cases to require Browser verification.
+- Check: Browser smoke passed on desktop and 390px mobile; screenshots captured in `.gstack/qa-reports/screenshots/`.
+- Next: Use Browser evidence on each release QA pass.

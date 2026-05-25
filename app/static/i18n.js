@@ -5,7 +5,7 @@ const SUPPORTED_LOCALES = ["en", "zh"];
 const TRANSLATIONS = {
   en: {
     appTitle: "Project Sushi",
-    appSubtitle: "Content Monitoring",
+    appSubtitle: "Get the market’s view,\u00a0early.",
     navDashboard: "Dashboard",
     navProject: "Project",
     navVoc: "VOC",
@@ -436,7 +436,7 @@ const TRANSLATIONS = {
   },
   zh: {
     appTitle: "Project Sushi",
-    appSubtitle: "内容监测",
+    appSubtitle: "Get the market’s view,\u00a0early.",
     navDashboard: "仪表盘",
     navProject: "项目",
     navVoc: "VOC",
@@ -1125,12 +1125,18 @@ const STATIC_BINDINGS = [
   { selector: "#insights-top-negative-title", key: "insightsTopNegativeByReach" },
   { selector: "#insights-history-title", key: "insightsHistory" },
   { selector: "#clear-insights-history-btn", key: "insightsClearHistory" },
-  { selector: '.mobile-nav .nav-btn[data-section="dashboard"]', key: "navDashboard" },
-  { selector: '.mobile-nav .nav-btn[data-section="queue"]', key: "queue" },
-  { selector: '.mobile-nav .nav-btn[data-section="voc"]', key: "navVoc" },
-  { selector: '.mobile-nav .nav-btn[data-section="watchlist"]', key: "navWatchlist" },
-  { selector: '.mobile-nav .nav-btn[data-section="alerts"]', key: "navAlerts" },
-  { selector: '.mobile-nav .nav-btn[data-section="settings"]', key: "navSettings" },
+  { selector: '.mobile-nav .nav-btn[data-section="dashboard"] .nav-label', key: "navDashboard" },
+  { selector: '.mobile-nav .nav-btn[data-section="dashboard"]', key: "navDashboard", attr: "title" },
+  { selector: '.mobile-nav .nav-btn[data-section="queue"] .nav-label', key: "navProject" },
+  { selector: '.mobile-nav .nav-btn[data-section="queue"]', key: "navProject", attr: "title" },
+  { selector: '.mobile-nav .nav-btn[data-section="voc"] .nav-label', key: "navVoc" },
+  { selector: '.mobile-nav .nav-btn[data-section="voc"]', key: "navVoc", attr: "title" },
+  { selector: '.mobile-nav .nav-btn[data-section="watchlist"] .nav-label', key: "navWatchlist" },
+  { selector: '.mobile-nav .nav-btn[data-section="watchlist"]', key: "navWatchlist", attr: "title" },
+  { selector: '.mobile-nav .nav-btn[data-section="alerts"] .nav-label', key: "navAlerts" },
+  { selector: '.mobile-nav .nav-btn[data-section="alerts"]', key: "navAlerts", attr: "title" },
+  { selector: '.mobile-nav .nav-btn[data-section="settings"] .nav-label', key: "navSettings" },
+  { selector: '.mobile-nav .nav-btn[data-section="settings"]', key: "navSettings", attr: "title" },
 ];
 
 function setTextWithLeadingIcon(node, nextText) {
