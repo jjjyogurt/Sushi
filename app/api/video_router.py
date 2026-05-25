@@ -16,6 +16,8 @@ from app.schemas.video import (
     VideoAssigneeUpdateRequest,
     VideoBulkAddRequest,
     VideoBulkAddResponse,
+    VideoBulkDeleteRequest,
+    VideoBulkDeleteResponse,
     VideoDiscoveryRequest,
     VideoListResponse,
     VideoReachResponse,
@@ -119,6 +121,8 @@ def list_videos(
     risk_level: Optional[List[str]] = Query(default=None),
     sentiment: Optional[str] = None,
     title: Optional[str] = Query(default=None, max_length=255),
+    sort_by: Optional[str] = Query(default=None, max_length=32),
+    sort_order: Optional[str] = Query(default=None, max_length=8),
     current_user: AppUser = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ):
@@ -138,6 +142,8 @@ def list_videos(
         risk_level=risk_level,
         sentiment=sentiment,
         title_query=title,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
     responses = map_videos_with_context(
         service,
@@ -150,6 +156,20 @@ def list_videos(
         risk_level=",".join(risk_level or []) or None,
         sentiment=sentiment,
     )
+
+
+@router.post("/bulk-delete", response_model=VideoBulkDeleteResponse)
+def bulk_delete_videos(
+    payload: VideoBulkDeleteRequest,
+    current_user: AppUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
+    service = TriageService(db)
+    try:
+        deleted_ids = service.delete_videos(video_ids=payload.video_ids, actor=current_user.id)
+        return VideoBulkDeleteResponse(deleted_ids=deleted_ids, deleted_count=len(deleted_ids))
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.post("/search", response_model=VideoSearchResponse)

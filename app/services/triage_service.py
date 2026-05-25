@@ -1,7 +1,7 @@
 import logging
 import re
 from typing import Dict, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -19,10 +19,13 @@ from app.services.youtube_discovery_service import (
     YouTubeDiscoveryService,
     filter_discovered_videos_by_publish_window,
 )
+from app.services.youtube_video_stats_service import YouTubeVideoStatsService
 from app.utils.text import normalize_title
 from app.utils.youtube import extract_video_id, fetch_oembed_metadata
 
 logger = logging.getLogger(__name__)
+
+VIEW_COUNT_STALE_AFTER = timedelta(hours=24)
 
 
 class TriageService:
@@ -34,6 +37,7 @@ class TriageService:
         self.video_repository = VideoRepository(session)
         self.relevance_service = RelevanceService()
         self.discovery_service = YouTubeDiscoveryService()
+        self.youtube_video_stats_service = YouTubeVideoStatsService()
         self.settings = get_settings()
         gemini_client = GeminiClient(self.settings) if self.settings.gemini_api_key.strip() else None
         self.discovery_keyword_service = DiscoveryKeywordService(self.settings, gemini_client)
@@ -279,14 +283,58 @@ class TriageService:
         risk_level=None,
         sentiment: str = None,
         title_query: str = None,
+        sort_by: str = None,
+        sort_order: str = None,
     ):
-        return self.video_repository.list(
+        videos = self.video_repository.list(
             monitor_profile_id=monitor_profile_id,
             queue_state=queue_state,
             risk_level=risk_level,
             sentiment=sentiment,
             title_query=title_query,
             owner_user_id=owner_user_id,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+        if str(sort_by or "").strip().lower() == "views":
+            self.refresh_stale_view_counts(videos)
+            videos = self.video_repository.list(
+                monitor_profile_id=monitor_profile_id,
+                queue_state=queue_state,
+                risk_level=risk_level,
+                sentiment=sentiment,
+                title_query=title_query,
+                owner_user_id=owner_user_id,
+                sort_by=sort_by,
+                sort_order=sort_order,
+            )
+        return videos
+
+    def refresh_stale_view_counts(self, videos) -> int:
+        now = datetime.now(timezone.utc)
+        stale_before = now - VIEW_COUNT_STALE_AFTER
+        stale_youtube_ids = []
+        for video in videos:
+            fetched_at = video.view_count_fetched_at
+            if fetched_at is not None and fetched_at.tzinfo is None:
+                fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+            if video.view_count is not None and fetched_at is not None and fetched_at >= stale_before:
+                continue
+            stale_youtube_ids = [*stale_youtube_ids, video.youtube_video_id]
+
+        unique_youtube_ids = list(dict.fromkeys(stale_youtube_ids))
+        if not unique_youtube_ids:
+            return 0
+
+        try:
+            view_counts = self.youtube_video_stats_service.fetch_view_counts(youtube_video_ids=unique_youtube_ids)
+        except Exception as error:  # noqa: BLE001
+            logger.warning("video list view count refresh failed; continuing with cached values. error=%s", error)
+            return 0
+
+        return self.video_repository.update_view_counts(
+            view_counts_by_youtube_id=view_counts,
+            fetched_at=now,
         )
 
     def search_candidates(self, *, monitor_profile_id: int, query: str, max_results: int) -> List[dict]:
@@ -441,6 +489,37 @@ class TriageService:
             resource_id=str(video_id),
         )
         return True
+
+    def delete_videos(self, *, video_ids: List[int], actor: str) -> List[int]:
+        normalized_ids = [int(video_id) for video_id in dict.fromkeys(video_ids)]
+        if not normalized_ids:
+            raise ValueError("At least one video id is required.")
+
+        owned_videos = self.video_repository.list_by_ids_for_user(
+            video_ids=normalized_ids,
+            owner_user_id=actor,
+        )
+        owned_ids = {video.id for video in owned_videos}
+        missing_ids = [video_id for video_id in normalized_ids if video_id not in owned_ids]
+        if missing_ids:
+            raise ValueError("One or more selected videos were not found.")
+
+        active_batch_video_ids = self.video_repository.get_active_batch_video_ids(normalized_ids)
+        if active_batch_video_ids:
+            raise ValueError("One or more selected videos are in an active analysis batch.")
+
+        deleted_count = self.video_repository.delete_many(normalized_ids)
+        if deleted_count != len(normalized_ids):
+            raise ValueError("One or more selected videos could not be deleted.")
+
+        self.audit_repository.record(
+            actor=actor,
+            action="bulk_delete_videos",
+            resource_type="video_candidate",
+            resource_id=",".join(str(video_id) for video_id in normalized_ids),
+            details=f"deleted_count={deleted_count}",
+        )
+        return normalized_ids
 
     def add_manual_video(self, *, monitor_profile_id: int, video_url: str, language: str = None):
         profile = self._require_profile(monitor_profile_id)

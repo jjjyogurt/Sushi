@@ -62,6 +62,15 @@ class VideoAssigneeUpdateRequest(BaseModel):
     assigned_user_id: Optional[str] = Field(default=None, max_length=80)
 
 
+class VideoBulkDeleteRequest(BaseModel):
+    video_ids: List[int] = Field(min_length=1, max_length=100)
+
+
+class VideoBulkDeleteResponse(BaseModel):
+    deleted_ids: List[int]
+    deleted_count: int
+
+
 class VideoSearchRequest(BaseModel):
     monitor_profile_id: int
     query: str = Field(min_length=2, max_length=160)
@@ -119,6 +128,8 @@ class VideoResponse(TimestampedResponse):
     latest_analysis_status: Optional[AnalysisStatus] = None
     is_bookmarked: bool = False
     assigned_user_id: Optional[str] = None
+    view_count: Optional[int] = None
+    view_count_fetched_at: Optional[datetime] = None
 
 
 class VideoReachResponse(BaseModel):
@@ -139,4 +150,3 @@ class VideoListResponse(BaseModel):
 class VideoBulkAddResponse(BaseModel):
     items: List[VideoResponse]
     total: int
-

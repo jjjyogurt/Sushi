@@ -96,6 +96,8 @@ def map_video_response(
         latest_analysis_status=latest_analysis_status,
         is_bookmarked=is_bookmarked,
         assigned_user_id=(model.assigned_user_id or None),
+        view_count=model.view_count,
+        view_count_fetched_at=model.view_count_fetched_at,
     )
 
 

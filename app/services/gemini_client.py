@@ -133,6 +133,7 @@ class GeminiClient:
         project_name: str,
         brand_keywords: List[str],
         key_products: List[str],
+        target_output_language: str = "en",
         total_video_count: int,
         analyzed_video_count: int,
         records: List[dict],
@@ -148,6 +149,7 @@ class GeminiClient:
         payload = json.dumps(records_for_prompt, ensure_ascii=True)
         brand_keywords_csv = ", ".join([item for item in [str(raw or "").strip() for raw in brand_keywords] if item]) or "none"
         key_products_csv = ", ".join([item for item in [str(raw or "").strip() for raw in key_products] if item]) or "none"
+        output_language_name = "Simplified Chinese" if target_output_language == "zh-Hans" else "English"
         prompt = (
             "You are a professional product-insights researcher for consumer electronics.\n"
             "Generate a project-level synthesis using only the evidence provided.\n"
@@ -174,6 +176,7 @@ class GeminiClient:
             "- Do not mention competitor models, brands, or benchmarks unless they are explicitly present in this project's records.\n"
             "- If no valid direct comparison appears in this project's records, do not invent one.\n"
             "- Keep lists concise and high-signal (max 5 each).\n"
+            f"- Write all user-facing string fields in {output_language_name}. Keep enum values in English exactly as specified.\n"
             "- Do not fabricate incidents, timestamps, or failures.\n"
             "- Use critical/high risk wording only when evidence supports it.\n"
             "- Do not include methodology, process notes, or snapshot-report style wording.\n"
@@ -188,6 +191,7 @@ class GeminiClient:
             f"Project name: {project_name}\n"
             f"Project brand keywords: {brand_keywords_csv}\n"
             f"Project key products to monitor: {key_products_csv}\n"
+            f"Target output language: {output_language_name}\n"
             f"Total project videos: {total_video_count}\n"
             f"Analyzed videos included: {analyzed_video_count}\n"
             f"Records JSON:\n{payload}\n"

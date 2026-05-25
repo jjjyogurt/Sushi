@@ -16,6 +16,7 @@ class ProjectInsightsRepository:
         self,
         *,
         monitor_profile_id: int,
+        language: str,
         analyzed_video_count: int,
         total_video_count: int,
         excluded_video_count: int,
@@ -37,6 +38,7 @@ class ProjectInsightsRepository:
     ) -> ProjectInsightReport:
         report = ProjectInsightReport(
             monitor_profile_id=monitor_profile_id,
+            language=language,
             analyzed_video_count=analyzed_video_count,
             total_video_count=total_video_count,
             excluded_video_count=excluded_video_count,
@@ -61,30 +63,68 @@ class ProjectInsightsRepository:
         self.session.refresh(report)
         return report
 
-    def get_latest_for_profile(self, monitor_profile_id: int) -> Optional[ProjectInsightReport]:
+    def get_latest_for_profile(self, monitor_profile_id: int, *, language: str = "en") -> Optional[ProjectInsightReport]:
         return (
             self.session.query(ProjectInsightReport)
             .filter(ProjectInsightReport.monitor_profile_id == monitor_profile_id)
+            .filter(ProjectInsightReport.language == language)
             .order_by(desc(ProjectInsightReport.created_at), desc(ProjectInsightReport.id))
             .first()
         )
 
-    def list_for_profile(self, monitor_profile_id: int, *, limit: int = 20) -> List[ProjectInsightReport]:
+    def list_for_profile(self, monitor_profile_id: int, *, language: str = "en", limit: int = 20) -> List[ProjectInsightReport]:
         return (
             self.session.query(ProjectInsightReport)
             .filter(ProjectInsightReport.monitor_profile_id == monitor_profile_id)
+            .filter(ProjectInsightReport.language == language)
             .order_by(desc(ProjectInsightReport.created_at), desc(ProjectInsightReport.id))
             .limit(limit)
             .all()
         )
 
-    def get_by_id_for_profile(self, *, monitor_profile_id: int, report_id: int) -> Optional[ProjectInsightReport]:
-        return (
+    def get_by_id_for_profile(
+        self,
+        *,
+        monitor_profile_id: int,
+        report_id: int,
+        language: Optional[str] = None,
+    ) -> Optional[ProjectInsightReport]:
+        query = (
             self.session.query(ProjectInsightReport)
             .filter(ProjectInsightReport.monitor_profile_id == monitor_profile_id)
             .filter(ProjectInsightReport.id == report_id)
-            .one_or_none()
         )
+        if language is not None:
+            query = query.filter(ProjectInsightReport.language == language)
+        return query.one_or_none()
+
+    def delete_by_id_for_profile(
+        self,
+        *,
+        monitor_profile_id: int,
+        report_id: int,
+        language: Optional[str] = None,
+    ) -> int:
+        query = (
+            self.session.query(ProjectInsightReport)
+            .filter(ProjectInsightReport.monitor_profile_id == monitor_profile_id)
+            .filter(ProjectInsightReport.id == report_id)
+        )
+        if language is not None:
+            query = query.filter(ProjectInsightReport.language == language)
+        deleted = query.delete(synchronize_session=False)
+        self.session.commit()
+        return int(deleted)
+
+    def delete_for_profile(self, monitor_profile_id: int, *, language: Optional[str] = None) -> int:
+        query = self.session.query(ProjectInsightReport).filter(
+            ProjectInsightReport.monitor_profile_id == monitor_profile_id
+        )
+        if language is not None:
+            query = query.filter(ProjectInsightReport.language == language)
+        deleted = query.delete(synchronize_session=False)
+        self.session.commit()
+        return int(deleted)
 
     def list_videos_with_latest_analysis(
         self,
@@ -122,20 +162,3 @@ class ProjectInsightsRepository:
             .order_by(desc(VideoCandidate.published_at))
             .all()
         )
-
-    def delete_by_id_for_profile(self, *, monitor_profile_id: int, report_id: int) -> int:
-        deleted = (
-            self.session.query(ProjectInsightReport)
-            .filter(ProjectInsightReport.monitor_profile_id == monitor_profile_id)
-            .filter(ProjectInsightReport.id == report_id)
-            .delete(synchronize_session=False)
-        )
-        self.session.commit()
-        return int(deleted)
-
-    def delete_for_profile(self, monitor_profile_id: int) -> int:
-        deleted = self.session.query(ProjectInsightReport).filter(
-            ProjectInsightReport.monitor_profile_id == monitor_profile_id
-        ).delete(synchronize_session=False)
-        self.session.commit()
-        return int(deleted)

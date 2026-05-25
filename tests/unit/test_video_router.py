@@ -11,8 +11,9 @@ from app.db import get_db_session
 from app.main import app
 from app.models.app_user import AppUser
 from app.models.base import Base
+from app.models.analysis_batch import AnalysisBatch, AnalysisBatchItem
 from app.models.analysis_result import AnalysisResult
-from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
+from app.models.enums import AnalysisBatchItemStatus, AnalysisBatchStatus, AnalysisStatus, RiskLevel, Sentiment
 from app.models.monitor_profile import MonitorProfile
 from app.repositories.video_repository import VideoRepository
 from app.services.analysis_service import AnalysisService
@@ -212,6 +213,102 @@ def test_get_video_reach_returns_unknown_metrics_when_provider_fails(
         "subscriber_count": None,
         "is_reach_available": False,
     }
+
+
+def test_list_videos_can_sort_by_refreshed_view_count(client, api_db_session, api_monitor_profile, monkeypatch):
+    repository = VideoRepository(api_db_session)
+    repository.upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="router-views-low",
+        video_url="https://youtu.be/router-views-low",
+        title="Views low",
+        channel_name="CreatorLow",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+    repository.upsert_candidate(
+        monitor_profile_id=api_monitor_profile.id,
+        youtube_video_id="router-views-high",
+        video_url="https://youtu.be/router-views-high",
+        title="Views high",
+        channel_name="CreatorHigh",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+
+    def fake_fetch_view_counts(self, *, youtube_video_ids):
+        assert set(youtube_video_ids) == {"router-views-low", "router-views-high"}
+        return {
+            "router-views-low": 10,
+            "router-views-high": 900,
+        }
+
+    monkeypatch.setattr(YouTubeVideoStatsService, "fetch_view_counts", fake_fetch_view_counts)
+
+    response = client.get(f"/videos?monitor_profile_id={api_monitor_profile.id}&sort_by=views&sort_order=desc")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [item["youtube_video_id"] for item in items] == ["router-views-high", "router-views-low"]
+    assert [item["view_count"] for item in items] == [900, 10]
+
+
+def test_bulk_delete_videos_deletes_selected_owned_videos(client, api_db_session, api_monitor_profile):
+    first = create_video(api_db_session, api_monitor_profile.id, youtube_video_id="bulk-delete-one")
+    second = create_video(api_db_session, api_monitor_profile.id, youtube_video_id="bulk-delete-two")
+
+    response = client.post("/videos/bulk-delete", json={"video_ids": [first.id, second.id]})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "deleted_ids": [first.id, second.id],
+        "deleted_count": 2,
+    }
+    assert api_db_session.get(type(first), first.id) is None
+    assert api_db_session.get(type(second), second.id) is None
+
+
+def test_bulk_delete_videos_is_all_or_nothing_when_any_id_is_invalid(
+    client,
+    api_db_session,
+    api_monitor_profile,
+):
+    video = create_video(api_db_session, api_monitor_profile.id, youtube_video_id="bulk-delete-keep")
+
+    response = client.post("/videos/bulk-delete", json={"video_ids": [video.id, 999999]})
+
+    assert response.status_code == 400
+    assert api_db_session.get(type(video), video.id) is not None
+
+
+def test_bulk_delete_videos_blocks_active_analysis_batch_items(client, api_db_session, api_monitor_profile):
+    video = create_video(api_db_session, api_monitor_profile.id, youtube_video_id="bulk-delete-active-batch")
+    batch = AnalysisBatch(
+        monitor_profile_id=api_monitor_profile.id,
+        created_by="Sushi_1",
+        status=AnalysisBatchStatus.RUNNING,
+        total_count=1,
+    )
+    api_db_session.add(batch)
+    api_db_session.flush()
+    api_db_session.add(
+        AnalysisBatchItem(
+            batch_id=batch.id,
+            video_id=video.id,
+            status=AnalysisBatchItemStatus.QUEUED,
+        )
+    )
+    api_db_session.commit()
+
+    response = client.post("/videos/bulk-delete", json={"video_ids": [video.id]})
+
+    assert response.status_code == 400
+    assert "active analysis batch" in response.json()["detail"]
+    assert api_db_session.get(type(video), video.id) is not None
 
 
 def test_list_videos_supports_risk_and_sentiment_filters(client, api_db_session, api_monitor_profile):

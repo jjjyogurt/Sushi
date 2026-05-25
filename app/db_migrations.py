@@ -299,6 +299,7 @@ def ensure_project_insight_job_tables(engine: Engine) -> None:
                     CREATE TABLE project_insight_jobs (
                         id {id_definition},
                         monitor_profile_id INTEGER NOT NULL,
+                        language VARCHAR(20) NOT NULL DEFAULT 'en',
                         created_by VARCHAR(80) NOT NULL DEFAULT 'system',
                         status VARCHAR(20) NOT NULL DEFAULT 'QUEUED',
                         report_id INTEGER NULL,
@@ -314,10 +315,21 @@ def ensure_project_insight_job_tables(engine: Engine) -> None:
                 )
             )
 
+        columns = {column["name"] for column in inspect(connection).get_columns("project_insight_jobs")}
+        if "language" not in columns:
+            connection.execute(
+                text("ALTER TABLE project_insight_jobs ADD COLUMN language VARCHAR(20) NOT NULL DEFAULT 'en'")
+            )
+
         indexes = {index["name"] for index in inspect(connection).get_indexes("project_insight_jobs")}
+        connection.execute(text("DROP INDEX IF EXISTS ux_project_insight_jobs_one_active_per_profile"))
         if "ix_project_insight_jobs_monitor_profile_id" not in indexes:
             connection.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_project_insight_jobs_monitor_profile_id ON project_insight_jobs (monitor_profile_id)")
+            )
+        if "ix_project_insight_jobs_language" not in indexes:
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_project_insight_jobs_language ON project_insight_jobs (language)")
             )
         if "ix_project_insight_jobs_report_id" not in indexes:
             connection.execute(
@@ -330,6 +342,13 @@ def ensure_project_insight_job_tables(engine: Engine) -> None:
                     "ON project_insight_jobs (monitor_profile_id, status, created_at)"
                 )
             )
+        if "ix_project_insight_jobs_profile_language_status_created" not in indexes:
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_project_insight_jobs_profile_language_status_created "
+                    "ON project_insight_jobs (monitor_profile_id, language, status, created_at)"
+                )
+            )
         if "ix_project_insight_jobs_status_created" not in indexes:
             connection.execute(
                 text(
@@ -337,11 +356,11 @@ def ensure_project_insight_job_tables(engine: Engine) -> None:
                     "ON project_insight_jobs (status, created_at)"
                 )
             )
-        if "ux_project_insight_jobs_one_active_per_profile" not in indexes:
+        if "ux_project_insight_jobs_one_active_per_profile_language" not in indexes:
             connection.execute(
                 text(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_project_insight_jobs_one_active_per_profile "
-                    "ON project_insight_jobs (monitor_profile_id) "
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_project_insight_jobs_one_active_per_profile_language "
+                    "ON project_insight_jobs (monitor_profile_id, language) "
                     "WHERE status IN ('QUEUED', 'RUNNING')"
                 )
             )
@@ -512,6 +531,29 @@ def ensure_video_candidate_assignment_columns(engine: Engine) -> None:
             connection.execute(text(statement))
 
 
+def ensure_video_candidate_reach_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    if "video_candidates" not in table_names:
+        return
+    columns = {column["name"] for column in inspector.get_columns("video_candidates")}
+    statements = []
+    if "view_count" not in columns:
+        statements = [*statements, "ALTER TABLE video_candidates ADD COLUMN view_count INTEGER NULL"]
+    if "view_count_fetched_at" not in columns:
+        timestamp_type = "DATETIME" if engine.dialect.name == "sqlite" else "TIMESTAMP WITH TIME ZONE"
+        statements = [*statements, f"ALTER TABLE video_candidates ADD COLUMN view_count_fetched_at {timestamp_type} NULL"]
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+        indexes = {index["name"] for index in inspect(connection).get_indexes("video_candidates")}
+        if "ix_video_candidates_view_count" not in indexes:
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_video_candidates_view_count ON video_candidates (view_count)")
+            )
+
+
 def ensure_project_insight_reports_portfolio_columns(engine: Engine) -> None:
     inspector = inspect(engine)
     table_names = set(inspector.get_table_names())
@@ -519,6 +561,8 @@ def ensure_project_insight_reports_portfolio_columns(engine: Engine) -> None:
         return
     columns = {column["name"] for column in inspector.get_columns("project_insight_reports")}
     statements = []
+    if "language" not in columns:
+        statements = [*statements, "ALTER TABLE project_insight_reports ADD COLUMN language VARCHAR(20) NOT NULL DEFAULT 'en'"]
     if "sentiment_breakdown_json" not in columns:
         statements = [*statements, "ALTER TABLE project_insight_reports ADD COLUMN sentiment_breakdown_json TEXT NOT NULL DEFAULT '{}'"]
     if "risk_breakdown_json" not in columns:
@@ -527,12 +571,14 @@ def ensure_project_insight_reports_portfolio_columns(engine: Engine) -> None:
         statements = [*statements, "ALTER TABLE project_insight_reports ADD COLUMN reach_metrics_json TEXT NOT NULL DEFAULT '{}'"]
     if "top_negative_videos_json" not in columns:
         statements = [*statements, "ALTER TABLE project_insight_reports ADD COLUMN top_negative_videos_json TEXT NOT NULL DEFAULT '[]'"]
-    if not statements:
-        return
-
     with engine.begin() as connection:
         for statement in statements:
             connection.execute(text(statement))
+        indexes = {index["name"] for index in inspect(connection).get_indexes("project_insight_reports")}
+        if "ix_project_insight_reports_language" not in indexes:
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_project_insight_reports_language ON project_insight_reports (language)")
+            )
 
 
 def retire_legacy_business_impact_columns(engine: Engine) -> None:

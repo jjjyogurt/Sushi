@@ -169,6 +169,10 @@ function buildTopNegativeByReach(report) {
   });
 }
 
+function normalizeInsightsLanguage(language) {
+  return language === "zh-Hans" ? "zh-Hans" : "en";
+}
+
 export function createInsightsController({
   getState,
   request,
@@ -177,6 +181,7 @@ export function createInsightsController({
 }) {
   let historyItems = [];
   let activeReportId = null;
+  let selectedInsightsLanguage = "en";
   const refreshingProjectIds = new Set();
   const pollingJobs = new Map();
   let isHistoryDrawerOpen = false;
@@ -205,8 +210,25 @@ export function createInsightsController({
     return Number.isNaN(parsed) ? null : parsed;
   }
 
+  function selectedLanguage() {
+    return normalizeInsightsLanguage(selectedInsightsLanguage);
+  }
+
+  function languageQuery(language = selectedLanguage()) {
+    return `language=${encodeURIComponent(normalizeInsightsLanguage(language))}`;
+  }
+
+  function projectLanguageKey(projectId, language = selectedLanguage()) {
+    const key = projectKey(projectId);
+    return key === null ? null : `${key}:${normalizeInsightsLanguage(language)}`;
+  }
+
   function isCurrentProject(projectId) {
     return projectKey(selectedProjectId()) === projectKey(projectId);
+  }
+
+  function isCurrentLanguage(language) {
+    return selectedLanguage() === normalizeInsightsLanguage(language);
   }
 
   function sleep(ms) {
@@ -223,8 +245,8 @@ export function createInsightsController({
     return ["queued", "running"].includes(normalizeJobStatus(job));
   }
 
-  function setProjectRefreshing(projectId, refreshing) {
-    const key = projectKey(projectId);
+  function setProjectRefreshing(projectId, refreshing, language = selectedLanguage()) {
+    const key = projectLanguageKey(projectId, language);
     if (key === null) {
       return;
     }
@@ -233,8 +255,24 @@ export function createInsightsController({
     } else {
       refreshingProjectIds.delete(key);
     }
-    if (isCurrentProject(projectId)) {
+    if (isCurrentProject(projectId) && isCurrentLanguage(language)) {
       syncRefreshButtonState();
+    }
+  }
+
+  function syncLanguageToggleState() {
+    const enButton = getElement("insights-lang-en-btn");
+    const zhButton = getElement("insights-lang-zh-btn");
+    const language = selectedLanguage();
+    if (enButton instanceof HTMLButtonElement) {
+      const active = language === "en";
+      enButton.classList.toggle("is-active", active);
+      enButton.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+    if (zhButton instanceof HTMLButtonElement) {
+      const active = language === "zh-Hans";
+      zhButton.classList.toggle("is-active", active);
+      zhButton.setAttribute("aria-pressed", active ? "true" : "false");
     }
   }
 
@@ -258,7 +296,7 @@ export function createInsightsController({
     if (!(refreshButton instanceof HTMLButtonElement)) {
       return;
     }
-    const currentProjectKey = projectKey(selectedProjectId());
+    const currentProjectKey = projectLanguageKey(selectedProjectId());
     const isRefreshing = currentProjectKey !== null && refreshingProjectIds.has(currentProjectKey);
     const shouldDisable = currentProjectKey === null || isRefreshing;
     refreshButton.disabled = shouldDisable;
@@ -289,6 +327,7 @@ export function createInsightsController({
     entryButton?.classList.toggle("is-hidden", !projectSelected);
     syncRefreshButtonState();
     syncProjectContext();
+    syncLanguageToggleState();
 
     if (!projectSelected && document.querySelector("#insights.panel.active")) {
       setActiveSection("queue");
@@ -390,11 +429,14 @@ export function createInsightsController({
       .join("");
   }
 
-  function renderReport(report, expectedProjectId = selectedProjectId()) {
-    if (!isCurrentProject(expectedProjectId)) {
+  function renderReport(report, expectedProjectId = selectedProjectId(), expectedLanguage = selectedLanguage()) {
+    if (!isCurrentProject(expectedProjectId) || !isCurrentLanguage(expectedLanguage)) {
       return;
     }
-    if (projectKey(report?.monitor_profile_id) !== projectKey(expectedProjectId)) {
+    if (
+      projectKey(report?.monitor_profile_id) !== projectKey(expectedProjectId) ||
+      normalizeInsightsLanguage(report?.language) !== normalizeInsightsLanguage(expectedLanguage)
+    ) {
       renderEmptyState(t("insightsNoReportYet"));
       return;
     }
@@ -454,15 +496,15 @@ export function createInsightsController({
     renderHistoryList(historyItems);
   }
 
-  async function loadHistory() {
-    const projectId = selectedProjectId();
+  async function loadHistory(projectId = selectedProjectId(), language = selectedLanguage()) {
     if (!projectId) {
       historyItems = [];
       renderHistoryList(historyItems);
       return [];
     }
-    const payload = await request(`/monitor-profiles/${projectId}/insights/history?limit=30`);
-    if (!isCurrentProject(projectId)) {
+    const normalizedLanguage = normalizeInsightsLanguage(language);
+    const payload = await request(`/monitor-profiles/${projectId}/insights/history?${languageQuery(normalizedLanguage)}&limit=30`);
+    if (!isCurrentProject(projectId) || !isCurrentLanguage(normalizedLanguage)) {
       return [];
     }
     const items = Array.isArray(payload.items) ? payload.items : [];
@@ -471,14 +513,14 @@ export function createInsightsController({
     return items;
   }
 
-  async function loadCurrent() {
-    const projectId = selectedProjectId();
+  async function loadCurrent(projectId = selectedProjectId(), language = selectedLanguage()) {
     if (!projectId) {
       renderEmptyState(t("errorSelectProjectFirst"));
       return;
     }
-    const payload = await request(`/monitor-profiles/${projectId}/insights/current`);
-    if (!isCurrentProject(projectId)) {
+    const normalizedLanguage = normalizeInsightsLanguage(language);
+    const payload = await request(`/monitor-profiles/${projectId}/insights/current?${languageQuery(normalizedLanguage)}`);
+    if (!isCurrentProject(projectId) || !isCurrentLanguage(normalizedLanguage)) {
       return;
     }
     const current = payload?.current || null;
@@ -486,19 +528,20 @@ export function createInsightsController({
       renderEmptyState(t("insightsNoReportYet"));
       return;
     }
-    renderReport(current, projectId);
+    renderReport(current, projectId, normalizedLanguage);
   }
 
-  async function loadActiveJob(projectId = selectedProjectId(), { startPolling = true } = {}) {
+  async function loadActiveJob(projectId = selectedProjectId(), { language = selectedLanguage(), startPolling = true } = {}) {
     if (!projectId) {
       return null;
     }
-    const payload = await request(`/monitor-profiles/${projectId}/insights/jobs/active`);
+    const normalizedLanguage = normalizeInsightsLanguage(language);
+    const payload = await request(`/monitor-profiles/${projectId}/insights/jobs/active?${languageQuery(normalizedLanguage)}`);
     const job = payload?.active || null;
-    setProjectRefreshing(projectId, isActiveJob(job));
+    setProjectRefreshing(projectId, isActiveJob(job), normalizedLanguage);
     if (job && isActiveJob(job) && startPolling) {
-      void pollJobUntilDone(projectId, job.id).catch(() => {
-        if (isCurrentProject(projectId)) {
+      void pollJobUntilDone(projectId, job.id, normalizedLanguage).catch(() => {
+        if (isCurrentProject(projectId) && isCurrentLanguage(normalizedLanguage)) {
           syncRefreshButtonState();
         }
       });
@@ -506,41 +549,43 @@ export function createInsightsController({
     return job;
   }
 
-  async function finishCompletedJob(projectId) {
-    if (!isCurrentProject(projectId)) {
+  async function finishCompletedJob(projectId, language) {
+    const normalizedLanguage = normalizeInsightsLanguage(language);
+    if (!isCurrentProject(projectId) || !isCurrentLanguage(normalizedLanguage)) {
       return;
     }
-    await loadHistory();
-    if (!isCurrentProject(projectId)) {
+    await loadHistory(projectId, normalizedLanguage);
+    if (!isCurrentProject(projectId) || !isCurrentLanguage(normalizedLanguage)) {
       return;
     }
-    await loadCurrent();
+    await loadCurrent(projectId, normalizedLanguage);
   }
 
-  async function pollJobUntilDone(projectId, jobId) {
+  async function pollJobUntilDone(projectId, jobId, language = selectedLanguage()) {
     const key = projectKey(projectId);
     const parsedJobId = Number(jobId);
     if (key === null || Number.isNaN(parsedJobId)) {
       return null;
     }
-    const pollKey = `${key}:${parsedJobId}`;
+    const normalizedLanguage = normalizeInsightsLanguage(language);
+    const pollKey = `${key}:${normalizedLanguage}:${parsedJobId}`;
     if (pollingJobs.has(pollKey)) {
       return pollingJobs.get(pollKey);
     }
 
     const pollTask = (async () => {
       for (let attempt = 0; attempt < INSIGHT_JOB_MAX_POLLS; attempt += 1) {
-        const job = await request(`/monitor-profiles/${projectId}/insights/jobs/${parsedJobId}`);
+        const job = await request(`/monitor-profiles/${projectId}/insights/jobs/${parsedJobId}?${languageQuery(normalizedLanguage)}`);
         if (isActiveJob(job)) {
-          setProjectRefreshing(projectId, true);
+          setProjectRefreshing(projectId, true, normalizedLanguage);
           await sleep(INSIGHT_JOB_POLL_INTERVAL_MS);
           continue;
         }
 
-        setProjectRefreshing(projectId, false);
+        setProjectRefreshing(projectId, false, normalizedLanguage);
         const status = normalizeJobStatus(job);
         if (status === "completed") {
-          await finishCompletedJob(projectId);
+          await finishCompletedJob(projectId, normalizedLanguage);
           return job;
         }
         if (status === "failed") {
@@ -552,7 +597,7 @@ export function createInsightsController({
         return job;
       }
 
-      await loadActiveJob(projectId, { startPolling: false });
+      await loadActiveJob(projectId, { language: normalizedLanguage, startPolling: false });
       throw new Error("Insights generation is still running.");
     })().finally(() => {
       pollingJobs.delete(pollKey);
@@ -562,35 +607,36 @@ export function createInsightsController({
     return pollTask;
   }
 
-  async function refreshInsights(projectId = selectedProjectId()) {
+  async function refreshInsights(projectId = selectedProjectId(), language = selectedLanguage()) {
     if (!projectId) {
       throw new Error(t("errorSelectProjectFirst"));
     }
+    const normalizedLanguage = normalizeInsightsLanguage(language);
     let job = null;
     try {
-      job = await request(`/monitor-profiles/${projectId}/insights/refresh`, {
+      job = await request(`/monitor-profiles/${projectId}/insights/refresh?${languageQuery(normalizedLanguage)}`, {
         method: "POST",
       });
     } catch (error) {
-      setProjectRefreshing(projectId, false);
+      setProjectRefreshing(projectId, false, normalizedLanguage);
       throw error;
     }
 
-    setProjectRefreshing(projectId, isActiveJob(job));
+    setProjectRefreshing(projectId, isActiveJob(job), normalizedLanguage);
     const status = normalizeJobStatus(job);
     if (status === "completed") {
-      await finishCompletedJob(projectId);
+      await finishCompletedJob(projectId, normalizedLanguage);
       return;
     }
     if (status === "failed") {
-      setProjectRefreshing(projectId, false);
+      setProjectRefreshing(projectId, false, normalizedLanguage);
       throw new Error(job.last_error || "Insights generation failed.");
     }
     if (status === "cancelled") {
-      setProjectRefreshing(projectId, false);
+      setProjectRefreshing(projectId, false, normalizedLanguage);
       throw new Error("Insights generation was cancelled.");
     }
-    await pollJobUntilDone(projectId, job.id);
+    await pollJobUntilDone(projectId, job.id, normalizedLanguage);
   }
 
   async function deleteHistoryItem(reportId) {
@@ -598,13 +644,14 @@ export function createInsightsController({
     if (!projectId) {
       throw new Error(t("errorSelectProjectFirst"));
     }
-    await request(`/monitor-profiles/${projectId}/insights/history/${reportId}`, {
+    const language = selectedLanguage();
+    await request(`/monitor-profiles/${projectId}/insights/history/${reportId}?${languageQuery(language)}`, {
       method: "DELETE",
     });
     historyItems = historyItems.filter((entry) => Number(entry.id) !== Number(reportId));
     if (Number(activeReportId) === Number(reportId)) {
       if (historyItems.length > 0) {
-        renderReport(historyItems[0], projectId);
+        renderReport(historyItems[0], projectId, language);
         return;
       }
       activeReportId = null;
@@ -620,7 +667,7 @@ export function createInsightsController({
     if (!projectId) {
       throw new Error(t("errorSelectProjectFirst"));
     }
-    await request(`/monitor-profiles/${projectId}/insights/history`, {
+    await request(`/monitor-profiles/${projectId}/insights/history?${languageQuery()}`, {
       method: "DELETE",
     });
     historyItems = [];
@@ -657,19 +704,44 @@ export function createInsightsController({
     if (refreshInsightsButton) {
       refreshInsightsButton.addEventListener("click", () => {
         const projectId = selectedProjectId();
-        const currentProjectKey = projectKey(projectId);
+        const language = selectedLanguage();
+        const currentProjectKey = projectLanguageKey(projectId, language);
         if (currentProjectKey === null || refreshingProjectIds.has(currentProjectKey)) {
           return;
         }
         refreshingProjectIds.add(currentProjectKey);
         syncRefreshButtonState();
         void runTask(async () => {
-          await refreshInsights(projectId);
+          await refreshInsights(projectId, language);
         }, t("insightsRefreshCompleted")).finally(() => {
           syncRefreshButtonState();
         });
       });
     }
+
+    const bindLanguageButton = (buttonId, language) => {
+      const button = getElement(buttonId);
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+      button.addEventListener("click", () => {
+        const normalizedLanguage = normalizeInsightsLanguage(language);
+        if (selectedLanguage() === normalizedLanguage) {
+          return;
+        }
+        selectedInsightsLanguage = normalizedLanguage;
+        syncLanguageToggleState();
+        setHistoryDrawerOpen(false);
+        renderLoadingState();
+        void runTask(async () => {
+          await loadActiveJob(selectedProjectId(), { language: normalizedLanguage });
+          await loadHistory(selectedProjectId(), normalizedLanguage);
+          await loadCurrent(selectedProjectId(), normalizedLanguage);
+        });
+      });
+    };
+    bindLanguageButton("insights-lang-en-btn", "en");
+    bindLanguageButton("insights-lang-zh-btn", "zh-Hans");
 
     const backButton = getElement("back-to-project-from-insights-btn");
     if (backButton) {
@@ -747,7 +819,7 @@ export function createInsightsController({
         if (!matched) {
           return;
         }
-        renderReport(matched, selectedProjectId());
+        renderReport(matched, selectedProjectId(), selectedLanguage());
         setHistoryDrawerOpen(false);
       });
     }
@@ -760,6 +832,7 @@ export function createInsightsController({
     }
     syncProjectContext();
     syncRefreshButtonState();
+    syncLanguageToggleState();
     renderLoadingState();
     void runTask(async () => {
       await loadActiveJob();

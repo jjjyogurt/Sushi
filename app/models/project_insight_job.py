@@ -14,10 +14,12 @@ class ProjectInsightJob(TimestampMixin, Base):
     __tablename__ = "project_insight_jobs"
     __table_args__ = (
         Index("ix_project_insight_jobs_profile_status_created", "monitor_profile_id", "status", "created_at"),
+        Index("ix_project_insight_jobs_profile_language_status_created", "monitor_profile_id", "language", "status", "created_at"),
         Index("ix_project_insight_jobs_status_created", "status", "created_at"),
         Index(
-            "ux_project_insight_jobs_one_active_per_profile",
+            "ux_project_insight_jobs_one_active_per_profile_language",
             "monitor_profile_id",
+            "language",
             unique=True,
             sqlite_where=text("status IN ('QUEUED', 'RUNNING')"),
             postgresql_where=text("status IN ('QUEUED', 'RUNNING')"),
@@ -26,6 +28,7 @@ class ProjectInsightJob(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     monitor_profile_id: Mapped[int] = mapped_column(ForeignKey("monitor_profiles.id"), nullable=False, index=True)
+    language: Mapped[str] = mapped_column(String(20), nullable=False, default="en", index=True)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False, default="system")
     status: Mapped[ProjectInsightJobStatus] = mapped_column(
         Enum(ProjectInsightJobStatus),

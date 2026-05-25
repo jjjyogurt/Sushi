@@ -18,6 +18,10 @@ from app.utils.json_codec import decode_json, encode_json
 logger = logging.getLogger(__name__)
 
 
+def normalize_project_insight_language(language: str) -> str:
+    return "zh-Hans" if str(language or "").strip() == "zh-Hans" else "en"
+
+
 class ProjectInsightsService:
     RISK_SCORE_BY_LEVEL: Dict[str, float] = {
         "low": 2.0,
@@ -34,21 +38,29 @@ class ProjectInsightsService:
         self.gemini_client = GeminiClient(self.settings)
         self.youtube_video_stats_service = YouTubeVideoStatsService()
 
-    def get_current_report(self, monitor_profile_id: int) -> Optional[ProjectInsightReport]:
+    def get_current_report(self, monitor_profile_id: int, *, language: str = "en") -> Optional[ProjectInsightReport]:
         self._require_profile(monitor_profile_id)
-        return self.repository.get_latest_for_profile(monitor_profile_id)
+        return self.repository.get_latest_for_profile(
+            monitor_profile_id,
+            language=normalize_project_insight_language(language),
+        )
 
-    def list_report_history(self, monitor_profile_id: int, *, limit: int = 20) -> List[ProjectInsightReport]:
+    def list_report_history(self, monitor_profile_id: int, *, language: str = "en", limit: int = 20) -> List[ProjectInsightReport]:
         self._require_profile(monitor_profile_id)
-        return self.repository.list_for_profile(monitor_profile_id, limit=limit)
+        return self.repository.list_for_profile(
+            monitor_profile_id,
+            language=normalize_project_insight_language(language),
+            limit=limit,
+        )
 
-    def refresh_report(self, monitor_profile_id: int) -> ProjectInsightReport:
+    def refresh_report(self, monitor_profile_id: int, *, language: str = "en") -> ProjectInsightReport:
+        normalized_language = normalize_project_insight_language(language)
         profile = self._require_profile(monitor_profile_id)
         brand_keywords = self.monitor_repository.unpack_keywords(profile)
         key_products = self.monitor_repository.unpack_key_products(profile)
         video_analysis_pairs = self.repository.list_videos_with_latest_analysis(
             monitor_profile_id=monitor_profile_id,
-            language="en",
+            language=normalized_language,
         )
 
         total_video_count = len(video_analysis_pairs)
@@ -77,12 +89,13 @@ class ProjectInsightsService:
         ]
 
         if analyzed_video_count == 0:
-            payload = self._empty_payload(total_video_count=total_video_count)
+            payload = self._empty_payload(total_video_count=total_video_count, language=normalized_language)
         else:
-            fallback_payload = self._build_payload(completed_video_rows)
+            fallback_payload = self._build_payload(completed_video_rows, language=normalized_language)
             payload = self._build_payload_with_gemini(
                 profile_name=str(profile.name or "").strip() or f"Project {monitor_profile_id}",
                 owner_user_id=profile.owner_user_id,
+                language=normalized_language,
                 brand_keywords=brand_keywords,
                 key_products=key_products,
                 total_video_count=total_video_count,
@@ -103,6 +116,7 @@ class ProjectInsightsService:
 
         return self.repository.create(
             monitor_profile_id=monitor_profile_id,
+            language=normalized_language,
             analyzed_video_count=analyzed_video_count,
             total_video_count=total_video_count,
             excluded_video_count=excluded_video_count,
@@ -128,6 +142,7 @@ class ProjectInsightsService:
         *,
         profile_name: str,
         owner_user_id: str,
+        language: str,
         brand_keywords: List[str],
         key_products: List[str],
         total_video_count: int,
@@ -144,6 +159,7 @@ class ProjectInsightsService:
                 project_name=profile_name,
                 brand_keywords=brand_keywords,
                 key_products=key_products,
+                target_output_language=language,
                 total_video_count=total_video_count,
                 analyzed_video_count=analyzed_video_count,
                 records=records,
@@ -167,22 +183,28 @@ class ProjectInsightsService:
         }
         return merged_payload
 
-    def delete_history_item(self, *, monitor_profile_id: int, report_id: int) -> int:
+    def delete_history_item(self, *, monitor_profile_id: int, report_id: int, language: str = "en") -> int:
+        normalized_language = normalize_project_insight_language(language)
         self._require_profile(monitor_profile_id)
         existing = self.repository.get_by_id_for_profile(
             monitor_profile_id=monitor_profile_id,
             report_id=report_id,
+            language=normalized_language,
         )
         if existing is None:
             raise ValueError("Insights report not found.")
         return self.repository.delete_by_id_for_profile(
             monitor_profile_id=monitor_profile_id,
             report_id=report_id,
+            language=normalized_language,
         )
 
-    def clear_history(self, monitor_profile_id: int) -> int:
+    def clear_history(self, monitor_profile_id: int, *, language: str = "en") -> int:
         self._require_profile(monitor_profile_id)
-        return self.repository.delete_for_profile(monitor_profile_id)
+        return self.repository.delete_for_profile(
+            monitor_profile_id,
+            language=normalize_project_insight_language(language),
+        )
 
     def _require_profile(self, monitor_profile_id: int):
         profile = self.monitor_repository.get(monitor_profile_id)
@@ -190,7 +212,7 @@ class ProjectInsightsService:
             raise ValueError("Monitor profile not found.")
         return profile
 
-    def _build_payload(self, completed_video_rows) -> Dict[str, object]:
+    def _build_payload(self, completed_video_rows, *, language: str = "en") -> Dict[str, object]:
         sentiment_counter: Counter[str] = Counter()
         risk_counter: Counter[str] = Counter()
         praise_counter: Counter[str] = Counter()
@@ -254,9 +276,12 @@ class ProjectInsightsService:
         criticism_points = [item for item, _count in criticism_counter.most_common(5)]
         user_recommendations = [item for item, _count in recommendation_counter.most_common(5)]
 
+        is_chinese = normalize_project_insight_language(language) == "zh-Hans"
         summary_headline = (
             f"{analyzed_count} analyzed videos show {overall_sentiment} sentiment and {risk_level} risk signals."
         )
+        if is_chinese:
+            summary_headline = f"{analyzed_count} 个已分析视频显示{overall_sentiment}情绪和{risk_level}风险信号。"
         if headline_samples:
             summary_headline = headline_samples[0]
 
@@ -267,8 +292,11 @@ class ProjectInsightsService:
             praise_points=praise_points,
             criticism_points=criticism_points,
             user_recommendations=user_recommendations,
+            language=language,
         )
-        top_risk_trigger = criticism_points[0] if criticism_points else "No recurring critical trigger identified yet."
+        top_risk_trigger = criticism_points[0] if criticism_points else (
+            "暂未发现反复出现的关键风险触发点。" if is_chinese else "No recurring critical trigger identified yet."
+        )
         sentiment_breakdown = {
             "positive": int(sentiment_counter.get("positive", 0)),
             "neutral": int(sentiment_counter.get("neutral", 0)),
@@ -413,7 +441,18 @@ class ProjectInsightsService:
         praise_points: List[str],
         criticism_points: List[str],
         user_recommendations: List[str],
+        language: str = "en",
     ) -> str:
+        if normalize_project_insight_language(language) == "zh-Hans":
+            top_praise = praise_points[0] if praise_points else "暂未形成稳定的正面主题。"
+            top_criticism = criticism_points[0] if criticism_points else "暂未形成反复出现的负面主题。"
+            top_recommendation = user_recommendations[0] if user_recommendations else "暂未形成明确的建议趋势。"
+            return (
+                f"基于 {analyzed_count} 个已分析视频，创作者整体情绪偏向{overall_sentiment}，风险压力为{risk_level}。"
+                f"最强的正面信号是：{top_praise} "
+                f"最反复出现的担忧是：{top_criticism} "
+                f"创作者最常提出的建议是：{top_recommendation}"
+            )
         top_praise = praise_points[0] if praise_points else "No consistent praise theme yet."
         top_criticism = criticism_points[0] if criticism_points else "No recurring criticism theme yet."
         top_recommendation = user_recommendations[0] if user_recommendations else "No clear recommendation trend yet."
@@ -499,7 +538,32 @@ class ProjectInsightsService:
         return "\n".join(lines)
 
     @staticmethod
-    def _empty_payload(*, total_video_count: int) -> Dict[str, object]:
+    def _empty_payload(*, total_video_count: int, language: str = "en") -> Dict[str, object]:
+        if normalize_project_insight_language(language) == "zh-Hans":
+            return {
+                "overall_sentiment": "neutral",
+                "risk_level": "low",
+                "risk_score": 0.0,
+                "summary_headline": "该项目还没有已分析的视频。",
+                "summary_body": (
+                    f"该项目目前有 {total_video_count} 个视频，但还没有完成中文分析并存储转录文本的视频，"
+                    "因此暂时无法生成中文洞察报告。"
+                ),
+                "top_risk_trigger": "至少完成一个视频的中文分析后才会生成风险触发点。",
+                "praise_points": [],
+                "criticism_points": [],
+                "user_recommendations": [],
+                "sentiment_breakdown": {"positive": 0, "neutral": 0, "negative": 0},
+                "risk_breakdown": {"low": 0, "medium": 0, "high": 0, "critical": 0},
+                "reach_metrics": {
+                    "total_reach_views": 0,
+                    "negative_reach_views": 0,
+                    "negative_reach_share_pct": 0.0,
+                    "critical_risk_reach": 0,
+                    "action_required": "no_action",
+                },
+                "top_negative_videos": [],
+            }
         return {
             "overall_sentiment": "neutral",
             "risk_level": "low",
@@ -513,4 +577,14 @@ class ProjectInsightsService:
             "praise_points": [],
             "criticism_points": [],
             "user_recommendations": [],
+            "sentiment_breakdown": {"positive": 0, "neutral": 0, "negative": 0},
+            "risk_breakdown": {"low": 0, "medium": 0, "high": 0, "critical": 0},
+            "reach_metrics": {
+                "total_reach_views": 0,
+                "negative_reach_views": 0,
+                "negative_reach_share_pct": 0.0,
+                "critical_risk_reach": 0,
+                "action_required": "no_action",
+            },
+            "top_negative_videos": [],
         }

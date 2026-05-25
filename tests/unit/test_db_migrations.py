@@ -12,6 +12,7 @@ from app.db_migrations import (
     ensure_video_comments_table,
     ensure_monitor_profiles_key_products_column,
     ensure_project_insight_reports_portfolio_columns,
+    ensure_video_candidate_reach_columns,
     retire_legacy_business_impact_columns,
 )
 
@@ -166,13 +167,41 @@ def test_ensure_project_insight_reports_portfolio_columns_adds_missing_columns()
     ensure_project_insight_reports_portfolio_columns(engine)
 
     columns = {column["name"] for column in inspect(engine).get_columns("project_insight_reports")}
+    indexes = {index["name"] for index in inspect(engine).get_indexes("project_insight_reports")}
+    assert "language" in columns
     assert "sentiment_breakdown_json" in columns
     assert "risk_breakdown_json" in columns
     assert "reach_metrics_json" in columns
     assert "top_negative_videos_json" in columns
+    assert "ix_project_insight_reports_language" in indexes
 
 
-def test_ensure_project_insight_job_tables_adds_one_active_job_per_project_guard():
+def test_ensure_video_candidate_reach_columns_adds_missing_columns_and_index():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE video_candidates (
+                    id INTEGER PRIMARY KEY,
+                    monitor_profile_id INTEGER NOT NULL,
+                    youtube_video_id TEXT NOT NULL
+                )
+                """
+            )
+        )
+
+    ensure_video_candidate_reach_columns(engine)
+    ensure_video_candidate_reach_columns(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("video_candidates")}
+    indexes = {index["name"] for index in inspect(engine).get_indexes("video_candidates")}
+    assert "view_count" in columns
+    assert "view_count_fetched_at" in columns
+    assert "ix_video_candidates_view_count" in indexes
+
+
+def test_ensure_project_insight_job_tables_adds_one_active_job_per_project_language_guard():
     engine = create_engine("sqlite:///:memory:")
     ensure_project_insight_job_tables(engine)
     ensure_project_insight_job_tables(engine)
@@ -181,9 +210,11 @@ def test_ensure_project_insight_job_tables_adds_one_active_job_per_project_guard
     columns = {column["name"] for column in inspect(engine).get_columns("project_insight_jobs")}
     indexes = {index["name"] for index in inspect(engine).get_indexes("project_insight_jobs")}
     assert "project_insight_jobs" in tables
-    assert {"monitor_profile_id", "created_by", "status", "report_id", "last_error"}.issubset(columns)
+    assert {"monitor_profile_id", "language", "created_by", "status", "report_id", "last_error"}.issubset(columns)
     assert "ix_project_insight_jobs_profile_status_created" in indexes
+    assert "ix_project_insight_jobs_profile_language_status_created" in indexes
     assert "ix_project_insight_jobs_status_created" in indexes
+    assert "ux_project_insight_jobs_one_active_per_profile_language" in indexes
 
     with engine.begin() as connection:
         connection.execute(
@@ -211,6 +242,14 @@ def test_ensure_project_insight_job_tables_adds_one_active_job_per_project_guard
         raise AssertionError("Expected a second active insight job for the same project to fail.")
 
     with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO project_insight_jobs (monitor_profile_id, language, created_by, status)
+                VALUES (1, 'zh-Hans', 'Sushi_1', 'QUEUED')
+                """
+            )
+        )
         connection.execute(
             text(
                 """

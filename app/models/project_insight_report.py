@@ -9,6 +9,7 @@ class ProjectInsightReport(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     monitor_profile_id: Mapped[int] = mapped_column(ForeignKey("monitor_profiles.id"), nullable=False, index=True)
+    language: Mapped[str] = mapped_column(String(20), nullable=False, default="en", index=True)
     analyzed_video_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_video_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     excluded_video_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

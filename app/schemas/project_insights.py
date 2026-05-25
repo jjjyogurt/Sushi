@@ -8,6 +8,7 @@ from app.schemas.common import TimestampedResponse
 
 class ProjectInsightReportResponse(TimestampedResponse):
     monitor_profile_id: int
+    language: str = "en"
     analyzed_video_count: int
     total_video_count: int
     excluded_video_count: int
@@ -40,6 +41,7 @@ class ProjectInsightCurrentResponse(BaseModel):
 
 class ProjectInsightJobResponse(TimestampedResponse):
     monitor_profile_id: int
+    language: str = "en"
     created_by: str
     status: str
     report_id: Optional[int] = None

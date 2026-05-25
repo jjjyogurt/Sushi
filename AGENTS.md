@@ -173,3 +173,16 @@ When updating `DATABASE_DESIGN.md`, include a clear **What Changed** note that l
 - what changed
 - why it changed
 - impact on existing data and compatibility
+
+---
+
+## Alpha Release Test Coverage
+
+Whenever a task adds a new feature or changes user-facing behavior, update `ALPHA_RELEASE_TEST_CASES.md` in the same change set.
+
+The added or updated test case must cover:
+
+- the primary user workflow
+- expected success behavior
+- important regression or isolation risks
+- whether the check is manual, API/unit, E2E, or a combination

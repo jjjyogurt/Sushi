@@ -4,8 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Project Sushi</title>
+    <link rel="icon" type="image/svg+xml" href="/static/sushi-icon.svg?v=20260525-sushi-emoji" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-    <link rel="stylesheet" href="/static/styles.css?v=20260523-insights-loading" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260525-video-list-panel-shorter" />
   </head>
   <body>
     <div class="app-shell">
@@ -28,7 +29,7 @@
             <svg class="app-icon icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-queue-play-next"></use></svg>
             <span class="nav-label">Project</span>
           </button>
-          <button class="nav-btn" data-section="voc" type="button">
+          <button class="nav-btn" data-section="voc" type="button" hidden>
             <svg class="app-icon icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-voice-chat"></use></svg>
             <span class="nav-label">VOC</span>
           </button>
@@ -493,7 +494,7 @@
                   <textarea
                     id="manual-video-url"
                     rows="1"
-                    placeholder="Paste one or more URLs (up to 100), one per line"
+                    placeholder="Paste one or more URLs, one per line"
                   ></textarea>
                   <button id="add-manual-video-btn" class="btn btn-secondary" type="button">Add Videos</button>
                 </div>
@@ -518,6 +519,9 @@
               <section class="pane queue-list-pane">
                 <div class="pane-header">
                   <div style="display: flex; align-items: center; gap: 12px;">
+                    <label class="video-select-all-wrap" title="Select all visible videos">
+                      <input id="video-select-all" type="checkbox" aria-label="Select all visible videos" />
+                    </label>
                     <h3>Video List</h3>
                     <span id="video-count" class="meta">0</span>
                   </div>
@@ -553,6 +557,15 @@
                     <option value="neutral">Neutral</option>
                     <option value="negative">Negative</option>
                   </select>
+                  <select id="video-sort-select" aria-label="Sort videos">
+                    <option value="">Newest</option>
+                    <option value="views-desc">Views: High to Low</option>
+                    <option value="views-asc">Views: Low to High</option>
+                  </select>
+                </div>
+                <div id="video-bulk-toolbar" class="video-bulk-toolbar is-hidden">
+                  <span id="video-bulk-count" class="meta">0 selected</span>
+                  <button id="bulk-delete-videos-btn" class="btn btn-danger btn-sm" type="button">Delete selected</button>
                 </div>
                 <div id="video-list" class="video-list"></div>
               </section>
@@ -608,6 +621,24 @@
                 >
                   <svg class="app-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-history"></use></svg>
                 </button>
+                <div class="insights-language-toggle" role="group" aria-label="Insights language">
+                  <button
+                    id="insights-lang-en-btn"
+                    class="btn btn-secondary btn-sm is-active"
+                    type="button"
+                    aria-pressed="true"
+                  >
+                    English
+                  </button>
+                  <button
+                    id="insights-lang-zh-btn"
+                    class="btn btn-secondary btn-sm"
+                    type="button"
+                    aria-pressed="false"
+                  >
+                    中文
+                  </button>
+                </div>
               </div>
             </div>
             <div id="insights-empty-state" class="pane insights-empty-state">
@@ -1118,7 +1149,7 @@
         <nav class="mobile-nav">
           <button class="nav-btn active" data-section="dashboard" type="button">Dashboard</button>
           <button class="nav-btn" data-section="queue" type="button">Queue</button>
-          <button class="nav-btn" data-section="voc" type="button">VOC</button>
+          <button class="nav-btn" data-section="voc" type="button" hidden>VOC</button>
           <button class="nav-btn" data-section="watchlist" type="button">Watch list</button>
           <button class="nav-btn" data-section="alerts" type="button">Alerts</button>
           <button class="nav-btn" data-section="settings" type="button">Settings</button>
@@ -1145,6 +1176,6 @@
         </form>
       </div>
     </div>
-    <script type="module" src="/static/main.js?v=20260523-insights-loading"></script>
+    <script type="module" src="/static/main.js?v=20260525-video-list-bulk-sort"></script>
   </body>
 </html>

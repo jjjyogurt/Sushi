@@ -169,12 +169,14 @@ def test_refresh_insights_uses_only_completed_with_db_transcripts(client, insigh
     assert response.status_code == 200
     job_payload = response.json()
     assert job_payload["monitor_profile_id"] == profile.id
+    assert job_payload["language"] == "en"
     assert job_payload["status"] == "queued"
 
     current_response = client.get(f"/monitor-profiles/{profile.id}/insights/current")
     assert current_response.status_code == 200
     payload = current_response.json()["current"]
     assert payload["monitor_profile_id"] == profile.id
+    assert payload["language"] == "en"
     assert payload["analyzed_video_count"] == 1
     assert payload["total_video_count"] == 3
     assert payload["excluded_video_count"] == 2
@@ -280,29 +282,114 @@ def test_refresh_jobs_dedupe_per_project_but_allow_other_projects(client, insigh
 
     first = client.post(f"/monitor-profiles/{profile_a.id}/insights/refresh")
     duplicate = client.post(f"/monitor-profiles/{profile_a.id}/insights/refresh")
+    other_language = client.post(f"/monitor-profiles/{profile_a.id}/insights/refresh?language=zh-Hans")
     other_project = client.post(f"/monitor-profiles/{profile_b.id}/insights/refresh")
 
     assert first.status_code == 200
     assert duplicate.status_code == 200
+    assert other_language.status_code == 200
     assert other_project.status_code == 200
     first_payload = first.json()
     duplicate_payload = duplicate.json()
+    other_language_payload = other_language.json()
     other_payload = other_project.json()
 
     assert first_payload["id"] == duplicate_payload["id"]
+    assert other_language_payload["id"] != first_payload["id"]
     assert first_payload["monitor_profile_id"] == profile_a.id
+    assert first_payload["language"] == "en"
     assert duplicate_payload["monitor_profile_id"] == profile_a.id
+    assert other_language_payload["monitor_profile_id"] == profile_a.id
+    assert other_language_payload["language"] == "zh-Hans"
     assert other_payload["id"] != first_payload["id"]
     assert other_payload["monitor_profile_id"] == profile_b.id
     assert first_payload["status"] == "queued"
+    assert other_language_payload["status"] == "queued"
     assert other_payload["status"] == "queued"
 
     active_a = client.get(f"/monitor-profiles/{profile_a.id}/insights/jobs/active")
+    active_a_zh = client.get(f"/monitor-profiles/{profile_a.id}/insights/jobs/active?language=zh-Hans")
     active_b = client.get(f"/monitor-profiles/{profile_b.id}/insights/jobs/active")
     assert active_a.status_code == 200
+    assert active_a_zh.status_code == 200
     assert active_b.status_code == 200
     assert active_a.json()["active"]["id"] == first_payload["id"]
+    assert active_a_zh.json()["active"]["id"] == other_language_payload["id"]
     assert active_b.json()["active"]["id"] == other_payload["id"]
+
+
+def test_insights_reports_are_separated_by_language(client, insights_db_session):
+    profile = create_profile(insights_db_session, "Insights Language Profile")
+    video = _seed_video(insights_db_session, profile.id, "insight-language-1")
+
+    insights_db_session.add_all(
+        [
+            AnalysisResult(
+                video_candidate_id=video.id,
+                analysis_version="v1",
+                language="en",
+                model_name="test-model",
+                status=AnalysisStatus.COMPLETED,
+                transcript_text="English transcript available",
+                summary_text="summary",
+                translated_summary="summary",
+                summary_headline="English creator signal.",
+                summary_body="English report body.",
+                sentiment=Sentiment.POSITIVE,
+                risk_level=RiskLevel.LOW,
+                confidence_score="0.8",
+                evidence_json="[]",
+                insights_json=encode_json(
+                    {
+                        "praise_points": ["English praise"],
+                        "criticism_points": ["English concern"],
+                        "action_recommendation": "English action",
+                    }
+                ),
+                error_message="",
+            ),
+            AnalysisResult(
+                video_candidate_id=video.id,
+                analysis_version="v1",
+                language="zh-Hans",
+                model_name="test-model",
+                status=AnalysisStatus.COMPLETED,
+                transcript_text="中文转录可用",
+                summary_text="摘要",
+                translated_summary="摘要",
+                summary_headline="中文创作者信号。",
+                summary_body="中文报告正文。",
+                sentiment=Sentiment.NEUTRAL,
+                risk_level=RiskLevel.MEDIUM,
+                confidence_score="0.8",
+                evidence_json="[]",
+                insights_json=encode_json(
+                    {
+                        "praise_points": ["中文赞扬"],
+                        "criticism_points": ["中文担忧"],
+                        "action_recommendation": "中文行动",
+                    }
+                ),
+                error_message="",
+            ),
+        ]
+    )
+    insights_db_session.commit()
+
+    en_refresh = client.post(f"/monitor-profiles/{profile.id}/insights/refresh")
+    zh_refresh = client.post(f"/monitor-profiles/{profile.id}/insights/refresh?language=zh-Hans")
+    assert en_refresh.status_code == 200
+    assert zh_refresh.status_code == 200
+
+    en_current = client.get(f"/monitor-profiles/{profile.id}/insights/current").json()["current"]
+    zh_current = client.get(f"/monitor-profiles/{profile.id}/insights/current?language=zh-Hans").json()["current"]
+
+    assert en_current["language"] == "en"
+    assert en_current["summary_headline"] == "English creator signal."
+    assert en_current["praise_points"] == ["English praise"]
+    assert zh_current["language"] == "zh-Hans"
+    assert zh_current["summary_headline"] == "中文创作者信号。"
+    assert zh_current["praise_points"] == ["中文赞扬"]
 
 
 def test_insights_history_delete_single_and_clear_all(client, insights_db_session):

@@ -1176,3 +1176,44 @@
 - Changes: Deployed `sushi-backend-00009-r5h` with 100% traffic and cache-busted static assets.
 - Check: Production health 200; Gemini ready; auth guard 401; no revision error logs; Browser verified VCOPTER Insights.
 - Next: Monitor production while users exercise Insights.
+
+## 2026-05-25 12:50
+- Task: Add Chinese language switching to project Insights.
+- Changes: Added language-aware insight reports/jobs, API queries, UI toggle, migrations, DB docs, and regression tests.
+- Check: Full unit suite 156 passed; Browser verified English/中文 switching and refresh on local app.
+- Next: Deploy backend and static assets together when ready.
+
+## 2026-05-25 14:48
+- Task: Hide VOC navigation entry for now.
+- Changes: Hid desktop sidebar and mobile nav VOC buttons while keeping VOC code, panel, APIs, and translations intact; added alpha test coverage.
+- Check: `python3 -m pytest -q tests/unit/test_static_insights_regression.py` passed.
+- Next: Re-enable the hidden nav buttons when VOC is ready to surface again.
+## 2026-05-25 17:14
+- Task: Clean up video list row text layout.
+- Changes: Collapsed stacked secondary fields into a compact metadata line and narrowed the left rail so row text uses more width.
+- Check: `node --check app/static/queue.js`; `pytest tests/unit/test_static_insights_regression.py -q`; browser row-height verification.
+- Next: Review the list visually on mobile and desktop after another content refresh.
+
+## 2026-05-25 16:56
+- Task: Polish video list panel layout.
+- Changes: Increased desktop video list pane height and added left-side row numbers without changing selected-row shading.
+- Check: `node --check app/static/queue.js`; `pytest tests/unit/test_static_insights_regression.py -q`; browser DOM verification.
+- Next: Confirm the taller list feels right on the target desktop viewport.
+
+## 2026-05-25 16:14
+- Task: Add production-ready video list bulk delete and view sorting.
+- Changes: Added cached view counts, ownership-safe bulk delete, list selection controls, view sort UI, docs, and release test coverage.
+- Check: `pytest tests/unit -q`; `python -m compileall app`; JS syntax checks; browser layout/selection smoke test.
+- Next: Validate view-count refresh against production YouTube API quota behavior after deploy.
+
+## 2026-05-25 16:47
+- Task: Remove URL limit text from Add Video URLs placeholder.
+- Changes: Removed the visible `(up to 100)` wording from the template and i18n placeholder.
+- Check: `rg -n "up to 100|Paste one or more URLs" app/templates app/static`.
+- Next: No follow-up needed.
+
+## 2026-05-25 16:58
+- Task: Add sushi emoji browser tab icon.
+- Changes: Added an emoji SVG favicon and wired it in the HTML head without changing the in-page topbar.
+- Check: Static regression test 8 passed; SVG validation; `git diff --check`; Browser verified favicon URL and unchanged topbar markup.
+- Next: Deploy static assets when this frontend batch is ready.

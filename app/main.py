@@ -34,6 +34,7 @@ from app.db_migrations import (
     retire_legacy_business_impact_columns,
     ensure_video_candidate_scoped_youtube_uniqueness,
     ensure_video_candidate_assignment_columns,
+    ensure_video_candidate_reach_columns,
     ensure_video_comments_table,
 )
 from app.db import get_db_engine
@@ -62,6 +63,7 @@ async def lifespan(_: FastAPI):
     ensure_analysis_results_comment_columns(engine)
     ensure_video_comments_table(engine)
     ensure_video_candidate_assignment_columns(engine)
+    ensure_video_candidate_reach_columns(engine)
     ensure_video_candidate_scoped_youtube_uniqueness(engine)
     ensure_project_insight_reports_portfolio_columns(engine)
     retire_legacy_business_impact_columns(engine)

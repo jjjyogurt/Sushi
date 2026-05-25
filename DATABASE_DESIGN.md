@@ -145,6 +145,7 @@ erDiagram
   - scoped unique index: `(monitor_profile_id, youtube_video_id)`
   - queue state: `discovered`, `approved`, `rejected`
   - includes assignment fields (`assigned_user_id`, `assigned_by`, `assigned_at`)
+  - includes cached YouTube reach fields (`view_count`, `view_count_fetched_at`) for list sorting
 
 ### 2) Analysis + Comments + Insights
 
@@ -155,6 +156,7 @@ erDiagram
   - unique index: `(video_candidate_id, youtube_comment_id)`
   - non-unique lookup index: `youtube_comment_id`
 - `project_insight_reports`: project-level rollups generated from latest completed video analyses.
+  - `language`: report output language (`en` or `zh-Hans`), matching the video analysis rows used for aggregation.
   - stores executive rollup metrics for portfolio reporting:
     - `sentiment_breakdown_json` (positive/neutral/negative counts)
     - `risk_breakdown_json` (low/medium/high/critical counts)
@@ -162,8 +164,9 @@ erDiagram
     - `top_negative_videos_json` (top 5 negative videos by reach)
 - `project_insight_jobs`: durable async project insight refresh jobs.
   - state: `queued/running/completed/failed/cancelled`
-  - one active job (`queued` or `running`) is allowed per `monitor_profile_id`
-  - different projects can refresh insights concurrently, including across users
+  - `language`: requested report language (`en` or `zh-Hans`)
+  - one active job (`queued` or `running`) is allowed per `monitor_profile_id + language`
+  - different projects and different languages can refresh insights concurrently, including across users
   - completed jobs link to the generated `project_insight_reports.id`
 - `analysis_batches`: durable async batch runs for “Run all analysis” with aggregate progress counters.
 - `analysis_batch_items`: per-video execution state for each batch (`queued/running/completed/failed/cancelled`), including attempts and failure message.
@@ -233,10 +236,10 @@ Notes:
 6. Escalate incident:
   - create `incidents` + `alerts`
 7. Refresh project insights:
-  - insert or return active `project_insight_jobs` row for the selected project
+  - insert or return active `project_insight_jobs` row for the selected project and language
   - Cloud Tasks wakes the analysis worker, or local/dev background fallback drains the queued job
-  - aggregate latest completed analysis rows
-  - write `project_insight_reports`
+  - aggregate latest completed analysis rows for the requested language
+  - write `project_insight_reports` with the matching language
   - mark the job `completed` with `report_id`, or `failed` with `last_error`
 
 ---
@@ -254,14 +257,25 @@ Startup migration helpers currently ensure/repair:
 - analysis `agent_settings_hash` column + hash-aware unique index
 - analysis comment summary columns
 - analysis batch tables (`analysis_batches`, `analysis_batch_items`)
-- project insight job table and one-active-job-per-project guard
+- project insight job table and one-active-job-per-project-language guard
 - `video_comments` table
 - video assignment columns
-- project insight portfolio metrics columns
+- video reach cache columns (`view_count`, `view_count_fetched_at`)
+- project insight language and portfolio metrics columns
 - default app users
 - orphan/stale cleanup across dependent tables
 
 Because this project uses imperative startup migrations, changes to models should also include corresponding migration helper updates when needed.
+
+### What Changed (2026-05-25, video list bulk delete and view sorting)
+- What changed: Added nullable `video_candidates.view_count` and `video_candidates.view_count_fetched_at` with an index on `view_count` so the project video list can sort by cached YouTube view count. Added ownership-checked bulk video deletion that reuses existing dependent-row cleanup and blocks selected videos that are currently queued/running in an analysis batch.
+- Why it changed: Marketing users need to rank videos by reach and remove multiple irrelevant videos from the list without one-by-one cleanup.
+- Impact on existing data and compatibility: Existing video rows start with unknown view counts and are backfilled lazily when the list is sorted by views. Default video listing remains published-date sorted, single-video delete remains compatible, and deleting videos continues to remove dependent analysis, comments, chats, incidents, watchlist, and batch item rows.
+
+### What Changed (2026-05-25, bilingual project insights)
+- What changed: Added `language` to `project_insight_reports` and `project_insight_jobs`, changed project insights current/history/refresh/job reads to accept `en` or `zh-Hans`, and changed the active-job guard from one job per project to one job per project-language.
+- Why it changed: The insights page now supports the same English/Chinese switching model as video analysis, so reports must aggregate and persist the matching language-specific analysis rows instead of reusing an English-only rollup.
+- Impact on existing data and compatibility: Existing reports and jobs are backfilled to `en` by startup migration. English behavior remains compatible. Chinese insights require completed `zh-Hans` video analysis rows before the Chinese report has coverage.
 
 ### What Changed (2026-05-22, async project insight jobs)
 - What changed: Added `project_insight_jobs` with queued/running/completed/failed/cancelled status, creator tracking, error tracking, timestamps, optional `report_id`, and a partial unique guard that allows only one active insight job per project while allowing separate projects to run concurrently.

@@ -19,16 +19,17 @@ class ProjectInsightJobService:
         self.repository = ProjectInsightJobRepository(session)
         self.access_control = AccessControlService(session)
 
-    def create_or_get_active_job(self, *, monitor_profile_id: int, user_id: str) -> ProjectInsightJob:
+    def create_or_get_active_job(self, *, monitor_profile_id: int, user_id: str, language: str = "en") -> ProjectInsightJob:
         self.access_control.require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=user_id)
         return self.repository.create_or_get_active(
             monitor_profile_id=monitor_profile_id,
+            language=language,
             created_by=user_id,
         )
 
-    def get_active_job(self, *, monitor_profile_id: int, user_id: str) -> Optional[ProjectInsightJob]:
+    def get_active_job(self, *, monitor_profile_id: int, user_id: str, language: str = "en") -> Optional[ProjectInsightJob]:
         self.access_control.require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=user_id)
-        return self.repository.get_latest_active_for_profile(monitor_profile_id)
+        return self.repository.get_latest_active_for_profile(monitor_profile_id, language=language)
 
     def get_job(self, *, monitor_profile_id: int, job_id: int, user_id: str) -> ProjectInsightJob:
         self.access_control.require_profile_owner(monitor_profile_id=monitor_profile_id, user_id=user_id)
@@ -43,7 +44,7 @@ class ProjectInsightJobService:
             return False
 
         try:
-            report = ProjectInsightsService(self.session).refresh_report(job.monitor_profile_id)
+            report = ProjectInsightsService(self.session).refresh_report(job.monitor_profile_id, language=job.language)
             self.repository.mark_completed(job_id=job.id, report_id=report.id)
         except Exception as error:  # noqa: BLE001
             logger.exception(

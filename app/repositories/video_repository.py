@@ -1,13 +1,14 @@
-from typing import List, Optional
+from datetime import datetime
+from typing import Dict, List, Optional
 
-from sqlalchemy import desc
+from sqlalchemy import asc, desc
 from sqlalchemy.orm import Session
 
 from app.models.video_watchlist_entry import VideoWatchlistEntry
-from app.models.analysis_batch import AnalysisBatchItem
+from app.models.analysis_batch import AnalysisBatch, AnalysisBatchItem
 from app.models.analysis_result import AnalysisResult
 from app.models.chat import ChatMessage, ChatSession
-from app.models.enums import QueueState
+from app.models.enums import AnalysisBatchItemStatus, AnalysisBatchStatus, QueueState
 from app.models.incident import Alert, Incident
 from app.models.monitor_profile import MonitorProfile
 from app.models.video_candidate import VideoCandidate
@@ -35,6 +36,18 @@ class VideoRepository:
             .filter(VideoCandidate.id == video_id)
             .filter(MonitorProfile.owner_user_id == owner_user_id)
             .one_or_none()
+        )
+
+    def list_by_ids_for_user(self, *, video_ids: List[int], owner_user_id: str) -> List[VideoCandidate]:
+        normalized_ids = [int(video_id) for video_id in dict.fromkeys(video_ids)]
+        if not normalized_ids:
+            return []
+        return (
+            self.session.query(VideoCandidate)
+            .join(MonitorProfile, MonitorProfile.id == VideoCandidate.monitor_profile_id)
+            .filter(VideoCandidate.id.in_(normalized_ids))
+            .filter(MonitorProfile.owner_user_id == owner_user_id)
+            .all()
         )
 
     def upsert_candidate(
@@ -96,6 +109,12 @@ class VideoRepository:
         candidate = self.get_by_id(video_id)
         if candidate is None:
             return False
+        self._delete_loaded_candidate(candidate)
+        self.session.commit()
+        return True
+
+    def _delete_loaded_candidate(self, candidate: VideoCandidate) -> None:
+        video_id = candidate.id
         incident_id_query = self.session.query(Incident.id).filter(Incident.video_candidate_id == video_id)
         chat_session_id_query = self.session.query(ChatSession.id).filter(ChatSession.video_candidate_id == video_id)
         self.session.query(Alert).filter(Alert.incident_id.in_(incident_id_query)).delete(synchronize_session=False)
@@ -115,8 +134,58 @@ class VideoRepository:
             synchronize_session=False
         )
         self.session.delete(candidate)
+
+    def delete_many(self, video_ids: List[int]) -> int:
+        normalized_ids = [int(video_id) for video_id in dict.fromkeys(video_ids)]
+        candidates = self.session.query(VideoCandidate).filter(VideoCandidate.id.in_(normalized_ids)).all()
+        candidates_by_id = {candidate.id: candidate for candidate in candidates}
+        deleted_count = 0
+        for video_id in normalized_ids:
+            candidate = candidates_by_id.get(video_id)
+            if candidate is None:
+                continue
+            self._delete_loaded_candidate(candidate)
+            deleted_count += 1
         self.session.commit()
-        return True
+        return deleted_count
+
+    def get_active_batch_video_ids(self, video_ids: List[int]) -> set[int]:
+        normalized_ids = [int(video_id) for video_id in dict.fromkeys(video_ids)]
+        if not normalized_ids:
+            return set()
+        rows = (
+            self.session.query(AnalysisBatchItem.video_id)
+            .join(AnalysisBatch, AnalysisBatch.id == AnalysisBatchItem.batch_id)
+            .filter(AnalysisBatch.status.in_([AnalysisBatchStatus.QUEUED, AnalysisBatchStatus.RUNNING]))
+            .filter(AnalysisBatchItem.status.in_([AnalysisBatchItemStatus.QUEUED, AnalysisBatchItemStatus.RUNNING]))
+            .filter(AnalysisBatchItem.video_id.in_(normalized_ids))
+            .all()
+        )
+        return {int(row[0]) for row in rows}
+
+    def update_view_counts(self, *, view_counts_by_youtube_id: Dict[str, int], fetched_at: datetime) -> int:
+        if not view_counts_by_youtube_id:
+            return 0
+        updated_count = 0
+        for youtube_video_id, view_count in view_counts_by_youtube_id.items():
+            normalized_id = str(youtube_video_id or "").strip()
+            if not normalized_id:
+                continue
+            try:
+                normalized_count = max(0, int(view_count))
+            except (TypeError, ValueError):
+                continue
+            rows = (
+                self.session.query(VideoCandidate)
+                .filter(VideoCandidate.youtube_video_id == normalized_id)
+                .all()
+            )
+            for row in rows:
+                row.view_count = normalized_count
+                row.view_count_fetched_at = fetched_at
+                updated_count += 1
+        self.session.commit()
+        return updated_count
 
     def assign_user(self, *, video_id: int, assigned_user_id: Optional[str], actor: str) -> Optional[VideoCandidate]:
         from datetime import datetime, timezone
@@ -141,6 +210,8 @@ class VideoRepository:
         sentiment: Optional[str] = None,
         title_query: Optional[str] = None,
         owner_user_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> List[VideoCandidate]:
         from app.models.analysis_result import AnalysisResult
         from sqlalchemy import and_, func
@@ -194,4 +265,10 @@ class VideoRepository:
             if normalized_query:
                 query = query.filter(VideoCandidate.normalized_title.contains(normalized_query))
 
-        return query.order_by(desc(VideoCandidate.published_at)).all()
+        normalized_sort_by = str(sort_by or "").strip().lower()
+        normalized_sort_order = str(sort_order or "").strip().lower()
+        if normalized_sort_by == "views":
+            view_order = desc(VideoCandidate.view_count) if normalized_sort_order != "asc" else asc(VideoCandidate.view_count)
+            return query.order_by(view_order.nulls_last(), desc(VideoCandidate.published_at), desc(VideoCandidate.id)).all()
+
+        return query.order_by(desc(VideoCandidate.published_at), desc(VideoCandidate.id)).all()

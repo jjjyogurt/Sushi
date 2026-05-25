@@ -18,13 +18,14 @@ class ProjectInsightJobRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    def create_or_get_active(self, *, monitor_profile_id: int, created_by: str) -> ProjectInsightJob:
-        existing = self.get_latest_active_for_profile(monitor_profile_id)
+    def create_or_get_active(self, *, monitor_profile_id: int, language: str, created_by: str) -> ProjectInsightJob:
+        existing = self.get_latest_active_for_profile(monitor_profile_id, language=language)
         if existing is not None:
             return existing
 
         job = ProjectInsightJob(
             monitor_profile_id=monitor_profile_id,
+            language=language,
             created_by=created_by,
             status=ProjectInsightJobStatus.QUEUED,
             report_id=None,
@@ -35,7 +36,7 @@ class ProjectInsightJobRepository:
             self.session.commit()
         except IntegrityError:
             self.session.rollback()
-            existing_after_race = self.get_latest_active_for_profile(monitor_profile_id)
+            existing_after_race = self.get_latest_active_for_profile(monitor_profile_id, language=language)
             if existing_after_race is not None:
                 return existing_after_race
             raise
@@ -53,10 +54,11 @@ class ProjectInsightJobRepository:
             .one_or_none()
         )
 
-    def get_latest_active_for_profile(self, monitor_profile_id: int) -> Optional[ProjectInsightJob]:
+    def get_latest_active_for_profile(self, monitor_profile_id: int, *, language: str = "en") -> Optional[ProjectInsightJob]:
         return (
             self.session.query(ProjectInsightJob)
             .filter(ProjectInsightJob.monitor_profile_id == monitor_profile_id)
+            .filter(ProjectInsightJob.language == language)
             .filter(ProjectInsightJob.status.in_(ACTIVE_STATUSES))
             .order_by(ProjectInsightJob.created_at.desc(), ProjectInsightJob.id.desc())
             .first()

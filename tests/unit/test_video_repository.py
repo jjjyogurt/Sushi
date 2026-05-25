@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 
 from app.models.analysis_result import AnalysisResult
+from app.models.analysis_batch import AnalysisBatch, AnalysisBatchItem
 from app.models.chat import ChatMessage, ChatSession
-from app.models.enums import AnalysisStatus, RiskLevel, Sentiment
+from app.models.enums import AnalysisBatchItemStatus, AnalysisBatchStatus, AnalysisStatus, RiskLevel, Sentiment
 from app.models.incident import Alert, Incident
 from app.models.monitor_profile import MonitorProfile
 from app.models.video_comment import VideoComment
@@ -307,6 +308,103 @@ def test_list_filters_by_sentiment_on_latest_analysis(db_session, monitor_profil
 
     filtered = repository.list(monitor_profile_id=monitor_profile.id, sentiment="negative")
     assert [item.youtube_video_id for item in filtered] == ["sentiment-negative"]
+
+
+def test_list_sorts_by_view_count_with_unknowns_last(db_session, monitor_profile):
+    repository = VideoRepository(db_session)
+    high = repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="views-high",
+        video_url="https://youtu.be/views-high",
+        title="Views high",
+        channel_name="CreatorHigh",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.7,
+        relevance_reason="seed",
+    )
+    low = repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="views-low",
+        video_url="https://youtu.be/views-low",
+        title="Views low",
+        channel_name="CreatorLow",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.6,
+        relevance_reason="seed",
+    )
+    repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="views-unknown",
+        video_url="https://youtu.be/views-unknown",
+        title="Views unknown",
+        channel_name="CreatorUnknown",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+    high.view_count = 5000
+    low.view_count = 25
+    db_session.commit()
+
+    descending = repository.list(monitor_profile_id=monitor_profile.id, sort_by="views", sort_order="desc")
+    ascending = repository.list(monitor_profile_id=monitor_profile.id, sort_by="views", sort_order="asc")
+
+    assert [item.youtube_video_id for item in descending] == ["views-high", "views-low", "views-unknown"]
+    assert [item.youtube_video_id for item in ascending] == ["views-low", "views-high", "views-unknown"]
+
+
+def test_get_active_batch_video_ids_returns_queued_and_running_matches(db_session, monitor_profile):
+    repository = VideoRepository(db_session)
+    queued_video = repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="batch-queued",
+        video_url="https://youtu.be/batch-queued",
+        title="Batch queued",
+        channel_name="Creator",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+    completed_video = repository.upsert_candidate(
+        monitor_profile_id=monitor_profile.id,
+        youtube_video_id="batch-completed",
+        video_url="https://youtu.be/batch-completed",
+        title="Batch completed",
+        channel_name="Creator",
+        language="en",
+        published_at=datetime.now(timezone.utc),
+        relevance_score=0.5,
+        relevance_reason="seed",
+    )
+    batch = AnalysisBatch(
+        monitor_profile_id=monitor_profile.id,
+        created_by="Sushi_1",
+        status=AnalysisBatchStatus.RUNNING,
+        total_count=2,
+    )
+    db_session.add(batch)
+    db_session.flush()
+    db_session.add_all(
+        [
+            AnalysisBatchItem(
+                batch_id=batch.id,
+                video_id=queued_video.id,
+                status=AnalysisBatchItemStatus.QUEUED,
+            ),
+            AnalysisBatchItem(
+                batch_id=batch.id,
+                video_id=completed_video.id,
+                status=AnalysisBatchItemStatus.COMPLETED,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    assert repository.get_active_batch_video_ids([queued_video.id, completed_video.id]) == {queued_video.id}
 
 
 def test_delete_removes_video_dependencies(db_session, monitor_profile):

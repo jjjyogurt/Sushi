@@ -7,6 +7,7 @@ function initialState() {
     editingProjectId: null,
     videos: [],
     selectedVideoId: null,
+    selectedVideoIds: [],
     currentUser: null,
     appUsers: [],
     tokenInputs: {

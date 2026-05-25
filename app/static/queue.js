@@ -56,6 +56,14 @@ function sentimentBadge(sentimentLabel) {
   return `<span class="badge ${css}">${escapeHtml(sentimentLabel)}</span>`;
 }
 
+function formatVideoViews(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    return t("unknown");
+  }
+  return numericValue.toLocaleString();
+}
+
 function parseManualVideoUrls(rawValue) {
   const candidates = String(rawValue || "")
     .match(/https?:\/\/[^\s,]+/gi) || [];
@@ -307,7 +315,7 @@ export function createQueueController({
     profileSelect.value = state.selectedProfileId ? String(state.selectedProfileId) : "";
   }
 
-  function renderVideoListItem(video, isGlobalScope, isActive, isNew) {
+  function renderVideoListItem(video, isGlobalScope, isActive, isNew, isSelected, rowNumber) {
     const projectMeta = isGlobalScope && video.monitor_profile_name ? ` • ${escapeHtml(video.monitor_profile_name)}` : "";
     const sentimentMarkup = sentimentBadge(video.sentiment_label);
     const newBadgeMarkup = isNew ? `<span class="badge new-video-badge">${escapeHtml(t("new"))}</span>` : "";
@@ -323,12 +331,24 @@ export function createQueueController({
     )}</strong>`;
     const publishedLabel = escapeHtml(t("publishedAt"));
     const publishedFormatted = formatVideoPublishedAt(video.published_at);
-    const publishedLine = publishedFormatted
-      ? `<div class="meta video-row-published">${publishedLabel}: ${escapeHtml(publishedFormatted)}</div>`
-      : "";
+    const metadataItems = [
+      analysisStatusLine,
+      publishedFormatted ? `${publishedLabel}: ${escapeHtml(publishedFormatted)}` : "",
+      `${escapeHtml(t("videoViews"))}: ${escapeHtml(formatVideoViews(video.view_count))}`,
+      escapeHtml(formatLanguageLabel(video.language)),
+    ].filter(Boolean);
 
     return `
-      <div class="video-list-row ${isActive ? "active" : ""}">
+      <div class="video-list-row ${isActive ? "active" : ""} ${isSelected ? "is-selected" : ""}">
+        <span class="video-row-number" aria-hidden="true">${escapeHtml(String(rowNumber))}</span>
+        <label class="video-row-select-wrap" aria-label="${escapeHtml(t("selectVideo"))}">
+          <input
+            class="video-row-checkbox"
+            type="checkbox"
+            data-select-video-id="${video.id}"
+            ${isSelected ? "checked" : ""}
+          />
+        </label>
         <button class="video-item ${isActive ? "active" : ""}" data-video-id="${video.id}" type="button">
           ${analysisStatusBadge(video)}
           <div class="meta-row">
@@ -338,10 +358,8 @@ export function createQueueController({
             ${assigneeMarkup}
           </div>
           <h4>${escapeHtml(video.title)}</h4>
-          <div class="meta video-row-analysis">${analysisStatusLine}</div>
-          ${publishedLine}
-          <div class="meta">
-            ${escapeHtml(formatLanguageLabel(video.language))}
+          <div class="meta video-row-meta-line">
+            ${metadataItems.map((item) => `<span>${item}</span>`).join("")}
           </div>
         </button>
         <button
@@ -375,8 +393,10 @@ export function createQueueController({
     const state = getState();
     const isGlobalScope = state.selectedProfileId === null;
     const newVideoIdSet = new Set(state.newVideoIds);
+    const selectedIdSet = new Set(state.selectedVideoIds);
 
     count.textContent = String(state.videos.length);
+    renderBulkSelectionControls();
     if (state.videos.length === 0) {
       const emptyMessage = isGlobalScope ? t("emptyGlobalQueue") : t("emptyProjectQueue");
       list.innerHTML = `<div class="video-detail-empty">${escapeHtml(emptyMessage)}</div>`;
@@ -384,10 +404,42 @@ export function createQueueController({
     }
 
     list.innerHTML = state.videos
-      .map((video) =>
-        renderVideoListItem(video, isGlobalScope, video.id === state.selectedVideoId, newVideoIdSet.has(video.id))
+      .map((video, index) =>
+        renderVideoListItem(
+          video,
+          isGlobalScope,
+          video.id === state.selectedVideoId,
+          newVideoIdSet.has(video.id),
+          selectedIdSet.has(video.id),
+          index + 1
+        )
       )
       .join("");
+    renderBulkSelectionControls();
+  }
+
+  function renderBulkSelectionControls() {
+    const state = getState();
+    const selectedVisibleIds = state.selectedVideoIds.filter((videoId) =>
+      state.videos.some((video) => video.id === videoId)
+    );
+    const toolbar = getElement("video-bulk-toolbar");
+    const countLabel = getElement("video-bulk-count");
+    const selectAll = getElement("video-select-all");
+
+    if (toolbar) {
+      toolbar.classList.toggle("is-hidden", selectedVisibleIds.length === 0);
+    }
+    if (countLabel) {
+      countLabel.textContent =
+        selectedVisibleIds.length === 1
+          ? t("selectedVideoCountSingular")
+          : t("selectedVideoCount", { count: selectedVisibleIds.length });
+    }
+    if (selectAll instanceof HTMLInputElement) {
+      selectAll.checked = state.videos.length > 0 && selectedVisibleIds.length === state.videos.length;
+      selectAll.indeterminate = selectedVisibleIds.length > 0 && selectedVisibleIds.length < state.videos.length;
+    }
   }
 
   function markNewlyAddedVideos(previousVideoIds, nextVideos) {
@@ -430,6 +482,18 @@ export function createQueueController({
       .filter(Boolean);
   }
 
+  function getSelectedSort() {
+    const sortSelect = getElement("video-sort-select");
+    const value = sortSelect instanceof HTMLSelectElement ? sortSelect.value.trim() : "";
+    if (value === "views-desc") {
+      return { sortBy: "views", sortOrder: "desc" };
+    }
+    if (value === "views-asc") {
+      return { sortBy: "views", sortOrder: "asc" };
+    }
+    return { sortBy: "", sortOrder: "" };
+  }
+
   function updateRiskFilterLabel() {
     const label = getElement("risk-filter-label");
     if (!label) {
@@ -460,6 +524,7 @@ export function createQueueController({
     const riskFilters = getSelectedRiskLevels();
     const sentimentFilter = (getElement("sentiment-filter")?.value || "").trim();
     const titleFilter = getKeywordSearchValue();
+    const selectedSort = getSelectedSort();
     const query = new URLSearchParams();
     if (state.selectedProfileId) {
       query.set("monitor_profile_id", String(state.selectedProfileId));
@@ -473,6 +538,10 @@ export function createQueueController({
     if (titleFilter) {
       query.set("title", titleFilter);
     }
+    if (selectedSort.sortBy) {
+      query.set("sort_by", selectedSort.sortBy);
+      query.set("sort_order", selectedSort.sortOrder);
+    }
 
     const data = await request(`/videos?${query.toString()}`, { cache: "no-store" });
     const nextVideos = Array.isArray(data.items) ? data.items : [];
@@ -484,6 +553,9 @@ export function createQueueController({
       ...previous,
       videos: nextVideos,
       selectedVideoId,
+      selectedVideoIds: previous.selectedVideoIds.filter((videoId) =>
+        nextVideos.some((video) => video.id === videoId)
+      ),
       newVideoIds: previous.newVideoIds.filter((videoId) => nextVideos.some((video) => video.id === videoId)),
       analysisLanguageByVideoId: Object.fromEntries(
         Object.entries(previous.analysisLanguageByVideoId || {}).filter(([videoId]) =>
@@ -734,6 +806,74 @@ export function createQueueController({
     await refreshVideos();
   }
 
+  async function deleteSelectedVideos() {
+    const state = getState();
+    const selectedIds = state.selectedVideoIds.filter((videoId) =>
+      state.videos.some((video) => video.id === videoId)
+    );
+    if (selectedIds.length === 0) {
+      return;
+    }
+    const confirmMessage =
+      selectedIds.length === 1
+        ? t("confirmDeleteVideo")
+        : t("confirmDeleteSelectedVideos", { count: selectedIds.length });
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    onAnyVideoAction?.();
+    clearNewVideoLabels();
+    await request("/videos/bulk-delete", {
+      method: "POST",
+      body: JSON.stringify({
+        video_ids: selectedIds,
+      }),
+    });
+
+    videoDetailController.resetCaches();
+    setState((previous) => ({
+      ...previous,
+      selectedVideoId: selectedIds.includes(previous.selectedVideoId) ? null : previous.selectedVideoId,
+      selectedVideoIds: [],
+    }));
+    await refreshVideos();
+  }
+
+  function toggleVideoSelection(videoId, isSelected) {
+    setState((previous) => {
+      const selectedSet = new Set(previous.selectedVideoIds);
+      if (isSelected) {
+        selectedSet.add(videoId);
+      } else {
+        selectedSet.delete(videoId);
+      }
+      return {
+        ...previous,
+        selectedVideoIds: Array.from(selectedSet),
+      };
+    });
+    renderVideos();
+  }
+
+  function toggleSelectAllVisible(isSelected) {
+    const state = getState();
+    const visibleIds = state.videos.map((video) => video.id);
+    setState((previous) => {
+      if (!isSelected) {
+        return {
+          ...previous,
+          selectedVideoIds: previous.selectedVideoIds.filter((videoId) => !visibleIds.includes(videoId)),
+        };
+      }
+      return {
+        ...previous,
+        selectedVideoIds: Array.from(new Set([...previous.selectedVideoIds, ...visibleIds])),
+      };
+    });
+    renderVideos();
+  }
+
   async function toggleWatchlist(videoId) {
     const state = getState();
     const targetVideo = state.videos.find((video) => video.id === videoId);
@@ -783,6 +923,14 @@ export function createQueueController({
         if (!(target instanceof Element)) {
           return;
         }
+        const selectCheckbox = target.closest("[data-select-video-id]");
+        if (selectCheckbox instanceof HTMLInputElement) {
+          const selectVideoId = Number(selectCheckbox.dataset.selectVideoId);
+          if (!Number.isNaN(selectVideoId)) {
+            toggleVideoSelection(selectVideoId, selectCheckbox.checked);
+          }
+          return;
+        }
         const deleteButton = target.closest("[data-delete-video-id]");
         if (deleteButton instanceof HTMLElement) {
           const deleteVideoId = Number(deleteButton.dataset.deleteVideoId);
@@ -823,6 +971,7 @@ export function createQueueController({
           ...previous,
           selectedProfileId,
           selectedVideoId: null,
+          selectedVideoIds: [],
           searchCandidates: [],
         }));
         syncProjectRoute(selectedProfileId);
@@ -962,6 +1111,22 @@ export function createQueueController({
       });
     }
 
+    const selectAllCheckbox = getElement("video-select-all");
+    if (selectAllCheckbox instanceof HTMLInputElement) {
+      selectAllCheckbox.addEventListener("change", () => {
+        toggleSelectAllVisible(selectAllCheckbox.checked);
+      });
+    }
+
+    const bulkDeleteButton = getElement("bulk-delete-videos-btn");
+    if (bulkDeleteButton instanceof HTMLButtonElement) {
+      bulkDeleteButton.addEventListener("click", () => {
+        void runTask(async () => {
+          await deleteSelectedVideos();
+        }, t("selectedVideosDeleted"));
+      });
+    }
+
     const addManualButton = getElement("add-manual-video-btn");
     if (addManualButton instanceof HTMLButtonElement) {
       addManualButton.addEventListener("click", () => {
@@ -1086,6 +1251,15 @@ export function createQueueController({
     const sentimentFilterSelect = getElement("sentiment-filter");
     if (sentimentFilterSelect) {
       sentimentFilterSelect.addEventListener("change", () => {
+        void runTask(async () => {
+          await refreshVideos();
+        });
+      });
+    }
+
+    const videoSortSelect = getElement("video-sort-select");
+    if (videoSortSelect) {
+      videoSortSelect.addEventListener("change", () => {
         void runTask(async () => {
           await refreshVideos();
         });

@@ -1,7 +1,7 @@
 import { ApiError, request, requestForm } from "./api-client.js";
 import { createAuthController } from "./auth.js?v=20260521-sushi-login-spin";
 import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js?v=20260521-inline-edit-row";
-import { createQueueController } from "./queue.js?v=20260521-risk-dropdown-native";
+import { createQueueController } from "./queue.js?v=20260525-video-list-bulk-sort";
 import {
   clearVideoQueryParam,
   getProjectIdFromRoute,
@@ -24,7 +24,7 @@ import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js?v=20260515-icons";
 import { createVocController } from "./voc.js";
 import { createAllVideosSettingsController } from "./all-videos-settings.js";
-import { createInsightsController } from "./insights.js?v=20260523-insights-loading";
+import { createInsightsController } from "./insights.js?v=20260525-insights-language";
 import { createWatchlistController } from "./watchlist.js?v=20260515-icons";
 import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260522-field-tooltips";
 
