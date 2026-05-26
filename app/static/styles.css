@@ -1235,6 +1235,27 @@ textarea {
   color: var(--text-muted);
 }
 
+.video-detail-body .detail-grid {
+  gap: 20px;
+}
+
+.video-detail-body .detail-block {
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.video-detail-body .detail-block h5 {
+  margin-bottom: 14px;
+}
+
+.video-detail-body .split-grid {
+  gap: 16px;
+}
+
+.video-detail-body .signal-grid {
+  gap: 20px;
+}
+
 .split-grid {
   display: grid;
   gap: 10px;
@@ -1248,7 +1269,7 @@ textarea {
 }
 
 .signal-label {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--text-muted);
@@ -1258,54 +1279,65 @@ textarea {
   margin: 0;
   padding-left: 18px;
   display: grid;
-  gap: 6px;
-  font-size: 0.82rem;
-}
-
-.recommendation-body {
+  gap: 8px;
   font-size: 0.84rem;
   line-height: 1.5;
 }
 
+.recommendation-body {
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
 .summary-structured {
   display: grid;
-  gap: 8px;
+  gap: 12px;
 }
 
 .summary-headline {
   font-weight: 700;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
 }
 
 .summary-body {
   white-space: pre-line;
-  line-height: 1.5;
+  line-height: 1.65;
 }
 
 .summary-impact {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
+  line-height: 1.5;
   color: var(--text-muted);
+}
+
+.summary-structured + .signal-grid {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
 }
 
 .audience-profile-list,
 .usage-scenario-group {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .audience-profile-list + .usage-scenario-group {
-  margin-top: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .audience-profile-card {
   display: grid;
-  gap: 3px;
-  padding: 8px 10px;
+  gap: 4px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   font-size: 0.82rem;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .audience-profile-card strong {
@@ -1319,7 +1351,7 @@ textarea {
 .scenario-chip-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .scenario-chip {
@@ -1327,7 +1359,7 @@ textarea {
   align-items: center;
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 4px 9px;
+  padding: 5px 10px;
   background: var(--surface);
   color: var(--text);
   font-size: 0.78rem;
@@ -1336,11 +1368,12 @@ textarea {
 .transcript-wrapper {
   border: 1px solid var(--border);
   border-radius: 8px;
+  overflow: hidden;
 }
 
 .transcript-toolbar {
   border-bottom: 1px solid var(--border);
-  padding: 8px 10px;
+  padding: 10px 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1348,7 +1381,7 @@ textarea {
 
 .transcript-body {
   margin: 0;
-  padding: 10px;
+  padding: 14px;
   max-height: 220px;
   overflow: auto;
   font-family: var(--font-mono);
@@ -1367,6 +1400,29 @@ textarea {
   background: #ffffff;
   display: grid;
   gap: 8px;
+}
+
+.video-chat-section {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.video-chat-title {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.chat-composer {
+  gap: 10px;
+}
+
+.chat-question-input {
+  flex: 1 1 240px;
+  min-width: 0;
 }
 
 .chat-entry {
@@ -1560,21 +1616,29 @@ textarea {
 }
 
 .video-detail-body {
-  padding: 16px;
+  padding: 28px;
   display: grid;
-  gap: 14px;
+  gap: 24px;
+}
+
+.video-detail-header {
+  display: grid;
+  gap: 8px;
 }
 
 .video-detail-title {
   margin: 0;
-  font-size: 1.2rem;
-  letter-spacing: -0.01em;
+  font-size: 1.28rem;
+  line-height: 1.35;
 }
 
 .video-link {
+  width: fit-content;
+  max-width: 100%;
   font-size: 0.76rem;
   color: var(--accent);
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .video-link:hover {
@@ -1625,6 +1689,12 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.video-detail-actions {
+  gap: 10px;
+  align-items: center;
+  padding-bottom: 2px;
 }
 
 .analysis-language-toggle {
@@ -4046,6 +4116,19 @@ textarea {
 
   .queue-detail-pane {
     min-height: 360px;
+  }
+
+  .video-detail-body {
+    padding: 20px;
+    gap: 20px;
+  }
+
+  .video-detail-body .detail-grid {
+    gap: 16px;
+  }
+
+  .video-detail-body .detail-block {
+    padding: 16px;
   }
 
   .video-list {

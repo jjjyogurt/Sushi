@@ -447,7 +447,7 @@ function videoDetailMarkup({
 
   return `
     <div class="video-detail-body">
-      <div>
+      <div class="video-detail-header">
         <h3 class="video-detail-title">${escapeHtml(video.title)}</h3>
         <a class="video-link" href="${escapeHtml(video.video_url)}" target="_blank" rel="noreferrer">
           ${escapeHtml(video.video_url)} ↗
@@ -459,7 +459,7 @@ function videoDetailMarkup({
 
       ${embedMarkup}
 
-      <div class="inline-actions">
+      <div class="inline-actions video-detail-actions">
         <button id="analyze-btn" class="btn btn-primary" type="button">${isRerunning ? escapeHtml(
           t("rerunning")
         ) : analysis ? escapeHtml(t("rerunAnalysis")) : escapeHtml(t("runAnalysis"))}</button>
@@ -528,13 +528,13 @@ function videoDetailMarkup({
         </div>
       </div>
 
-      <div>
-        <h5 style="margin: 0 0 8px;">${escapeHtml(t("chatWithVideoAi"))}</h5>
+      <div class="video-chat-section">
+        <h5 class="video-chat-title">${escapeHtml(t("chatWithVideoAi"))}</h5>
         <div id="chat-window" class="chat-window"></div>
-        <div class="inline-actions" style="margin-top: 8px;">
+        <div class="inline-actions chat-composer">
           <input id="chat-question" type="text" placeholder="${escapeHtml(
             t("chatInputPlaceholder")
-          )}" style="flex: 1;" />
+          )}" class="chat-question-input" />
           <button id="send-chat-btn" class="btn btn-primary" type="button">${escapeHtml(t("send"))}</button>
         </div>
       </div>

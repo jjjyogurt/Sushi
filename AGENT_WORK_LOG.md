@@ -1432,3 +1432,9 @@
 - Changes: Added a Run All Analysis background notice, localized the copy, and updated alpha coverage.
 - Check: `node --check app/static/queue.js app/static/main.js app/static/i18n.js`; `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py -q`; Browser smoke.
 - Next: No follow-up needed.
+
+## 2026-05-26 20:56
+- Task: Improve video analysis detail spacing.
+- Changes: Added roomier detail padding, section gaps, transcript/chat spacing, cache-busts, regression coverage, and alpha QA coverage.
+- Check: `node --check app/static/video-detail.js && node --check app/static/main.js`; `.venv/bin/python -m pytest -q tests/unit/test_static_insights_regression.py`; Browser DOM measurement.
+- Next: Review on a real browser viewport before shipping if screenshot evidence is required.

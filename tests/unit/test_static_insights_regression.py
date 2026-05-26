@@ -26,9 +26,9 @@ def test_static_cache_busts_insights_isolation_assets():
     template = (ROOT / "app/templates/index.html").read_text()
 
     assert "./insights.js?v=20260525-insights-language" in main_source
-    assert "/static/styles.css?v=20260526-language-toggle" in template
-    assert "/static/main.js?v=20260526-detail-status-labels" in template
-    assert "./video-detail.js?v=20260526-detail-status-labels" in main_source
+    assert "/static/styles.css?v=20260526-video-detail-spacing" in template
+    assert "/static/main.js?v=20260526-video-detail-spacing" in template
+    assert "./video-detail.js?v=20260526-video-detail-spacing" in main_source
     assert "./i18n.js?v=20260526-remove-analysis-start-panel" in main_source
 
 
@@ -170,6 +170,29 @@ def test_analysis_language_toggle_uses_compact_segmented_control():
     assert "background: transparent;" in button_source
     assert "background: #ffffff;" in active_source
     assert "box-shadow: 0 1px 2px rgb(45 52 53 / 10%);" in active_source
+
+
+def test_video_detail_analysis_layout_has_breathing_room():
+    source = (ROOT / "app/static/video-detail.js").read_text()
+    styles = (ROOT / "app/static/styles.css").read_text()
+
+    detail_start = styles.index(".video-detail-body {")
+    detail_end = styles.index(".video-detail-header", detail_start)
+    detail_source = styles[detail_start:detail_end]
+
+    scoped_block_start = styles.index(".video-detail-body .detail-block {")
+    scoped_block_end = styles.index(".video-detail-body .detail-block h5", scoped_block_start)
+    scoped_block_source = styles[scoped_block_start:scoped_block_end]
+
+    assert 'class="video-detail-header"' in source
+    assert 'class="inline-actions video-detail-actions"' in source
+    assert 'class="video-chat-section"' in source
+    assert 'class="chat-question-input"' in source
+    assert "padding: 28px;" in detail_source
+    assert "gap: 24px;" in detail_source
+    assert "padding: 20px;" in scoped_block_source
+    assert "border-radius: 8px;" in scoped_block_source
+    assert ".summary-structured + .signal-grid" in styles
 
 
 def test_alerts_render_as_structured_triage_items():
