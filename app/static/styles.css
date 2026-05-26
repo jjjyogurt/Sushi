@@ -2454,6 +2454,88 @@ body {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
+.video-sort-dropdown {
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.video-sort-toggle {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  list-style: none;
+  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s;
+  width: 36px;
+}
+
+.video-sort-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.video-sort-toggle:hover {
+  border-color: var(--accent-soft);
+  color: var(--text);
+}
+
+.video-sort-toggle:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  outline: none;
+}
+
+.video-sort-toggle .app-icon {
+  font-size: 1rem;
+}
+
+.video-sort-menu {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  display: none;
+  min-width: 180px;
+  padding: 6px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 220;
+}
+
+.video-sort-dropdown[open] .video-sort-menu {
+  display: grid;
+}
+
+.video-sort-menu label {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.75rem;
+  gap: 7px;
+  line-height: 1;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.video-sort-menu label:has(input:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.video-sort-menu input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
 .risk-filter-dropdown {
   flex: 1 1 128px;
   min-width: 0;
@@ -3803,7 +3885,7 @@ body {
   .list-filters {
     display: grid;
     gap: 8px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
     position: static;
   }
 
@@ -3813,8 +3895,12 @@ body {
     width: 100%;
   }
 
-  #video-sort-select {
-    grid-column: 1 / -1;
+  .video-sort-dropdown {
+    align-self: stretch;
+  }
+
+  .video-sort-toggle {
+    height: 100%;
   }
 
   .pane-header {

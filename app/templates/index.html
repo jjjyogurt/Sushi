@@ -487,7 +487,7 @@
                   </div>
                 </div>
               </div>
-              <button id="discover-btn-inline" class="btn btn-primary" type="button">Discover Videos</button>
+              <button id="discover-btn-inline" class="btn btn-secondary" type="button">Discover Videos</button>
               <div class="url-add-group-wrap">
                 <label>Add Video URLs</label>
                 <div class="url-add-group">
@@ -557,11 +557,25 @@
                     <option value="neutral">Neutral</option>
                     <option value="negative">Negative</option>
                   </select>
-                  <select id="video-sort-select" aria-label="Sort videos">
-                    <option value="">Newest</option>
-                    <option value="views-desc">Views: High to Low</option>
-                    <option value="views-asc">Views: Low to High</option>
-                  </select>
+                  <details class="video-sort-dropdown" id="video-sort-dropdown">
+                    <summary id="video-sort-toggle" class="video-sort-toggle" aria-label="Sort videos" title="Sort videos">
+                      <svg class="app-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260526-sort-menu#icon-sort"></use></svg>
+                    </summary>
+                    <div class="video-sort-menu" id="video-sort-menu" role="menu" aria-label="Sort videos">
+                      <label>
+                        <input type="radio" name="video-sort" value="" checked />
+                        <span>Newest</span>
+                      </label>
+                      <label>
+                        <input type="radio" name="video-sort" value="views-desc" />
+                        <span>Views: High to Low</span>
+                      </label>
+                      <label>
+                        <input type="radio" name="video-sort" value="views-asc" />
+                        <span>Views: Low to High</span>
+                      </label>
+                    </div>
+                  </details>
                 </div>
                 <div id="video-bulk-toolbar" class="video-bulk-toolbar is-hidden">
                   <span id="video-bulk-count" class="meta">0 selected</span>
@@ -1039,7 +1053,7 @@
                   <p id="help-analysis-body">Add videos to the project, then let the AI review each video for sentiment, risk, praise, criticism, and action items.</p>
                   <div class="help-ui-shot" aria-label="Guide image showing the Discover Videos, Add Videos, and Run All Analysis buttons">
                     <div class="help-ui-toolbar">
-                      <span class="btn btn-primary help-ui-button">Discover Videos</span>
+                      <span class="btn btn-secondary help-ui-button">Discover Videos</span>
                       <span class="help-ui-callout">1</span>
                       <div class="url-add-group help-ui-url-group">
                         <span class="help-ui-textarea">Paste video URLs</span>

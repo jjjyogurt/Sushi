@@ -1325,3 +1325,20 @@
 - Changes: Added `@Browser` evidence rules and updated UI/manual/E2E cases to require Browser verification.
 - Check: Browser smoke passed on desktop and 390px mobile; screenshots captured in `.gstack/qa-reports/screenshots/`.
 - Next: Use Browser evidence on each release QA pass.
+## 2026-05-25 21:50
+- Task: Deploy the new backend using the documented Cloud Run rules.
+- Changes: Deployed backend `sushi-backend-00010-2z9`, worker `sushi-analysis-worker-00005-bk7`, and recorded the release in `DEPLOY_LOG.md`.
+- Check: `.venv/bin/python -m pytest tests/unit -q` passed; `/health`, `/health/gemini`, root `GET /`, env, traffic, and new-revision error logs verified.
+- Next: Monitor async worker jobs if users run analysis or insights refresh.
+
+## 2026-05-26 10:11
+- Task: Replace the video list sort select with an icon menu.
+- Changes: Added a compact sort icon beside sentiment filtering with a single-select menu and updated release coverage.
+- Check: `PYTHONPATH=. .venv/bin/pytest tests/unit/test_video_router.py tests/unit/test_video_repository.py tests/unit/test_static_insights_regression.py`; Browser smoke passed.
+- Next: No follow-up needed.
+
+## 2026-05-26 10:13
+- Task: Match Discover Videos button styling with Add Videos.
+- Changes: Changed the discovery action and help mockup from primary to secondary button styling.
+- Check: `git diff --check`; Browser style check confirmed matching background, border, and text colors.
+- Next: No follow-up needed.

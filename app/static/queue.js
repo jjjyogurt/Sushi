@@ -487,8 +487,8 @@ export function createQueueController({
   }
 
   function getSelectedSort() {
-    const sortSelect = getElement("video-sort-select");
-    const value = sortSelect instanceof HTMLSelectElement ? sortSelect.value.trim() : "";
+    const sortInput = document.querySelector('input[name="video-sort"]:checked');
+    const value = sortInput instanceof HTMLInputElement ? sortInput.value.trim() : "";
     if (value === "views-desc") {
       return { sortBy: "views", sortOrder: "desc" };
     }
@@ -696,6 +696,17 @@ export function createQueueController({
           reason: failedUrls[0],
         })
       );
+    }
+  }
+
+  function setVideoSortOpen(isOpen) {
+    const dropdown = getElement("video-sort-dropdown");
+    const toggle = getElement("video-sort-toggle");
+    if (dropdown instanceof HTMLDetailsElement) {
+      dropdown.open = isOpen;
+    }
+    if (toggle) {
+      toggle.setAttribute("aria-expanded", String(isOpen));
     }
   }
 
@@ -1242,15 +1253,42 @@ export function createQueueController({
       });
     }
 
+    const videoSortGroup = getElement("video-sort-dropdown");
+    if (videoSortGroup) {
+      videoSortGroup.addEventListener("toggle", () => {
+        if (videoSortToggle) {
+          videoSortToggle.setAttribute("aria-expanded", String(Boolean(videoSortGroup.open)));
+        }
+      });
+      videoSortGroup.addEventListener("change", () => {
+        setVideoSortOpen(false);
+        void runTask(async () => {
+          await refreshVideos();
+        });
+      });
+    }
+
+    const videoSortToggle = getElement("video-sort-toggle");
+    if (videoSortToggle) {
+      videoSortToggle.setAttribute("aria-expanded", "false");
+      videoSortToggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+    }
+
     document.addEventListener("click", (event) => {
       if (riskFilterGroup && !riskFilterGroup.contains(event.target)) {
         setRiskFilterOpen(false);
+      }
+      if (videoSortGroup && !videoSortGroup.contains(event.target)) {
+        setVideoSortOpen(false);
       }
     });
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         setRiskFilterOpen(false);
+        setVideoSortOpen(false);
       }
     });
 
@@ -1263,14 +1301,6 @@ export function createQueueController({
       });
     }
 
-    const videoSortSelect = getElement("video-sort-select");
-    if (videoSortSelect) {
-      videoSortSelect.addEventListener("change", () => {
-        void runTask(async () => {
-          await refreshVideos();
-        });
-      });
-    }
   }
 
   return {

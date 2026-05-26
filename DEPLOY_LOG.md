@@ -1,5 +1,16 @@
 # Deployment Log - Sushi App to Firebase + Cloud Run
 
+## Date: 2026-05-25 21:50 CST
+
+### Mobile Layout and Translation Backend Deploy
+
+- Deployed `sushi-backend` revision `sushi-backend-00010-2z9` to `sushi-free-us-20260518` in `us-central1`, with 100% traffic.
+- Deployed private `sushi-analysis-worker` revision `sushi-analysis-worker-00005-bk7` from the same backend image digest, preserving request-triggered Cloud Tasks settings (`max-instances=1`, `concurrency=1`, `timeout=1800`, private invocation).
+- Commit: `5c5149aff6d71a82b4c928a36eec767639d178c1`.
+- Scope: refreshed backend-served UI/static assets and deployed the current backend/worker revision set from `main`.
+- Verification: full unit suite passed (`166 passed, 1 warning`), backend `/health` returned 200, `/health/gemini` reported ready with `gemini-3.1-flash-lite`, root `GET /` returned 200 HTML, backend and worker env inspection confirmed the Supabase pooler host, both services route 100% traffic to the new revisions, and new-revision ERROR log scans were empty.
+- Rollback impact: route backend traffic back to `sushi-backend-00009-r5h` and worker traffic back to `sushi-analysis-worker-00004-5q7` if this deploy regresses.
+
 ## Date: 2026-05-21 22:32 CST
 
 ### Inline Project Edit Row Backend Deploy

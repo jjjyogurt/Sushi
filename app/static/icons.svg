@@ -91,6 +91,12 @@
   <symbol id="icon-expand-more" viewBox="0 0 24 24">
     <path d="m6 9 6 6 6-6"/>
   </symbol>
+  <symbol id="icon-sort" viewBox="0 0 24 24">
+    <path d="M7 4v14"/>
+    <path d="m4 15 3 3 3-3"/>
+    <path d="M17 20V6"/>
+    <path d="m14 9 3-3 3 3"/>
+  </symbol>
   <symbol id="icon-open-in-full" viewBox="0 0 24 24">
     <path d="M15 4h5v5"/>
     <path d="M4 15v5h5"/>
