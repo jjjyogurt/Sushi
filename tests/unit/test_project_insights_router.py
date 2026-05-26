@@ -191,6 +191,8 @@ def test_refresh_insights_uses_only_completed_with_db_transcripts(client, insigh
     assert payload["risk_breakdown"]["low"] == 1
     assert payload["reach_metrics"]["negative_reach_share_pct"] == 0.0
     assert payload["top_negative_videos"] == []
+    assert "risk_score" not in payload
+    assert "Risk score" not in payload["report_markdown"]
 
 
 def test_insights_history_tracks_snapshots_in_latest_first_order(client, insights_db_session):

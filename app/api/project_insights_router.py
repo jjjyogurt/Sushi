@@ -37,7 +37,6 @@ def _map_report(model) -> ProjectInsightReportResponse:
         coverage_pct=model.coverage_pct,
         overall_sentiment=model.overall_sentiment,
         risk_level=model.risk_level,
-        risk_score=model.risk_score,
         summary_headline=model.summary_headline,
         summary_body=model.summary_body,
         top_risk_trigger=top_risk_trigger,

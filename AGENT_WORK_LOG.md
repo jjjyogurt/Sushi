@@ -1402,3 +1402,27 @@
 - Changes: Converted the video detail language buttons into a compact segmented control with lighter inactive styling.
 - Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `git diff --check`.
 - Next: No follow-up needed.
+
+## 2026-05-26 15:46
+- Task: Vertically align the analysis language selector.
+- Changes: Centered the compact language toggle within the action row so it aligns with the taller buttons.
+- Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `git diff --check`.
+- Next: No follow-up needed.
+
+## 2026-05-26 15:47
+- Task: Bottom-align the analysis language selector.
+- Changes: Changed the compact language toggle to align to the bottom of the action row.
+- Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `git diff --check`.
+- Next: No follow-up needed.
+
+## 2026-05-26 15:54
+- Task: Shorten the subscriber reach metric label.
+- Changes: Changed the English video reach label from Influencer subscribers to Subscribers and added coverage.
+- Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `node --check app/static/i18n.js`; `git diff --check`.
+- Next: No follow-up needed.
+
+## 2026-05-26 17:16
+- Task: Remove risk score from release-facing Insights output.
+- Changes: Removed risk score from the agent spec, Insights API response, generated markdown, Gemini project report contract, stale UI copy, and tutorial wording.
+- Check: `.venv/bin/python -m pytest -q tests/unit`; `node --check app/static/i18n.js`; `git diff --check`.
+- Next: Re-run alpha Browser smoke if this is going straight to deploy.

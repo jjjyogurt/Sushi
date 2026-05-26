@@ -176,7 +176,7 @@ class ProjectInsightsService:
             "top_risk_trigger": generated.get("top_risk_trigger") or fallback_payload.get("top_risk_trigger", ""),
             "overall_sentiment": generated.get("overall_sentiment") or fallback_payload.get("overall_sentiment", "neutral"),
             "risk_level": generated.get("risk_level") or fallback_payload.get("risk_level", "medium"),
-            "risk_score": generated.get("risk_score") if generated.get("risk_score") is not None else fallback_payload.get("risk_score", 0.0),
+            "risk_score": fallback_payload.get("risk_score", 0.0),
             "praise_points": generated.get("praise_points") or fallback_payload.get("praise_points", []),
             "criticism_points": generated.get("criticism_points") or fallback_payload.get("criticism_points", []),
             "user_recommendations": generated.get("user_recommendations") or fallback_payload.get("user_recommendations", []),
@@ -496,7 +496,6 @@ class ProjectInsightsService:
             "## Executive Dashboard",
             f"- Overall sentiment: {payload.get('overall_sentiment', 'neutral')}",
             f"- Risk level: {payload.get('risk_level', 'low')}",
-            f"- Risk score: {payload.get('risk_score', 0.0)} / 10",
             (
                 "- Sentiment distribution: "
                 f"positive {payload.get('sentiment_breakdown', {}).get('positive', 0)}, "

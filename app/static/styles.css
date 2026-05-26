@@ -1628,7 +1628,7 @@ textarea {
 }
 
 .analysis-language-toggle {
-  align-self: flex-start;
+  align-self: flex-end;
   margin-left: auto;
   display: inline-flex;
   align-items: center;

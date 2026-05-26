@@ -138,6 +138,13 @@ def test_video_detail_status_uses_metric_label_treatment():
     assert "flex-wrap: wrap;" in styles
 
 
+def test_video_reach_subscriber_label_is_concise():
+    translations = (ROOT / "app/static/i18n.js").read_text()
+
+    assert 'influencerSubscribers: "Subscribers"' in translations
+    assert 'influencerSubscribers: "Influencer subscribers"' not in translations
+
+
 def test_analysis_language_toggle_uses_compact_segmented_control():
     styles = (ROOT / "app/static/styles.css").read_text()
 
@@ -153,7 +160,7 @@ def test_analysis_language_toggle_uses_compact_segmented_control():
     active_end = styles.index(".btn-danger", active_start)
     active_source = styles[active_start:active_end]
 
-    assert "align-self: flex-start;" in toggle_source
+    assert "align-self: flex-end;" in toggle_source
     assert "gap: 1px;" in toggle_source
     assert "padding: 2px;" in toggle_source
     assert "background: #f6f8f8;" in toggle_source

@@ -15,7 +15,6 @@ class ProjectInsightReportResponse(TimestampedResponse):
     coverage_pct: float
     overall_sentiment: str
     risk_level: str
-    risk_score: float
     summary_headline: str
     summary_body: str
     top_risk_trigger: str = ""

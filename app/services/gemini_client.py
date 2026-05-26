@@ -163,7 +163,6 @@ class GeminiClient:
             '"top_risk_trigger":"string",'
             '"overall_sentiment":"positive|neutral|negative",'
             '"risk_level":"low|medium|high|critical",'
-            '"risk_score":0.0,'
             '"praise_points":["string"],'
             '"criticism_points":["string"],'
             '"user_recommendations":["string"]'
@@ -812,20 +811,12 @@ class GeminiClient:
     def _normalize_project_insights_payload(parsed: dict) -> Dict[str, Any]:
         sentiment = GeminiClient._safe_sentiment(parsed.get("overall_sentiment")).value
         risk_level = GeminiClient._safe_risk_level(parsed.get("risk_level")).value
-        risk_score_raw = GeminiClient._safe_confidence(parsed.get("risk_score"), fallback=0.0) * 10
-        if parsed.get("risk_score") is not None:
-            try:
-                risk_score_raw = float(parsed.get("risk_score"))
-            except (TypeError, ValueError):
-                risk_score_raw = 0.0
-        risk_score = max(0.0, min(10.0, round(risk_score_raw, 1)))
         return {
             "summary_headline": str(parsed.get("summary_headline", "")).strip(),
             "summary_body": str(parsed.get("core_insight", "")).strip(),
             "top_risk_trigger": str(parsed.get("top_risk_trigger", "")).strip(),
             "overall_sentiment": sentiment,
             "risk_level": risk_level,
-            "risk_score": risk_score,
             "praise_points": GeminiClient._normalize_point_list(parsed.get("praise_points")),
             "criticism_points": GeminiClient._normalize_point_list(parsed.get("criticism_points")),
             "user_recommendations": GeminiClient._normalize_point_list(parsed.get("user_recommendations")),
