@@ -16,6 +16,12 @@
   --on-surface-variant: #5a6061;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --queue-list-pane-height: max(590px, calc((100vh - 120px) * 0.7));
+  --motion-fast: 140ms;
+  --motion-standard: 180ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --interactive-bg: #f3f6f6;
+  --interactive-border: #d8dee0;
+  --interactive-shadow: 0 6px 18px rgba(31, 41, 55, 0.06);
 }
 
 .is-hidden {
@@ -80,7 +86,7 @@ body {
   top: 0;
   height: 100vh;
   overflow: hidden;
-  transition: width 0.2s ease, padding 0.2s ease;
+  transition: width var(--motion-standard) var(--ease-out), padding var(--motion-standard) var(--ease-out);
 }
 
 .sidebar-header {
@@ -152,7 +158,10 @@ body {
   align-items: center;
   gap: 12px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
 }
 
 .nav-btn .icon {
@@ -167,8 +176,13 @@ body {
 }
 
 .nav-btn:hover {
-  background: rgba(221, 228, 229, 0.5);
+  background: rgba(221, 228, 229, 0.56);
   color: #2d3435;
+}
+
+.nav-btn:focus-visible {
+  outline: 2px solid rgba(45, 52, 53, 0.22);
+  outline-offset: 2px;
 }
 
 .nav-btn.active {
@@ -328,7 +342,7 @@ body {
 
 .icon-btn {
   background: transparent;
-  border: 0;
+  border: 1px solid transparent;
   color: #5e5e5e;
   padding: 8px;
   border-radius: 50%;
@@ -336,11 +350,22 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-out);
 }
 
 .icon-btn:hover {
-  background: #f2f4f4;
+  background: var(--interactive-bg);
+  border-color: var(--interactive-border);
+  color: #2d3435;
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid rgba(45, 52, 53, 0.22);
+  outline-offset: 2px;
 }
 
 .user-avatar {
@@ -500,12 +525,15 @@ body {
   border: 1px solid #f1f1f1;
   background: #ffffff;
   padding: 24px;
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.02);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
 }
 
 .project-card.is-expanded {
@@ -518,8 +546,9 @@ body {
 }
 
 .project-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-color: var(--interactive-border);
+  transform: translateY(-1px);
+  box-shadow: var(--interactive-shadow);
 }
 
 .project-card h4 {
@@ -528,6 +557,19 @@ body {
   margin: 0;
   color: #2d3435;
   flex: 1;
+}
+
+.project-card > .meta {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.project-card.is-expanded > .meta {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
 }
 
 .project-card-actions {
@@ -593,6 +635,18 @@ body {
 
 .panel.active {
   display: block;
+  animation: panel-enter var(--motion-standard) var(--ease-out);
+}
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .panel-header {
@@ -975,8 +1029,8 @@ body {
   border-radius: inherit;
   content: "";
   filter:
-    drop-shadow(0 0 3px rgba(116, 54, 255, 0.62))
-    drop-shadow(0 0 9px rgba(86, 28, 220, 0.34));
+    drop-shadow(0 0 3px rgba(255, 255, 255, 0.72))
+    drop-shadow(0 0 8px rgba(28, 34, 36, 0.18));
   inset: 0;
   opacity: 0;
   padding: 1px;
@@ -999,16 +1053,16 @@ body {
   background: conic-gradient(
     from var(--dashboard-create-beam-angle),
     transparent 0deg,
-    transparent 253deg,
-    rgba(96, 120, 130, 0.26) 267deg,
-    rgba(178, 197, 204, 0.72) 276deg,
-    rgba(246, 252, 255, 0.98) 282deg,
-    #ffffff 286deg,
+    transparent 260deg,
+    rgba(18, 22, 24, 0.36) 271deg,
+    rgba(146, 154, 158, 0.76) 279deg,
+    rgba(248, 250, 251, 0.98) 284deg,
+    #ffffff 288deg,
     #ffffff 300deg,
-    rgba(246, 252, 255, 0.98) 304deg,
-    rgba(176, 196, 203, 0.72) 309deg,
-    rgba(92, 118, 128, 0.26) 315deg,
-    transparent 326deg,
+    rgba(248, 250, 251, 0.98) 303deg,
+    rgba(142, 150, 154, 0.76) 307deg,
+    rgba(16, 20, 22, 0.36) 313deg,
+    transparent 319deg,
     transparent 360deg
   );
 }
@@ -1046,7 +1100,12 @@ body {
   font-weight: 700;
   font-size: 0.875rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
   border: 1px solid transparent;
 }
 
@@ -1067,9 +1126,20 @@ body {
 
 .btn-secondary:hover {
   background: #f2f4f4;
+  border-color: var(--interactive-border);
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .panel.active {
+    animation: none;
+  }
+
+  .project-card:hover,
+  .project-card.is-opening,
+  .video-item:hover {
+    transform: none;
+  }
+
   #dashboard .dashboard-create-btn::after {
     animation: none;
   }
@@ -1340,7 +1410,11 @@ body {
   border-radius: 8px;
   padding: 12px 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
   text-align: left;
   width: 100%;
   display: block;
@@ -1355,14 +1429,16 @@ body {
 }
 
 .video-item:hover {
-  transform: translateX(4px);
-  background: #f9f9f9;
+  background: var(--interactive-bg);
+  border-color: var(--interactive-border);
+  transform: translateY(-1px);
 }
 
 .video-item.active {
-  background: #dde4e5;
+  background: #eef3f3;
+  border-color: var(--interactive-border);
   border-left-color: #5e5e5e;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-shadow: inset 3px 0 0 #5e5e5e, var(--interactive-shadow);
 }
 
 .video-item h4 {
@@ -2202,12 +2278,12 @@ body {
 
 .project-card.active {
   border-color: #d8dee0;
-  box-shadow: 0 0 0 1px #dde4e5;
+  box-shadow: 0 0 0 1px #dde4e5, var(--interactive-shadow);
 }
 
 .project-card.is-opening {
-  transform: scale(1.02);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+  box-shadow: var(--interactive-shadow);
 }
 
 .open-project-btn {
@@ -2958,11 +3034,16 @@ body {
   padding: 12px 44px 12px 12px;
   background: #ffffff;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
 }
 
 .watchlist-open-btn:hover {
-  background: #f6f8f8;
+  background: var(--interactive-bg);
+  border-color: var(--interactive-border);
+  box-shadow: var(--interactive-shadow);
 }
 
 .watchlist-open-btn h4 {

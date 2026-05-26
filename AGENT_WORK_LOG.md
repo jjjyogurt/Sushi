@@ -1,5 +1,17 @@
 # Agent Work Log
 
+## 2026-05-26 11:52
+- Task: Narrow dashboard create button beam.
+- Changes: Tightened the monochrome traveling beam gradient stops by about 20%.
+- Check: `git diff --check`.
+- Next: None.
+
+## 2026-05-26 11:50
+- Task: Convert dashboard create button beam to monochrome.
+- Changes: Removed purple beam glow and retuned the single traveling beam to graphite, silver, and bright white.
+- Check: `git diff --check`.
+- Next: None.
+
 ## 2026-05-25 20:44
 - Task: Darken dashboard create button purple beam shadow.
 - Changes: Replaced the gray-lavender glow with a darker, purer purple drop-shadow on the traveling beam.
@@ -1342,3 +1354,9 @@
 - Changes: Changed the discovery action and help mockup from primary to secondary button styling.
 - Check: `git diff --check`; Browser style check confirmed matching background, border, and text colors.
 - Next: No follow-up needed.
+
+## 2026-05-26 12:01
+- Task: Implement UI motion and dashboard scanability polish.
+- Changes: Added panel motion, consistent interaction states, card metadata clamping, and alpha UI coverage.
+- Check: `git diff --check`; `.venv/bin/python -m pytest -q tests/unit`; Browser and screenshot verification.
+- Next: Review on a real device before release if available.
