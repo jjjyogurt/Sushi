@@ -14,7 +14,8 @@
   --on-background: #2d3435;
   --surface-container-highest: #dde4e5;
   --on-surface-variant: #5a6061;
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --queue-list-pane-height: max(590px, calc((100vh - 120px) * 0.7));
   --motion-fast: 140ms;
   --motion-standard: 180ms;
@@ -53,6 +54,13 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   line-height: 1.45;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 .app-icon {
@@ -107,7 +115,7 @@ body {
 
 .brand-block h1 {
   margin: 0;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 900;
   font-size: 1.125rem;
   letter-spacing: -0.02em;
@@ -1343,6 +1351,7 @@ body {
   padding: 10px;
   max-height: 220px;
   overflow: auto;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -1601,63 +1610,6 @@ body {
   font-weight: 600;
 }
 
-.analysis-start-panel {
-  align-items: start;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fbfcfc;
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.45fr);
-  padding: 18px;
-}
-
-.analysis-start-copy {
-  display: grid;
-  gap: 8px;
-}
-
-.analysis-start-copy h4 {
-  color: var(--text);
-  font-size: 1rem;
-  line-height: 1.35;
-  margin: 0;
-}
-
-.analysis-start-copy p {
-  color: var(--text-muted);
-  font-size: 0.86rem;
-  line-height: 1.55;
-  margin: 0;
-  max-width: 48rem;
-}
-
-.analysis-start-checklist {
-  border-left: 1px solid var(--border);
-  display: grid;
-  gap: 8px;
-  padding-left: 16px;
-}
-
-.analysis-start-checklist span {
-  align-items: center;
-  color: var(--text-muted);
-  display: flex;
-  font-size: 0.78rem;
-  gap: 8px;
-}
-
-.analysis-start-checklist span::before {
-  background: var(--surface-muted);
-  border: 1px solid var(--interactive-border);
-  border-radius: 999px;
-  content: "";
-  display: inline-flex;
-  flex: 0 0 auto;
-  height: 7px;
-  width: 7px;
-}
-
 .analysis-status {
   font-size: 0.74rem;
   color: var(--text-muted);
@@ -1789,7 +1741,7 @@ body {
   padding: 12px;
   background: #ffffff;
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   line-height: 1.5;
   resize: vertical;
@@ -2581,7 +2533,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 400px;
+  min-width: 0;
 }
 
 .url-add-group-wrap label {
@@ -2601,6 +2553,7 @@ body {
 .url-add-group textarea {
   flex: 1;
   height: 40px;
+  min-width: 0;
   min-height: 40px;
   max-height: 168px;
   line-height: 20px;
@@ -4026,18 +3979,6 @@ body {
     grid-template-columns: 1fr;
     gap: 12px;
     margin-bottom: 18px;
-  }
-
-  .analysis-start-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .analysis-start-checklist {
-    border-left: 0;
-    border-top: 1px solid var(--border);
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding-left: 0;
-    padding-top: 12px;
   }
 
   .queue-controls #discover-btn-inline {

@@ -86,7 +86,7 @@ Routers (prefixes/tags in code) include:
 ## 6. Front-end stack
 
 - **HTML:** Jinja2 templates (`app/templates/index.html` — main SPA-like shell).
-- **Styling:** `app/static/styles.css`; Google Fonts (Inter, Material Symbols) via CDN in template.
+- **Styling:** `app/static/styles.css`; Google Fonts (Geist, Geist Mono) via CDN in template.
 - **JavaScript:** ES modules — `main.js` orchestrates dashboard, queue, video detail, agent settings, knowledge settings, VOC (`voc.js`), shared `api-client.js`, `state.js`, `router-state.js`, etc.
 - **No** React/Vue/Svelte bundler; browser loads `/static/*.js` directly.
 
@@ -379,5 +379,4 @@ Each subsection lists the **code path** (router → service → IO) and what hap
 | 1.0     | 2026-04-01 | Initial stack inventory from codebase                               |
 | 1.1     | 2026-04-01 | Added §10 feature pipelines (routers, services, external IO)        |
 | 1.2     | 2026-04-01 | §10.6: explicit AGENTS.md + transcript vs reducer payload to Gemini |
-
 

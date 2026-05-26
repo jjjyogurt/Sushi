@@ -26,8 +26,10 @@ def test_static_cache_busts_insights_isolation_assets():
     template = (ROOT / "app/templates/index.html").read_text()
 
     assert "./insights.js?v=20260525-insights-language" in main_source
-    assert "/static/styles.css?v=20260525-mobile-layout" in template
-    assert "/static/main.js?v=20260525-mobile-layout" in template
+    assert "/static/styles.css?v=20260526-remove-analysis-start-panel" in template
+    assert "/static/main.js?v=20260526-remove-analysis-start-panel" in template
+    assert "./video-detail.js?v=20260526-remove-analysis-start-panel" in main_source
+    assert "./i18n.js?v=20260526-remove-analysis-start-panel" in main_source
 
 
 def test_sidebar_slogan_stays_on_one_line():
@@ -110,17 +112,17 @@ def test_insights_empty_state_clears_stale_report_content():
     assert "content.classList.add(\"is-hidden\");" in render_empty_source
 
 
-def test_unanalyzed_video_detail_uses_intentional_start_panel():
+def test_unanalyzed_video_detail_does_not_render_start_panel():
     source = (ROOT / "app/static/video-detail.js").read_text()
     styles = (ROOT / "app/static/styles.css").read_text()
     translations = (ROOT / "app/static/i18n.js").read_text()
 
-    assert "function analysisStartPanelMarkup" in source
-    assert "${analysisStartPanelMarkup({ analysis, analysisError, isRerunning })}" in source
+    assert "function analysisStartPanelMarkup" not in source
+    assert "analysisStartPanelMarkup" not in source
     assert "const embedMarkup = analysis && videoId" in source
-    assert ".analysis-start-panel" in styles
-    assert 'analysisNotStartedTitle: "Analysis not started"' in translations
-    assert 'analysisNotStartedTitle: "分析尚未开始"' in translations
+    assert ".analysis-start-panel" not in styles
+    assert "analysisNotStartedTitle" not in translations
+    assert "analysisUnlocksLabel" not in translations
 
 
 def test_alerts_render_as_structured_triage_items():
@@ -132,3 +134,18 @@ def test_alerts_render_as_structured_triage_items():
     assert "alert-date" in source
     assert ".alert-meta-grid" in styles
     assert "-webkit-line-clamp: 3;" in styles
+
+
+def test_queue_add_video_controls_shrink_inside_container():
+    styles = (ROOT / "app/static/styles.css").read_text()
+
+    url_wrap_start = styles.index(".url-add-group-wrap {")
+    url_wrap_end = styles.index(".url-add-group-wrap label", url_wrap_start)
+    url_wrap_source = styles[url_wrap_start:url_wrap_end]
+
+    textarea_start = styles.index(".url-add-group textarea {")
+    textarea_end = styles.index(".url-add-group button", textarea_start)
+    textarea_source = styles[textarea_start:textarea_end]
+
+    assert "min-width: 0;" in url_wrap_source
+    assert "min-width: 0;" in textarea_source

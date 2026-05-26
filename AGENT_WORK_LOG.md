@@ -1372,3 +1372,15 @@
 - Changes: Unified settings headings, converted Project Brain to a collapsible block, tightened knowledge setup layout, and added alpha coverage.
 - Check: `PYTHONPATH=. .venv/bin/pytest tests/unit/test_knowledge_router.py -q`; desktop/mobile Playwright visual verification.
 - Next: No follow-up needed.
+
+## 2026-05-26 14:57
+- Task: Replace app typography with Geist fonts.
+- Changes: Swapped Inter for Geist, added Geist Mono for controls/transcripts/monospace fields, aligned tutorial button typography, and updated release docs.
+- Check: Browser computed-font audit across Dashboard, Project, Watch list, Alerts, and Settings; no unexpected app font families.
+- Next: No follow-up needed.
+
+## 2026-05-26 15:21
+- Task: Remove the unanalyzed video start panel from project detail.
+- Changes: Removed the analysis-start panel markup, styles, translations, and refreshed alpha coverage.
+- Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; Browser verified zero panels and one Run Analysis button.
+- Next: No follow-up needed.

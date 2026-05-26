@@ -406,27 +406,6 @@ function assigneeOptionsMarkup({ appUsers, assignedUserId }) {
   return options.join("");
 }
 
-function analysisStartPanelMarkup({ analysis, analysisError, isRerunning }) {
-  if (analysis) {
-    return "";
-  }
-  const errorText = String(analysisError || "").trim();
-  return `
-    <div class="analysis-start-panel">
-      <div class="analysis-start-copy">
-        <span class="badge">${escapeHtml(isRerunning ? t("rerunning") : t("notStarted"))}</span>
-        <h4>${escapeHtml(t("analysisNotStartedTitle"))}</h4>
-        <p>${escapeHtml(errorText || t("analysisNotStartedBody"))}</p>
-      </div>
-      <div class="analysis-start-checklist" aria-label="${escapeHtml(t("analysisUnlocksLabel"))}">
-        <span>${escapeHtml(t("analysisUnlocksSummary"))}</span>
-        <span>${escapeHtml(t("analysisUnlocksEvidence"))}</span>
-        <span>${escapeHtml(t("analysisUnlocksTranscript"))}</span>
-      </div>
-    </div>
-  `;
-}
-
 function videoDetailMarkup({
   video,
   analysis,
@@ -466,7 +445,6 @@ function videoDetailMarkup({
       </div>
 
       ${embedMarkup}
-      ${analysisStartPanelMarkup({ analysis, analysisError, isRerunning })}
 
       <div class="inline-actions">
         <button id="analyze-btn" class="btn btn-primary" type="button">${isRerunning ? escapeHtml(
@@ -501,7 +479,7 @@ function videoDetailMarkup({
         </div>
       </div>
 
-      ${analysis && analysisError ? `<div class="meta" style="color: var(--danger);">${escapeHtml(analysisError)}</div>` : ""}
+      ${analysisError ? `<div class="meta" style="color: var(--danger);">${escapeHtml(analysisError)}</div>` : ""}
 
       <div class="detail-grid">
         <div class="split-grid">
