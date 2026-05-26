@@ -108,3 +108,27 @@ def test_insights_empty_state_clears_stale_report_content():
     assert "activeReportId = null;" in render_empty_source
     assert "emptyState.classList.remove(\"is-hidden\");" in render_empty_source
     assert "content.classList.add(\"is-hidden\");" in render_empty_source
+
+
+def test_unanalyzed_video_detail_uses_intentional_start_panel():
+    source = (ROOT / "app/static/video-detail.js").read_text()
+    styles = (ROOT / "app/static/styles.css").read_text()
+    translations = (ROOT / "app/static/i18n.js").read_text()
+
+    assert "function analysisStartPanelMarkup" in source
+    assert "${analysisStartPanelMarkup({ analysis, analysisError, isRerunning })}" in source
+    assert "const embedMarkup = analysis && videoId" in source
+    assert ".analysis-start-panel" in styles
+    assert 'analysisNotStartedTitle: "Analysis not started"' in translations
+    assert 'analysisNotStartedTitle: "分析尚未开始"' in translations
+
+
+def test_alerts_render_as_structured_triage_items():
+    source = (ROOT / "app/static/main.js").read_text()
+    styles = (ROOT / "app/static/styles.css").read_text()
+
+    assert "alert-item alert-item-${escapeHtml(severity)}" in source
+    assert "alert-meta-grid" in source
+    assert "alert-date" in source
+    assert ".alert-meta-grid" in styles
+    assert "-webkit-line-clamp: 3;" in styles

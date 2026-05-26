@@ -1360,3 +1360,9 @@
 - Changes: Added panel motion, consistent interaction states, card metadata clamping, and alpha UI coverage.
 - Check: `git diff --check`; `.venv/bin/python -m pytest -q tests/unit`; Browser and screenshot verification.
 - Next: Review on a real device before release if available.
+
+## 2026-05-26 12:15
+- Task: Implement remaining design review deductions for alerts and project detail.
+- Changes: Added an intentional unanalyzed-video start panel, structured alert triage cards, grouped controls, i18n strings, and alpha coverage.
+- Check: `git diff --check`; `.venv/bin/python -m pytest -q tests/unit`; Browser desktop/mobile screenshot verification.
+- Next: Re-score with design review after the next visual polish pass.

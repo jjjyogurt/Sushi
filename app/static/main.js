@@ -406,23 +406,26 @@ async function loadAlerts() {
 
   list.innerHTML = alerts
     .map(
-      (alert) => `
-        <li class="alert-item">
+      (alert) => {
+        const severity = String(alert.severity || "").toLowerCase();
+        return `
+        <li class="alert-item alert-item-${escapeHtml(severity)}">
           <div class="alert-item-header">
-            <span class="badge ${escapeHtml(String(alert.severity || "").toLowerCase())}">
+            <span class="badge ${escapeHtml(severity)}">
               ${escapeHtml(String(alert.severity || "").toUpperCase())}
             </span>
-            <span class="meta">${escapeHtml(formatAlertDate(alert.created_at))}</span>
+            <span class="alert-date">${escapeHtml(formatAlertDate(alert.created_at))}</span>
           </div>
           <div class="alert-title">${escapeHtml(alert.video_title || t("unknownVideo"))}</div>
-          <div class="alert-message">${escapeHtml(alert.message)}</div>
-          <div class="meta">
-            ${escapeHtml(t("owner"))}: ${escapeHtml(alert.owner || t("unassigned"))}
-            · ${escapeHtml(t("channel"))}: ${escapeHtml(alert.channel)}
-            · ${escapeHtml(t("videoId"))}: ${escapeHtml(String(alert.video_candidate_id || ""))}
+          <p class="alert-message">${escapeHtml(alert.message)}</p>
+          <div class="alert-meta-grid">
+            <span>${escapeHtml(t("owner"))}: <strong>${escapeHtml(alert.owner || t("unassigned"))}</strong></span>
+            <span>${escapeHtml(t("channel"))}: <strong>${escapeHtml(alert.channel)}</strong></span>
+            <span>${escapeHtml(t("videoId"))}: <strong>${escapeHtml(String(alert.video_candidate_id || ""))}</strong></span>
           </div>
         </li>
-      `
+      `;
+      }
     )
     .join("");
 }
