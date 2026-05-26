@@ -1384,3 +1384,21 @@
 - Changes: Removed the analysis-start panel markup, styles, translations, and refreshed alpha coverage.
 - Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; Browser verified zero panels and one Run Analysis button.
 - Next: No follow-up needed.
+
+## 2026-05-26 15:31
+- Task: Keep Add Videos controls inside the project controls card.
+- Changes: Allowed the URL add group and textarea to shrink within queue controls and updated alpha coverage.
+- Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `git diff --check`.
+- Next: Browser reload was blocked by URL policy, so verify visually after refresh.
+
+## 2026-05-26 15:39
+- Task: Convert video detail analysis status into label-style metadata.
+- Changes: Rendered status/language as metric pills, tightened the language toggle, refreshed cache busts, and added alpha/static coverage.
+- Check: `node --check app/static/video-detail.js && node --check app/static/main.js`; `.venv/bin/python -m pytest`; browser screenshots at desktop and mobile widths.
+- Next: No follow-up needed.
+
+## 2026-05-26 15:38
+- Task: Make analysis language options smaller and quieter.
+- Changes: Converted the video detail language buttons into a compact segmented control with lighter inactive styling.
+- Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `git diff --check`.
+- Next: No follow-up needed.
