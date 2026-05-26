@@ -153,11 +153,13 @@ def test_analysis_language_toggle_uses_compact_segmented_control():
     active_end = styles.index(".btn-danger", active_start)
     active_source = styles[active_start:active_end]
 
-    assert "gap: 2px;" in toggle_source
-    assert "padding: 3px;" in toggle_source
+    assert "align-self: flex-start;" in toggle_source
+    assert "gap: 1px;" in toggle_source
+    assert "padding: 2px;" in toggle_source
     assert "background: #f6f8f8;" in toggle_source
-    assert "min-height: 28px;" in button_source
-    assert "padding: 4px 8px;" in button_source
+    assert "min-height: 22px;" in button_source
+    assert "padding: 2px 6px;" in button_source
+    assert "font-size: 0.64rem;" in button_source
     assert "background: transparent;" in button_source
     assert "background: #ffffff;" in active_source
     assert "box-shadow: 0 1px 2px rgb(45 52 53 / 10%);" in active_source
