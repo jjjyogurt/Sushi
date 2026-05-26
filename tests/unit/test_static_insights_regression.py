@@ -26,7 +26,7 @@ def test_static_cache_busts_insights_isolation_assets():
     template = (ROOT / "app/templates/index.html").read_text()
 
     assert "./insights.js?v=20260525-insights-language" in main_source
-    assert "/static/styles.css?v=20260526-remove-analysis-start-panel" in template
+    assert "/static/styles.css?v=20260526-add-video-fit" in template
     assert "/static/main.js?v=20260526-remove-analysis-start-panel" in template
     assert "./video-detail.js?v=20260526-remove-analysis-start-panel" in main_source
     assert "./i18n.js?v=20260526-remove-analysis-start-panel" in main_source
