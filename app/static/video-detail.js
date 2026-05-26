@@ -93,6 +93,21 @@ function videoReachMetricsMarkup(reach, isLoading = false) {
   `;
 }
 
+function videoAnalysisStatusMarkup(analysis, analysisLanguage) {
+  return `
+    <div class="analysis-status">
+      <span class="reach-metric">
+        <span class="reach-label">${escapeHtml(t("analysisStatus"))}</span>
+        <strong>${escapeHtml(analysisStatusLabel(analysis))}</strong>
+      </span>
+      <span class="reach-metric">
+        <span class="reach-label">${escapeHtml(t("languageSettings"))}</span>
+        <strong>${escapeHtml(analysisLanguageLabel(analysisLanguage))}</strong>
+      </span>
+    </div>
+  `;
+}
+
 function transcriptMarkup(analysis, transcriptExpanded) {
   const transcript = analysis ? analysis.transcript_text || "" : "";
   const buttonLabel = transcriptExpanded ? t("collapse") : t("expand");
@@ -438,9 +453,7 @@ function videoDetailMarkup({
           ${escapeHtml(video.video_url)} ↗
         </a>
         ${videoReachMetricsMarkup(reach, !reach)}
-        <div class="analysis-status">${escapeHtml(t("analysisStatus"))}: <strong>${escapeHtml(
-    analysisStatusLabel(analysis)
-  )}</strong> | ${escapeHtml(analysisLanguageLabel(analysisLanguage))}</div>
+        ${videoAnalysisStatusMarkup(analysis, analysisLanguage)}
         ${publishedMarkup}
       </div>
 

@@ -1611,8 +1611,14 @@ textarea {
 }
 
 .analysis-status {
-  font-size: 0.74rem;
-  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.video-detail-published {
+  margin-top: 6px;
 }
 
 .inline-actions {
@@ -1624,13 +1630,35 @@ textarea {
 .analysis-language-toggle {
   margin-left: auto;
   display: inline-flex;
-  gap: 6px;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f6f8f8;
+}
+
+.analysis-language-toggle .btn {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px !important;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.1;
+}
+
+.analysis-language-toggle .btn:hover {
+  background: #ffffff;
+  color: var(--text);
 }
 
 .analysis-language-toggle .btn.is-active {
-  background: #2d3435;
-  border-color: #2d3435;
-  color: #ffffff;
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(45 52 53 / 10%);
 }
 
 .btn-danger {

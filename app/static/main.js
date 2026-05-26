@@ -19,7 +19,7 @@ import {
   normalizeSelectableValue,
   splitCsv,
 } from "./ui-utils.js";
-import { createVideoDetailController } from "./video-detail.js?v=20260526-remove-analysis-start-panel";
+import { createVideoDetailController } from "./video-detail.js?v=20260526-detail-status-labels";
 import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js?v=20260515-icons";
 import { createVocController } from "./voc.js";

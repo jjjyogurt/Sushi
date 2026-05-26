@@ -26,9 +26,9 @@ def test_static_cache_busts_insights_isolation_assets():
     template = (ROOT / "app/templates/index.html").read_text()
 
     assert "./insights.js?v=20260525-insights-language" in main_source
-    assert "/static/styles.css?v=20260526-add-video-fit" in template
-    assert "/static/main.js?v=20260526-remove-analysis-start-panel" in template
-    assert "./video-detail.js?v=20260526-remove-analysis-start-panel" in main_source
+    assert "/static/styles.css?v=20260526-language-toggle" in template
+    assert "/static/main.js?v=20260526-detail-status-labels" in template
+    assert "./video-detail.js?v=20260526-detail-status-labels" in main_source
     assert "./i18n.js?v=20260526-remove-analysis-start-panel" in main_source
 
 
@@ -123,6 +123,44 @@ def test_unanalyzed_video_detail_does_not_render_start_panel():
     assert ".analysis-start-panel" not in styles
     assert "analysisNotStartedTitle" not in translations
     assert "analysisUnlocksLabel" not in translations
+
+
+def test_video_detail_status_uses_metric_label_treatment():
+    source = (ROOT / "app/static/video-detail.js").read_text()
+    styles = (ROOT / "app/static/styles.css").read_text()
+
+    assert "function videoAnalysisStatusMarkup(analysis, analysisLanguage)" in source
+    assert '<span class="reach-label">${escapeHtml(t("analysisStatus"))}</span>' in source
+    assert '<span class="reach-label">${escapeHtml(t("languageSettings"))}</span>' in source
+    assert "${videoAnalysisStatusMarkup(analysis, analysisLanguage)}" in source
+    assert ".analysis-status {" in styles
+    assert "display: flex;" in styles
+    assert "flex-wrap: wrap;" in styles
+
+
+def test_analysis_language_toggle_uses_compact_segmented_control():
+    styles = (ROOT / "app/static/styles.css").read_text()
+
+    toggle_start = styles.index(".analysis-language-toggle {")
+    toggle_end = styles.index(".analysis-language-toggle .btn", toggle_start)
+    toggle_source = styles[toggle_start:toggle_end]
+
+    button_start = styles.index(".analysis-language-toggle .btn {")
+    button_end = styles.index(".analysis-language-toggle .btn:hover", button_start)
+    button_source = styles[button_start:button_end]
+
+    active_start = styles.index(".analysis-language-toggle .btn.is-active {")
+    active_end = styles.index(".btn-danger", active_start)
+    active_source = styles[active_start:active_end]
+
+    assert "gap: 2px;" in toggle_source
+    assert "padding: 3px;" in toggle_source
+    assert "background: #f6f8f8;" in toggle_source
+    assert "min-height: 28px;" in button_source
+    assert "padding: 4px 8px;" in button_source
+    assert "background: transparent;" in button_source
+    assert "background: #ffffff;" in active_source
+    assert "box-shadow: 0 1px 2px rgb(45 52 53 / 10%);" in active_source
 
 
 def test_alerts_render_as_structured_triage_items():
