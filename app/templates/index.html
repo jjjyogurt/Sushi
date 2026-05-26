@@ -6,7 +6,7 @@
     <title>Project Sushi</title>
     <link rel="icon" type="image/svg+xml" href="/static/sushi-icon.svg?v=20260525-sushi-emoji" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-    <link rel="stylesheet" href="/static/styles.css?v=20260525-mobile-layout" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260526-settings-collapse" />
   </head>
   <body>
     <div class="app-shell">
@@ -765,7 +765,7 @@
               </div>
             </div>
             <section id="settings-language-pane" class="pane settings-pane">
-              <div class="pane-header">
+              <div class="pane-header settings-section-header">
                 <h3>Language</h3>
                 <span class="meta">Choose your UI language.</span>
               </div>
@@ -777,8 +777,8 @@
                 </select>
               </div>
             </section>
-            <section id="account-settings-pane" class="pane settings-pane" style="margin-top: 20px;">
-              <div class="pane-header">
+            <section id="account-settings-pane" class="pane settings-pane">
+              <div class="pane-header settings-section-header">
                 <h3>Account</h3>
                 <span id="account-settings-meta" class="meta">Not signed in.</span>
               </div>
@@ -788,10 +788,10 @@
                 </div>
               </div>
             </section>
-            <details id="all-videos-details" class="pane settings-pane all-videos-details" style="margin-top: 20px;">
-              <summary class="all-videos-summary">
-                <svg class="app-icon all-videos-chevron" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-expand-more"></use></svg>
-                <span id="all-videos-summary-label">All videos</span>
+            <details id="all-videos-details" class="pane settings-pane settings-collapsible-details all-videos-details">
+              <summary class="pane-header settings-section-summary all-videos-summary">
+                <svg class="app-icon settings-section-chevron all-videos-chevron" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-expand-more"></use></svg>
+                <h3 id="all-videos-summary-label">All videos</h3>
                 <span id="all-videos-meta" class="meta"></span>
               </summary>
               <div class="settings-body all-videos-body">
@@ -814,10 +814,10 @@
                 </div>
               </div>
             </details>
-            <details id="agent-settings-pane" class="pane settings-pane advanced-settings-details" style="margin-top: 20px;">
-              <summary class="advanced-settings-summary">
-                <svg class="app-icon advanced-settings-chevron" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-expand-more"></use></svg>
-                <span>Advanced Agent Prompt</span>
+            <details id="agent-settings-pane" class="pane settings-pane settings-collapsible-details advanced-settings-details">
+              <summary class="pane-header settings-section-summary advanced-settings-summary">
+                <svg class="app-icon settings-section-chevron advanced-settings-chevron" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-expand-more"></use></svg>
+                <h3>Advanced Agent Prompt</h3>
                 <span id="agent-settings-meta" class="meta">Loading...</span>
               </summary>
               <div class="settings-body">
@@ -837,11 +837,12 @@
                 </div>
               </div>
             </details>
-            <section id="knowledge-settings-pane" class="pane settings-pane" style="margin-top: 20px;">
-              <div class="pane-header">
+            <details id="knowledge-settings-pane" class="pane settings-pane settings-collapsible-details knowledge-settings-details">
+              <summary class="pane-header settings-section-summary">
+                <svg class="app-icon settings-section-chevron" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-expand-more"></use></svg>
                 <h3>Project Brain</h3>
                 <span id="knowledge-base-meta" class="meta">0 knowledge base(s)</span>
-              </div>
+              </summary>
               <div class="settings-body">
                 <div class="knowledge-setup-step">
                   <div class="step-header">
@@ -949,11 +950,11 @@
                   </div>
                 </div>
               </div>
-            </section>
-            <details id="voc-settings-pane" class="pane settings-pane advanced-settings-details" style="margin-top: 20px;">
-              <summary class="advanced-settings-summary">
-                <svg class="app-icon advanced-settings-chevron" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-expand-more"></use></svg>
-                <span>Advanced VOC Prompts</span>
+            </details>
+            <details id="voc-settings-pane" class="pane settings-pane settings-collapsible-details advanced-settings-details">
+              <summary class="pane-header settings-section-summary advanced-settings-summary">
+                <svg class="app-icon settings-section-chevron advanced-settings-chevron" aria-hidden="true" focusable="false"><use href="/static/icons.svg?v=20260515-icons#icon-expand-more"></use></svg>
+                <h3>Advanced VOC Prompts</h3>
                 <span class="meta">Cleaner and Analyzer skills</span>
               </summary>
               <div class="settings-body">

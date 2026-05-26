@@ -1366,3 +1366,9 @@
 - Changes: Added an intentional unanalyzed-video start panel, structured alert triage cards, grouped controls, i18n strings, and alpha coverage.
 - Check: `git diff --check`; `.venv/bin/python -m pytest -q tests/unit`; Browser desktop/mobile screenshot verification.
 - Next: Re-score with design review after the next visual polish pass.
+
+## 2026-05-26 14:11
+- Task: Organize Settings layout and make Project Brain shrinkable.
+- Changes: Unified settings headings, converted Project Brain to a collapsible block, tightened knowledge setup layout, and added alpha coverage.
+- Check: `PYTHONPATH=. .venv/bin/pytest tests/unit/test_knowledge_router.py -q`; desktop/mobile Playwright visual verification.
+- Next: No follow-up needed.
