@@ -1426,3 +1426,9 @@
 - Changes: Removed risk score from the agent spec, Insights API response, generated markdown, Gemini project report contract, stale UI copy, and tutorial wording.
 - Check: `.venv/bin/python -m pytest -q tests/unit`; `node --check app/static/i18n.js`; `git diff --check`.
 - Next: Re-run alpha Browser smoke if this is going straight to deploy.
+
+## 2026-05-26 17:24
+- Task: Notify users when bulk video analysis starts.
+- Changes: Added a Run All Analysis background notice, localized the copy, and updated alpha coverage.
+- Check: `node --check app/static/queue.js app/static/main.js app/static/i18n.js`; `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py -q`; Browser smoke.
+- Next: No follow-up needed.

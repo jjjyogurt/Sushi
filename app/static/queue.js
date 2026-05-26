@@ -214,6 +214,7 @@ export function createQueueController({
   setState,
   request,
   runTask,
+  showMessage,
   videoDetailController,
   onProfileSelectionChange,
   onAnyVideoAction,
@@ -781,6 +782,10 @@ export function createQueueController({
     const videos = [...state.videos];
     if (videos.length === 0) {
       throw new Error(t("errorNoVideosToAnalyze"));
+    }
+
+    if (typeof showMessage === "function") {
+      showMessage(t("runAllAnalysisStartedNotice"), "info", { dismissMs: 9000 });
     }
 
     const button = runAllButton || getElement("run-all-analysis-btn");

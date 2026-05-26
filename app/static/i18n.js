@@ -291,6 +291,8 @@ const TRANSLATIONS = {
     alreadyInQueue: "Already in queue",
     errorNoVideosToAnalyze: "No videos in this list to analyze.",
     analyzingProgress: "Analyzing {current}/{total}",
+    runAllAnalysisStartedNotice:
+      "Analysis is running in the background. This may take a few minutes, so please check back later.",
     analysisFailed: "Analysis failed.",
     runAllCompletedWithFailures:
       "Run all completed: {successCount} succeeded, {failedCount} failed. {failurePreview}",
@@ -715,6 +717,7 @@ const TRANSLATIONS = {
     alreadyInQueue: "已在队列中",
     errorNoVideosToAnalyze: "当前列表没有可分析的视频。",
     analyzingProgress: "分析中 {current}/{total}",
+    runAllAnalysisStartedNotice: "分析正在后台运行，可能需要几分钟。请稍后回来查看结果。",
     analysisFailed: "分析失败。",
     runAllCompletedWithFailures: "批量分析已完成：成功 {successCount}，失败 {failedCount}。{failurePreview}",
     confirmDeleteVideo: "确定从列表中删除该视频吗？此操作不可撤销。",

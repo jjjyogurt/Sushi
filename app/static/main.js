@@ -620,6 +620,7 @@ async function bootstrap() {
     setState,
     request,
     runTask,
+    showMessage,
     videoDetailController,
     onProfileSelectionChange: rerenderProfileArea,
     onAnyVideoAction: clearNewVideoLabelsFromAnyAction,
