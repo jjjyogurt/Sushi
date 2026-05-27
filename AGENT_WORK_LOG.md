@@ -1450,3 +1450,9 @@
 - Changes: No product code changes; ran unit, API, and in-app browser smoke checks against local app.
 - Check: P0 gate 41 passed; full unit 176 passed; JS syntax and `git diff --check` clean; browser Mango login/core panels passed.
 - Next: Commit tracked code/docs/tests, exclude `outputs/`, then run staging deploy smoke.
+
+## 2026-05-27 16:13
+- Task: Deploy alpha accounts and video strip release.
+- Changes: Deployed backend revision sushi-backend-00012-5z7 and recorded the release in DEPLOY_LOG.md.
+- Check: Production `/health`, root HTML, Mango login, env host, traffic, log scan, and Browser sign-in smoke passed.
+- Next: Push deployment record so remote history matches production.

@@ -1,5 +1,19 @@
 # Deployment Log - Sushi App to Firebase + Cloud Run
 
+## Date: 2026-05-27 16:12 CST
+
+### Alpha Accounts and Video Strip Backend Deploy
+
+- Type: OTA web app release to the free-tier pilot Cloud Run service.
+- Deployed `sushi-backend` revision `sushi-backend-00012-5z7` to `sushi-free-us-20260518` in `us-central1`, with 100% traffic.
+- Commit: `f07a52edfdb912c25b31ad6931b7d885f1c02bd6`.
+- Scope: added the 35-account local-alpha seed set without login field prefills, refreshed backend-served video list strip UI/static assets, and ignored local credential exports from git/Cloud Build packaging.
+- Tests: full unit suite passed (`176 passed, 1 warning`), P0 gate passed (`41 passed, 1 warning`), static JS syntax checks passed, and `git diff --check` passed.
+- Verification: backend `/health` returned 200, root app returned 200 HTML, production login with `Mango`/`1234` returned 200 and `/auth/me` confirmed `Mango`, rendered login fields are empty by default, Cloud Run env inspection confirmed the Supabase pooler host, revision `sushi-backend-00012-5z7` serves 100% traffic, new-revision ERROR log scan was empty, and in-app Browser smoke loaded the deployed sign-in screen without page console errors or horizontal overflow.
+- Firebase Hosting: not deployed.
+- Worker: not deployed; this release did not change analysis batch, project insight worker, or worker runtime code.
+- Rollback target: route backend traffic back to `sushi-backend-00011-qzf` if this deploy regresses.
+
 ## Date: 2026-05-25 21:50 CST
 
 ### Mobile Layout and Translation Backend Deploy
