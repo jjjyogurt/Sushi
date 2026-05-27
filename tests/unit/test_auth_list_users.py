@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db import get_db_session
+from app.db_migrations import ensure_default_app_users
 from app.main import app
 from app.models.app_user import AppUser
 from app.models.base import Base
@@ -81,6 +82,34 @@ def test_auth_users_list_forbidden_when_disabled(monkeypatch):
     try:
         response = client.get("/auth/users")
         assert response.status_code == 403
+    finally:
+        app.dependency_overrides.clear()
+        session.close()
+
+
+def test_seeded_fruit_account_can_login():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    ensure_default_app_users(engine)
+    test_session = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+    session = test_session()
+
+    def override_db():
+        try:
+            yield session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db_session] = override_db
+    client = TestClient(app)
+    try:
+        response = client.post("/auth/login", json={"user_id": "Mango", "password": "1234"})
+        assert response.status_code == 200
+        assert response.json()["user"]["user_id"] == "Mango"
     finally:
         app.dependency_overrides.clear()
         session.close()

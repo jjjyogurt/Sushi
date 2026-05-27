@@ -1,7 +1,7 @@
 import { ApiError, request, requestForm } from "./api-client.js";
 import { createAuthController } from "./auth.js?v=20260521-sushi-login-spin";
 import { bindDashboardInteractions, renderProfileGrid } from "./dashboard.js?v=20260521-inline-edit-row";
-import { createQueueController } from "./queue.js?v=20260525-mobile-layout";
+import { createQueueController } from "./queue.js?v=20260527-video-row-strip";
 import {
   clearVideoQueryParam,
   getProjectIdFromRoute,

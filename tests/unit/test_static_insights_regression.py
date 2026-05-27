@@ -26,8 +26,9 @@ def test_static_cache_busts_insights_isolation_assets():
     template = (ROOT / "app/templates/index.html").read_text()
 
     assert "./insights.js?v=20260525-insights-language" in main_source
-    assert "/static/styles.css?v=20260526-video-detail-spacing" in template
-    assert "/static/main.js?v=20260526-video-detail-spacing" in template
+    assert "/static/styles.css?v=20260527-video-row-strip" in template
+    assert "/static/main.js?v=20260527-video-row-strip" in template
+    assert "./queue.js?v=20260527-video-row-strip" in main_source
     assert "./video-detail.js?v=20260526-video-detail-spacing" in main_source
     assert "./i18n.js?v=20260526-remove-analysis-start-panel" in main_source
 
@@ -143,6 +144,28 @@ def test_video_reach_subscriber_label_is_concise():
 
     assert 'influencerSubscribers: "Subscribers"' in translations
     assert 'influencerSubscribers: "Influencer subscribers"' not in translations
+
+
+def test_video_list_row_uses_essential_strip_metadata():
+    source = (ROOT / "app/static/queue.js").read_text()
+    styles = (ROOT / "app/static/styles.css").read_text()
+
+    render_start = source.index("function renderVideoListItem")
+    render_end = source.index("async function refreshVideos", render_start)
+    render_source = source[render_start:render_end]
+
+    meta_start = styles.index(".video-row-meta-line {")
+    meta_end = styles.index(".video-row-meta-line span + span", meta_start)
+    meta_source = styles[meta_start:meta_end]
+
+    assert "sentimentBadge(video.sentiment_label)" not in render_source
+    assert "analysisStatusLine" not in render_source
+    assert "formatLanguageLabel(video.language)" not in render_source
+    assert "${analysisStatusBadge(video)}" in render_source
+    assert "formatVideoPublishedAt(video.published_at)" in render_source
+    assert '`${escapeHtml(t("videoViews"))}: ${escapeHtml(formatVideoViews(video.view_count))}`' in render_source
+    assert "font-size: 0.68rem;" in meta_source
+    assert "color: var(--text-muted);" in meta_source
 
 
 def test_analysis_language_toggle_uses_compact_segmented_control():

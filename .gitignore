@@ -10,3 +10,4 @@ sushi.db
 
 # Local data exports and dumps
 cloudsql_export_*/
+outputs/

@@ -2,9 +2,11 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from app.db_migrations import (
+    DEFAULT_APP_USERS,
     ensure_analysis_results_agent_settings_hash_column_and_index,
     ensure_analysis_results_language_column_and_index,
     cleanup_orphan_video_data,
+    ensure_default_app_users,
     ensure_monitor_profiles_owner_user_id,
     ensure_analysis_results_summary_columns,
     ensure_project_insight_job_tables,
@@ -15,6 +17,7 @@ from app.db_migrations import (
     ensure_video_candidate_reach_columns,
     retire_legacy_business_impact_columns,
 )
+from app.services.security import verify_password
 
 
 def test_ensure_monitor_profiles_key_products_column_adds_missing_column():
@@ -75,6 +78,43 @@ def test_ensure_analysis_results_summary_columns_adds_missing_columns():
     columns = {column["name"] for column in inspect(engine).get_columns("analysis_results")}
     assert "summary_headline" in columns
     assert "summary_body" in columns
+
+
+def test_ensure_default_app_users_seeds_sushi_and_fruit_accounts_idempotently():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE app_users (
+                    id VARCHAR(80) PRIMARY KEY,
+                    display_name VARCHAR(120) NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
+                    must_change_password BOOLEAN NOT NULL DEFAULT 1,
+                    is_active BOOLEAN NOT NULL DEFAULT 1
+                )
+                """
+            )
+        )
+
+    ensure_default_app_users(engine)
+    ensure_default_app_users(engine)
+
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text("SELECT id, display_name, password_hash, must_change_password, is_active FROM app_users ORDER BY id")
+        ).fetchall()
+
+    users_by_id = {str(row[0]): row for row in rows}
+    assert len(rows) == len(DEFAULT_APP_USERS) == 35
+    assert "Sushi_1" in users_by_id
+    assert "Passionfruit" in users_by_id
+    assert "Mango" in users_by_id
+    assert users_by_id["Mango"][1] == "Mango"
+    assert users_by_id["Mango"][2] != "1234"
+    assert verify_password("1234", users_by_id["Mango"][2])
+    assert bool(users_by_id["Mango"][3]) is True
+    assert bool(users_by_id["Mango"][4]) is True
 
 
 def test_cleanup_orphan_video_data_removes_orphan_video_trees():

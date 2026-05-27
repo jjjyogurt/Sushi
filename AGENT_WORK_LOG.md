@@ -1438,3 +1438,15 @@
 - Changes: Added roomier detail padding, section gaps, transcript/chat spacing, cache-busts, regression coverage, and alpha QA coverage.
 - Check: `node --check app/static/video-detail.js && node --check app/static/main.js`; `.venv/bin/python -m pytest -q tests/unit/test_static_insights_regression.py`; Browser DOM measurement.
 - Next: Review on a real browser viewport before shipping if screenshot evidence is required.
+
+## 2026-05-27 15:38
+- Task: Add fruit local-auth alpha accounts.
+- Changes: Seeded 20 fruit accounts alongside Sushi_1-Sushi_15, removed login field prefills, updated auth coverage and alpha checklist.
+- Check: `.venv/bin/python -m pytest tests/unit/test_db_migrations.py tests/unit/test_auth_list_users.py -q`; `node --check app/static/auth.js`; `git diff --check`.
+- Next: Do not commit the Excel credential export; commit only code/docs/tests.
+
+## 2026-05-27 15:57
+- Task: Run alpha deploy readiness checks.
+- Changes: No product code changes; ran unit, API, and in-app browser smoke checks against local app.
+- Check: P0 gate 41 passed; full unit 176 passed; JS syntax and `git diff --check` clean; browser Mango login/core panels passed.
+- Next: Commit tracked code/docs/tests, exclude `outputs/`, then run staging deploy smoke.

@@ -3128,7 +3128,9 @@ textarea {
   flex-wrap: wrap;
   column-gap: 8px;
   row-gap: 2px;
+  font-size: 0.68rem;
   line-height: 1.25;
+  color: var(--text-muted);
 }
 
 .video-row-meta-line span + span {

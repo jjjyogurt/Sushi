@@ -2,7 +2,6 @@ import { syncProjectRoute } from "./router-state.js?v=20260521-client-nav";
 import {
   debounce,
   escapeHtml,
-  formatLanguageLabel,
   formatLocalDateYmd,
   formatVideoPublishedAt,
   getElement,
@@ -50,14 +49,6 @@ function analysisStatusBadge(video) {
     return iconSvg("check_circle", "analysis-check");
   }
   return "";
-}
-
-function sentimentBadge(sentimentLabel) {
-  if (!sentimentLabel) {
-    return "";
-  }
-  const css = sentimentLabel === "negative" ? "negative" : sentimentLabel === "positive" ? "positive" : "";
-  return `<span class="badge ${css}">${escapeHtml(sentimentLabel)}</span>`;
 }
 
 function formatVideoViews(value) {
@@ -322,7 +313,6 @@ export function createQueueController({
 
   function renderVideoListItem(video, isGlobalScope, isActive, isNew, isSelected, rowNumber) {
     const projectMeta = isGlobalScope && video.monitor_profile_name ? ` • ${escapeHtml(video.monitor_profile_name)}` : "";
-    const sentimentMarkup = sentimentBadge(video.sentiment_label);
     const newBadgeMarkup = isNew ? `<span class="badge new-video-badge">${escapeHtml(t("new"))}</span>` : "";
     const assigneeText = String(video.assigned_user_id || "").trim();
     const assigneeMarkup = assigneeText
@@ -330,17 +320,11 @@ export function createQueueController({
       : "";
     const watchTitle = video.is_bookmarked ? t("removeFromWatchlist") : t("addToWatchlist");
     const watchIcon = video.is_bookmarked ? "bookmark" : "bookmark_add";
-    const analysisStatusText = String(video.latest_analysis_status || "").trim();
-    const analysisStatusLine = `${escapeHtml(t("analysisStatus"))}: <strong>${escapeHtml(
-      analysisStatusText || t("notStarted")
-    )}</strong>`;
     const publishedLabel = escapeHtml(t("publishedAt"));
     const publishedFormatted = formatVideoPublishedAt(video.published_at);
     const metadataItems = [
-      analysisStatusLine,
       publishedFormatted ? `${publishedLabel}: ${escapeHtml(publishedFormatted)}` : "",
       `${escapeHtml(t("videoViews"))}: ${escapeHtml(formatVideoViews(video.view_count))}`,
-      escapeHtml(formatLanguageLabel(video.language)),
     ].filter(Boolean);
 
     return `
@@ -358,7 +342,6 @@ export function createQueueController({
           ${analysisStatusBadge(video)}
           <div class="meta-row">
             ${newBadgeMarkup}
-            ${sentimentMarkup}
             <span class="meta">${escapeHtml(video.channel_name)}${projectMeta}</span>
             ${assigneeMarkup}
           </div>

@@ -4,7 +4,30 @@ from sqlalchemy.engine import Engine
 from app.services.security import hash_password
 
 
-DEFAULT_APP_USERS = tuple(f"Sushi_{index}" for index in range(1, 16))
+DEFAULT_SUSHI_APP_USERS = tuple(f"Sushi_{index}" for index in range(1, 16))
+DEFAULT_FRUIT_APP_USERS = (
+    "Mango",
+    "Lychee",
+    "Papaya",
+    "Guava",
+    "Kiwi",
+    "Fig",
+    "Cherry",
+    "Peach",
+    "Plum",
+    "Apricot",
+    "Durian",
+    "Rambutan",
+    "Persimmon",
+    "Blueberry",
+    "Pineapple",
+    "Coconut",
+    "Tangerine",
+    "Nectarine",
+    "Mulberry",
+    "Passionfruit",
+)
+DEFAULT_APP_USERS = DEFAULT_SUSHI_APP_USERS + DEFAULT_FRUIT_APP_USERS
 LEGACY_OWNER_USER_ID = DEFAULT_APP_USERS[0]
 
 

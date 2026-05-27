@@ -36,26 +36,6 @@ export function createAuthController({ request, setState }) {
   let currentUser = null;
   let waitingResolver = null;
   let formBound = false;
-  let selectorDefaultPassword = "";
-  let selectedLoginUserId = "Sushi_1";
-
-  function syncLoginDefaults() {
-    const userIdInput = getElement("auth-user-id");
-    const passwordInput = getElement("auth-password");
-    selectedLoginUserId = String(users[0]?.user_id || selectedLoginUserId).trim();
-    if (!selectedLoginUserId) {
-      return;
-    }
-    if (userIdInput instanceof HTMLInputElement && !userIdInput.value.trim()) {
-      userIdInput.value = selectedLoginUserId;
-    }
-    if (passwordInput instanceof HTMLInputElement) {
-      if (!selectorDefaultPassword) {
-        selectorDefaultPassword = passwordInput.value || "1234";
-      }
-      passwordInput.value = selectorDefaultPassword;
-    }
-  }
 
   function syncCurrentUserLabels() {
     const userLabel = currentUser?.display_name || t("accountNotSignedIn");
@@ -75,12 +55,9 @@ export function createAuthController({ request, setState }) {
     try {
       const payload = await request("/auth/users");
       users = Array.isArray(payload) ? payload : [];
-      syncLoginDefaults();
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
         users = [];
-        selectedLoginUserId = "Sushi_1";
-        syncLoginDefaults();
         return;
       }
       throw error;
@@ -160,7 +137,6 @@ export function createAuthController({ request, setState }) {
 
   async function waitForLogin() {
     setAuthGateVisible(true);
-    syncLoginDefaults();
     return new Promise((resolve) => {
       waitingResolver = resolve;
     });
