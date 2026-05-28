@@ -10,9 +10,11 @@ def test_video_discovery_request_accepts_publish_window():
     body = VideoDiscoveryRequest(
         monitor_profile_id=1,
         max_results=10,
+        time_trigger="manual_last_7d",
         published_after=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
         published_before=datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc),
     )
+    assert body.time_trigger == "manual_last_7d"
     assert body.published_after == datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     assert body.published_before == datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc)
 

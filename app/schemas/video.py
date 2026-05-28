@@ -12,6 +12,11 @@ DISCOVERY_PUBLISH_WINDOW_MAX_DAYS = 366
 class VideoDiscoveryRequest(BaseModel):
     monitor_profile_id: int
     max_results: int = Field(default=20, ge=1, le=100)
+    time_trigger: Optional[str] = Field(
+        default=None,
+        max_length=40,
+        description="Metadata explaining why this publish window was selected.",
+    )
     published_after: Optional[datetime] = Field(
         default=None,
         description="Include videos with published_at >= this instant (UTC).",

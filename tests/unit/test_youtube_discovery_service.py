@@ -23,6 +23,18 @@ def test_fallback_query_specs_japanese_and_german_markets():
     assert all("hoverair" in q.lower() for q, _, _ in specs)
 
 
+def test_fallback_query_specs_preserves_keywords_as_separate_queries():
+    specs = YouTubeDiscoveryService._fallback_query_specs(
+        keywords=["HoverAir", "X1 Pro Max"],
+        languages=["en"],
+        markets=["US"],
+    )
+    queries = [q.lower() for q, _lang, _region in specs]
+    assert "hoverair" in queries
+    assert "x1 pro max" in queries
+    assert "hoverair x1 pro max" not in queries
+
+
 def test_discover_live_with_specs_youtube_data_api_japanese(monkeypatch):
     requests_seen = []
 
@@ -193,7 +205,9 @@ def test_discover_live_with_specs_passes_publish_window_to_data_api(monkeypatch)
     service.settings.youtube_data_api_key = original_api_key
 
     assert any(
-        params.get("publishedAfter") == "2026-01-01T00:00:00Z" and params.get("publishedBefore") == "2026-12-31T00:00:00Z"
+        params.get("order") == "date"
+        and params.get("publishedAfter") == "2026-01-01T00:00:00Z"
+        and params.get("publishedBefore") == "2026-12-31T00:00:00Z"
         for _url, params in requests_seen
     )
 

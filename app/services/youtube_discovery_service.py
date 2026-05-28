@@ -257,20 +257,25 @@ class YouTubeDiscoveryService:
         base_kw = [item.strip() for item in keywords if item and item.strip()]
         if not base_kw:
             return []
-        q_base = " ".join(base_kw).strip()
-        if len(q_base) > 100:
-            q_base = q_base[:100].rsplit(" ", 1)[0] or q_base[:100]
+        query_seeds: List[str] = []
+        for keyword in base_kw:
+            query = keyword
+            if len(query) > 100:
+                query = query[:100].rsplit(" ", 1)[0] or query[:100]
+            if query and query not in query_seeds:
+                query_seeds.append(query)
         normalized_langs = cls._normalized_languages(languages)
         market_rows = cls._normalized_markets(markets)
         specs: List[DiscoveryQuerySpec] = []
         seen = set()
         for language_code in normalized_langs:
             for region_code, _name in market_rows:
-                key = f"{language_code}:{region_code}:{q_base.lower()}"
-                if key in seen:
-                    continue
-                seen.add(key)
-                specs.append((q_base, language_code, region_code))
+                for query in query_seeds:
+                    key = f"{language_code}:{region_code}:{query.lower()}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    specs.append((query, language_code, region_code))
         return specs
 
     def _discover_with_data_api(
@@ -299,6 +304,7 @@ class YouTubeDiscoveryService:
             params = {
                 "part": "snippet",
                 "type": "video",
+                "order": "date",
                 "q": query,
                 "maxResults": per_query_limit,
                 "key": api_key,

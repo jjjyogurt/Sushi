@@ -168,6 +168,17 @@ def test_video_list_row_uses_essential_strip_metadata():
     assert "color: var(--text-muted);" in meta_source
 
 
+def test_discover_videos_requests_fifty_candidates():
+    source = (ROOT / "app/static/queue.js").read_text()
+
+    discover_start = source.index("async function discoverVideos")
+    discover_end = source.index("function bindDiscoverVideoButton", discover_start)
+    discover_source = source[discover_start:discover_end]
+
+    assert "max_results: 50" in discover_source
+    assert "max_results: 20" not in discover_source
+
+
 def test_analysis_language_toggle_uses_compact_segmented_control():
     styles = (ROOT / "app/static/styles.css").read_text()
 

@@ -78,9 +78,12 @@ class DiscoveryKeywordService:
         normalized_langs: List[str],
         market_rows: List[Tuple[str, str]],
     ) -> DiscoveryPlan:
+        fallback = self._fallback_plan(base_kw, normalized_langs, market_rows)
         queries_raw = parsed.get("queries")
-        specs: List[DiscoveryQuerySpec] = []
+        specs: List[DiscoveryQuerySpec] = list(fallback.query_specs)
         seen: Set[str] = set()
+        for q, rel, reg in specs:
+            seen.add(f"{rel}:{reg}:{q.lower()}")
         if isinstance(queries_raw, list):
             for item in queries_raw:
                 if not isinstance(item, dict):
@@ -109,16 +112,6 @@ class DiscoveryKeywordService:
             if term not in match_keywords:
                 match_keywords.append(term)
 
-        expected_pairs = {(lang, code) for lang in normalized_langs for code, _label in market_rows}
-        got_pairs = {(s[1], s[2]) for s in specs}
-        missing = expected_pairs - got_pairs
-        if missing:
-            fallback = self._fallback_plan(base_kw, normalized_langs, market_rows)
-            for spec in fallback.query_specs:
-                pair = (spec[1], spec[2])
-                if pair in missing and spec not in specs and len(specs) < _MAX_SPECS:
-                    specs.append(spec)
-
         return DiscoveryPlan(query_specs=specs[:_MAX_SPECS], match_keywords=list(dict.fromkeys(match_keywords)))
 
     def _fallback_plan(
@@ -127,18 +120,29 @@ class DiscoveryKeywordService:
         normalized_langs: List[str],
         market_rows: List[Tuple[str, str]],
     ) -> DiscoveryPlan:
-        q_base = " ".join(base_kw).strip()
-        if len(q_base) > _MAX_QUERY_CHARS:
-            q_base = q_base[:_MAX_QUERY_CHARS].rsplit(" ", 1)[0] or q_base[:_MAX_QUERY_CHARS]
-
+        query_seeds = self._query_seeds(base_kw)
         specs: List[DiscoveryQuerySpec] = []
         seen: Set[str] = set()
         for language_code in normalized_langs:
             for region_code, _market_name in market_rows:
-                key = f"{language_code}:{region_code}:{q_base.lower()}"
-                if key in seen or len(specs) >= _MAX_SPECS:
-                    continue
-                seen.add(key)
-                specs.append((q_base, language_code, region_code))
+                for query in query_seeds:
+                    key = f"{language_code}:{region_code}:{query.lower()}"
+                    if key in seen or len(specs) >= _MAX_SPECS:
+                        continue
+                    seen.add(key)
+                    specs.append((query, language_code, region_code))
 
         return DiscoveryPlan(query_specs=specs, match_keywords=list(dict.fromkeys(base_kw)))
+
+    @staticmethod
+    def _query_seeds(base_kw: List[str]) -> List[str]:
+        seeds: List[str] = []
+        for keyword in base_kw:
+            query = str(keyword or "").strip()
+            if not query:
+                continue
+            if len(query) > _MAX_QUERY_CHARS:
+                query = query[:_MAX_QUERY_CHARS].rsplit(" ", 1)[0] or query[:_MAX_QUERY_CHARS]
+            if query and query not in seeds:
+                seeds.append(query)
+        return seeds

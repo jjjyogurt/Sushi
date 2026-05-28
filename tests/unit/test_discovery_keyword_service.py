@@ -19,6 +19,21 @@ def test_fallback_plan_japanese_german_regions():
     assert any("hoverair" in m for m in lowered)
 
 
+def test_fallback_plan_preserves_user_keywords_as_separate_queries():
+    settings = get_settings()
+    service = DiscoveryKeywordService(settings, gemini_client=None)
+    plan = service.build_plan(
+        keywords=["HoverAir", "X1 Pro Max"],
+        languages=["en"],
+        markets=["US"],
+    )
+    queries = [q for q, _lang, _reg in plan.query_specs]
+    lowered = [query.lower() for query in queries]
+    assert "hoverair" in lowered
+    assert "x1 pro max" in lowered
+    assert "hoverair x1 pro max" not in lowered
+
+
 def test_gemini_plan_merges_missing_pairs_for_jp_de(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "gemini_api_key", "test-key", raising=False)
@@ -40,6 +55,28 @@ def test_gemini_plan_merges_missing_pairs_for_jp_de(monkeypatch):
     assert ("de", "DE") in pairs
     assert "ホバーエアー" in plan.match_keywords
     gemini.plan_youtube_discovery_queries.assert_called_once()
+
+
+def test_gemini_plan_keeps_exact_user_keyword_specs(monkeypatch):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "gemini_api_key", "test-key", raising=False)
+    gemini = MagicMock()
+    gemini.plan_youtube_discovery_queries.return_value = {
+        "queries": [
+            {"q": "best pocket drone review", "relevanceLanguage": "en", "regionCode": "US"},
+        ],
+        "match_keywords": ["pocket drone"],
+    }
+    service = DiscoveryKeywordService(settings, gemini_client=gemini)
+    plan = service.build_plan(
+        keywords=["HoverAir", "X1 Pro Max"],
+        languages=["en"],
+        markets=["US"],
+    )
+    queries = [q.lower() for q, _lang, _reg in plan.query_specs]
+    assert "hoverair" in queries
+    assert "x1 pro max" in queries
+    assert "best pocket drone review" in queries
 
 
 def test_fallback_when_gemini_raises_exception(monkeypatch):

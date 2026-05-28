@@ -1,5 +1,29 @@
 # Agent Work Log
 
+## 2026-05-28 14:05
+- Task: Increase UI discovery result request size.
+- Changes: Changed Discover Videos UI requests from 20 to 50 candidates and added static regression coverage plus alpha checklist wording.
+- Check: `node --check app/static/queue.js app/static/app.js`; `PYTHONPATH=. /tmp/sushi-discovery-test-venv/bin/python -m pytest tests/unit/test_static_insights_regression.py -q`.
+- Next: No follow-up needed.
+
+## 2026-05-28 13:56
+- Task: Implement Phase 1 video discovery correctness.
+- Changes: Preserved exact keyword query seeds, added newest-first YouTube search, title/description filtering, time trigger forwarding/audit, tests, and alpha coverage.
+- Check: `PYTHONPATH=. /tmp/sushi-discovery-test-venv/bin/python -m pytest tests/unit/test_discovery_keyword_service.py tests/unit/test_youtube_discovery_service.py tests/unit/test_triage_service.py tests/unit/test_video_discovery_schema.py tests/unit/test_video_router.py -q`; `python3 -m compileall -q ...`; `node --check app/static/queue.js`.
+- Next: Run full unit regression before deploy.
+
+## 2026-05-28 12:06
+- Task: Add the 0529 discovery build plan.
+- Changes: Created discovery0529-build.md with Phase 1 discovery implementation chunks, tests, acceptance criteria, and Phase 2 monitoring boundaries.
+- Check: Read back the new markdown file.
+- Next: Implement the Phase 1 discovery behavior from the build plan when approved.
+
+## 2026-05-28 10:23
+- Task: Document video discovery functional requirements.
+- Changes: Added discovery0528.md covering user-keyword/time-trigger discovery, filtering, scoring, scheduler handoff, and future proactive monitoring reports.
+- Check: Read back the new markdown file and updated sections.
+- Next: Use this document to guide the focused discovery implementation.
+
 ## 2026-05-26 11:52
 - Task: Narrow dashboard create button beam.
 - Changes: Tightened the monochrome traveling beam gradient stops by about 20%.
