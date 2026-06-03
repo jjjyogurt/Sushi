@@ -1516,3 +1516,9 @@
 - Changes: Removed the Action Recommendation detail block, its unused styling, and bumped static cache keys.
 - Check: `.venv/bin/python -m pytest -q tests/unit/test_static_insights_regression.py`; JS syntax checks; `git diff --check`; browser DOM confirmed the block is gone.
 - Next: No follow-up needed.
+
+## 2026-06-03 13:20
+- Task: Fix Supabase transcript migration startup failure.
+- Changes: Removed lowercase enum comparison from transcript provenance backfill and excluded local `sushi.db` from Cloud Run source uploads.
+- Check: `.venv/bin/python -m pytest -q tests/unit` passed: 192 tests, 1 warning; focused migration/static tests passed; JS syntax and `git diff --check` passed.
+- Next: Retry Cloud Run deploy and verify production startup.

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
@@ -110,6 +112,18 @@ def test_ensure_analysis_results_transcript_provenance_columns_adds_missing_colu
     assert "transcript_translation_model" in columns
     assert "transcript_status" in columns
     assert "transcript_error_message" in columns
+
+
+def test_transcript_provenance_migration_does_not_compare_lowercase_completed_enum():
+    source = Path("app/db_migrations.py").read_text()
+    function_source = source[
+        source.index("def ensure_analysis_results_transcript_provenance_columns") : source.index(
+            "def ensure_video_comments_table"
+        )
+    ]
+
+    assert "status = 'COMPLETED'" in function_source
+    assert "status = 'completed'" not in function_source
 
 
 def test_ensure_default_app_users_seeds_sushi_and_fruit_accounts_idempotently():

@@ -7,6 +7,7 @@ node_modules/
 *.pyc
 __pycache__/
 .env
+sushi.db
 .venv/
 venv/
 .DS_Store

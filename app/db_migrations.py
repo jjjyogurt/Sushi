@@ -496,7 +496,7 @@ def ensure_analysis_results_transcript_provenance_columns(engine: Engine) -> Non
                 UPDATE analysis_results
                 SET transcript_status = CASE
                     WHEN transcript_text IS NOT NULL AND transcript_text <> '' THEN 'available'
-                    WHEN status = 'COMPLETED' OR status = 'completed' THEN 'unavailable'
+                    WHEN status = 'COMPLETED' THEN 'unavailable'
                     ELSE ''
                 END
                 WHERE transcript_status = ''

@@ -284,6 +284,11 @@ Because this project uses imperative startup migrations, changes to models shoul
 - Why it changed: Video detail now exposes bilingual downloadable transcripts, so the persisted transcript must match the selected analysis language and identify whether it was translated from the provider/source transcript. Transcript translation is a display/download concern, uses one bilingual Gemini JSON call for English and Simplified Chinese, and should not make completed analysis disappear when only transcript translation fails.
 - Impact on existing data and compatibility: Additive startup migration with safe defaults. Existing analysis rows remain readable with empty/unknown transcript provenance until reanalysis; migration backfills `transcript_status='available'` for rows with stored transcript text and `unavailable` for completed rows without transcript text. Fresh runs populate provenance/status fields. Source transcript fetch or English analysis failures still fail both rows; English or Chinese transcript translation failure leaves the relevant completed analysis row with transcript unavailable metadata.
 
+### What Changed (2026-06-03, transcript provenance migration enum hotfix)
+- What changed: Restricted the transcript provenance startup backfill to compare `analysis_results.status` against the valid persisted enum value `COMPLETED` only.
+- Why it changed: Supabase PostgreSQL stores `status` as an enum, and comparing it to lowercase `completed` causes startup failure before the new revision can become ready.
+- Impact on existing data and compatibility: No schema change. Existing rows still receive transcript status backfill for valid completed enum rows; invalid lowercase legacy status strings are not treated as completed during this migration.
+
 ### What Changed (2026-05-25, bilingual project insights)
 - What changed: Added `language` to `project_insight_reports` and `project_insight_jobs`, changed project insights current/history/refresh/job reads to accept `en` or `zh-Hans`, and changed the active-job guard from one job per project to one job per project-language.
 - Why it changed: The insights page now supports the same English/Chinese switching model as video analysis, so reports must aggregate and persist the matching language-specific analysis rows instead of reusing an English-only rollup.
