@@ -19,14 +19,14 @@ import {
   normalizeSelectableValue,
   splitCsv,
 } from "./ui-utils.js";
-import { createVideoDetailController } from "./video-detail.js?v=20260602-transcript-rows";
+import { createVideoDetailController } from "./video-detail.js?v=20260603-remove-action-recommendation";
 import { createAgentSettingsController } from "./agent-settings.js";
 import { createKnowledgeSettingsController } from "./knowledge-settings.js?v=20260515-icons";
 import { createVocController } from "./voc.js";
 import { createAllVideosSettingsController } from "./all-videos-settings.js";
 import { createInsightsController } from "./insights.js?v=20260525-insights-language";
 import { createWatchlistController } from "./watchlist.js?v=20260515-icons";
-import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260602-transcript-rows";
+import { applyStaticTranslations, getLocale, initI18n, onLocaleChange, setLocale, t } from "./i18n.js?v=20260603-remove-action-recommendation";
 
 const DEFAULT_PROJECT_BRAND_KEYWORDS = Object.freeze([
   "HOVER",

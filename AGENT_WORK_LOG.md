@@ -1510,3 +1510,9 @@
 - Changes: Replaced JSON-only bilingual transcript parsing with tagged transcript sections plus fallbacks for valid JSON and multiline JSON-like Gemini output; added Japanese regression coverage and updated alpha transcript download coverage.
 - Check: `.venv/bin/python -m pytest -q tests/unit/test_gemini_client.py tests/unit/test_static_insights_regression.py tests/unit/test_analysis_service.py`; `node --check app/static/video-detail.js && node --check app/static/main.js`; `git diff --check`; real project 6 Japanese rerun produced available English and Chinese transcripts.
 - Next: No follow-up needed.
+
+## 2026-06-03 10:09
+- Task: Remove video detail action recommendation card.
+- Changes: Removed the Action Recommendation detail block, its unused styling, and bumped static cache keys.
+- Check: `.venv/bin/python -m pytest -q tests/unit/test_static_insights_regression.py`; JS syntax checks; `git diff --check`; browser DOM confirmed the block is gone.
+- Next: No follow-up needed.

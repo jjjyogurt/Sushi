@@ -365,16 +365,6 @@ function influencerSignalMarkup(analysis) {
   `;
 }
 
-function actionRecommendationMarkup(analysis) {
-  const recommendation = analysis ? String(analysis.action_recommendation || "").trim() : "";
-  return `
-    <div class="detail-block">
-      <h5>${escapeHtml(t("actionRecommendation"))}</h5>
-      <div class="recommendation-body">${escapeHtml(recommendation || t("noRecommendationYet"))}</div>
-    </div>
-  `;
-}
-
 function concisePointListMarkup(points) {
   if (!Array.isArray(points) || points.length === 0) {
     return `<ul class="point-list"></ul>`;
@@ -624,7 +614,6 @@ function videoDetailMarkup({
         </div>
         ${influencerSignalMarkup(analysis)}
         ${commentsSentimentMarkup(analysis)}
-        ${actionRecommendationMarkup(analysis)}
         ${transcriptMarkup(analysis, transcriptExpanded)}
         <div class="detail-block">
           <h5>${escapeHtml(t("evidence"))}</h5>

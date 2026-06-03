@@ -1288,11 +1288,6 @@ textarea {
   line-height: 1.5;
 }
 
-.recommendation-body {
-  font-size: 0.9rem;
-  line-height: 1.65;
-}
-
 .summary-structured {
   display: grid;
   gap: 12px;

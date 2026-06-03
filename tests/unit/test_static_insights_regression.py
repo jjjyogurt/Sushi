@@ -26,11 +26,11 @@ def test_static_cache_busts_insights_isolation_assets():
     template = (ROOT / "app/templates/index.html").read_text()
 
     assert "./insights.js?v=20260525-insights-language" in main_source
-    assert "/static/styles.css?v=20260602-transcript-rows" in template
-    assert "/static/main.js?v=20260602-transcript-rows" in template
+    assert "/static/styles.css?v=20260603-remove-action-recommendation" in template
+    assert "/static/main.js?v=20260603-remove-action-recommendation" in template
     assert "./queue.js?v=20260527-video-row-strip" in main_source
-    assert "./video-detail.js?v=20260602-transcript-rows" in main_source
-    assert "./i18n.js?v=20260602-transcript-rows" in main_source
+    assert "./video-detail.js?v=20260603-remove-action-recommendation" in main_source
+    assert "./i18n.js?v=20260603-remove-action-recommendation" in main_source
 
 
 def test_sidebar_slogan_stays_on_one_line():
@@ -237,6 +237,15 @@ def test_video_detail_transcript_download_sits_beside_expand_and_uses_selected_l
     assert 'downloadTranscript: "Download"' in translations
     assert 'transcriptTranslationWarning: "Analysis is complete. Transcript translation failed, so the transcript is unavailable for this language."' in translations
     assert 'downloadTranscript: "下载"' in translations
+
+
+def test_video_detail_does_not_render_action_recommendation_card():
+    source = (ROOT / "app/static/video-detail.js").read_text()
+    styles = (ROOT / "app/static/styles.css").read_text()
+
+    assert "function actionRecommendationMarkup" not in source
+    assert "${actionRecommendationMarkup(analysis)}" not in source
+    assert "recommendation-body" not in styles
 
 
 def test_video_detail_analysis_layout_has_breathing_room():
