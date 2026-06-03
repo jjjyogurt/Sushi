@@ -5,6 +5,7 @@ from app.db_migrations import (
     DEFAULT_APP_USERS,
     ensure_analysis_results_agent_settings_hash_column_and_index,
     ensure_analysis_results_language_column_and_index,
+    ensure_analysis_results_transcript_provenance_columns,
     cleanup_orphan_video_data,
     ensure_default_app_users,
     ensure_monitor_profiles_owner_user_id,
@@ -78,6 +79,37 @@ def test_ensure_analysis_results_summary_columns_adds_missing_columns():
     columns = {column["name"] for column in inspect(engine).get_columns("analysis_results")}
     assert "summary_headline" in columns
     assert "summary_body" in columns
+
+
+def test_ensure_analysis_results_transcript_provenance_columns_adds_missing_columns():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE analysis_results (
+                    id INTEGER PRIMARY KEY,
+                    video_candidate_id INTEGER NOT NULL,
+                    analysis_version TEXT NOT NULL,
+                    language TEXT NOT NULL DEFAULT 'en',
+                    model_name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    transcript_text TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+        )
+
+    ensure_analysis_results_transcript_provenance_columns(engine)
+    ensure_analysis_results_transcript_provenance_columns(engine)
+
+    columns = {column["name"]: column for column in inspect(engine).get_columns("analysis_results")}
+    assert "transcript_language" in columns
+    assert "transcript_source_language" in columns
+    assert "transcript_is_translated" in columns
+    assert "transcript_translation_model" in columns
+    assert "transcript_status" in columns
+    assert "transcript_error_message" in columns
 
 
 def test_ensure_default_app_users_seeds_sushi_and_fruit_accounts_idempotently():

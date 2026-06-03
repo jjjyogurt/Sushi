@@ -231,6 +231,61 @@ class GeminiClient:
         parsed = self._parse_json_payload(raw=raw, context="comments sentiment")
         return self._comments_from_parsed(parsed=parsed)
 
+    def translate_transcript(
+        self,
+        *,
+        transcript_text: str,
+        source_language: str,
+        target_output_language: str,
+    ) -> str:
+        translations = self.translate_transcript_bundle(
+            transcript_text=transcript_text,
+            source_language=source_language,
+        )
+        normalized_target = str(target_output_language or "").strip().lower()
+        if normalized_target == "zh-hans":
+            return translations["zh-Hans"]
+        if normalized_target == "en":
+            return translations["en"]
+        raise GeminiResponseError("Target transcript language is unsupported.")
+
+    def translate_transcript_bundle(
+        self,
+        *,
+        transcript_text: str,
+        source_language: str,
+    ) -> Dict[str, str]:
+        self._ensure_runtime_ready()
+        normalized_source = str(source_language or "").strip() or "unknown"
+        if not transcript_text.strip():
+            raise GeminiResponseError("Transcript text is empty; cannot translate transcript.")
+
+        prompt = (
+            "Translate this video transcript into English and Simplified Chinese.\n"
+            "Return only these two tagged sections, with no extra commentary:\n"
+            "<english_transcript>\n"
+            "MM:SS English sentence\n"
+            "</english_transcript>\n"
+            "<chinese_transcript>\n"
+            "MM:SS Simplified Chinese sentence\n"
+            "</chinese_transcript>\n"
+            "Format each transcript as one timestamped segment per line: `MM:SS translated sentence`.\n"
+            "Keep the original timestamp order and keep timestamps at the beginning of each line when they are present.\n"
+            "Do not merge timestamped segments into a single paragraph.\n"
+            "Do not summarize, omit, or add interpretation. Translate the transcript content only.\n"
+            f"Source language: {normalized_source}\n"
+            f"Transcript:\n{transcript_text}\n"
+        )
+        raw = self._generate_text(model_name=self.settings.gemini_model_analysis, prompt=prompt)
+        parsed = self._parse_transcript_bundle_payload(raw=raw)
+        english = self._normalize_translated_transcript_lines(str(parsed.get("english_transcript") or ""))
+        chinese = self._normalize_translated_transcript_lines(str(parsed.get("chinese_transcript") or ""))
+        if not english or not chinese:
+            raise GeminiResponseError("Gemini bilingual transcript translation output is missing a transcript.")
+        self._validate_transcript_translation_presence(source=transcript_text, translated=english, language="English")
+        self._validate_transcript_translation_presence(source=transcript_text, translated=chinese, language="Chinese")
+        return {"en": english, "zh-Hans": chinese}
+
     def translate_analysis_bundle(
         self,
         *,
@@ -537,6 +592,62 @@ class GeminiClient:
         return parsed
 
     @staticmethod
+    def _parse_transcript_bundle_payload(*, raw: str) -> dict:
+        normalized = raw.strip()
+        if normalized.startswith("```"):
+            normalized = GeminiClient._extract_fenced_payload(normalized)
+
+        tagged = GeminiClient._parse_tagged_transcript_bundle(normalized)
+        if tagged:
+            return tagged
+
+        try:
+            return GeminiClient._parse_json_payload(raw=normalized, context="bilingual transcript translation")
+        except GeminiResponseError as json_error:
+            relaxed = GeminiClient._parse_relaxed_jsonish_transcript_bundle(normalized)
+            if relaxed:
+                return relaxed
+            raise json_error
+
+    @staticmethod
+    def _parse_tagged_transcript_bundle(raw: str) -> dict:
+        english_match = re.search(
+            r"<english_transcript>\s*(.*?)\s*</english_transcript>",
+            raw,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        chinese_match = re.search(
+            r"<chinese_transcript>\s*(.*?)\s*</chinese_transcript>",
+            raw,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if not english_match or not chinese_match:
+            return {}
+        return {
+            "english_transcript": english_match.group(1).strip(),
+            "chinese_transcript": chinese_match.group(1).strip(),
+        }
+
+    @staticmethod
+    def _parse_relaxed_jsonish_transcript_bundle(raw: str) -> dict:
+        english_match = re.search(
+            r'"english_transcript"\s*:\s*"(.*?)"\s*,\s*"chinese_transcript"\s*:',
+            raw,
+            flags=re.DOTALL,
+        )
+        chinese_match = re.search(
+            r'"chinese_transcript"\s*:\s*"(.*?)"\s*}\s*$',
+            raw,
+            flags=re.DOTALL,
+        )
+        if not english_match or not chinese_match:
+            return {}
+        return {
+            "english_transcript": english_match.group(1).strip(),
+            "chinese_transcript": chinese_match.group(1).strip(),
+        }
+
+    @staticmethod
     def _extract_fenced_payload(raw: str) -> str:
         parts = [part.strip() for part in raw.split("```") if part.strip()]
         if not parts:
@@ -545,7 +656,47 @@ class GeminiClient:
         first = parts[0]
         if first.lower().startswith("json"):
             return first[4:].strip()
+        if first.lower().startswith("text"):
+            return first[4:].strip()
         return first
+
+    @staticmethod
+    def _timestamped_lines(text: str) -> List[str]:
+        return [
+            line
+            for line in text.splitlines()
+            if re.match(r"^\s*\d{2}:\d{2}(?::\d{2})?\s+", line)
+        ]
+
+    @staticmethod
+    def _normalize_translated_transcript_lines(text: str) -> str:
+        normalized = str(text or "").strip()
+        if not normalized:
+            return ""
+
+        timestamp_pattern = re.compile(r"(?<!\d)(\d{2}:\d{2}(?::\d{2})?)(?!\d)")
+        matches = list(timestamp_pattern.finditer(normalized))
+        if not matches:
+            return "\n".join(line.strip() for line in normalized.splitlines() if line.strip())
+
+        lines = []
+        prefix = normalized[: matches[0].start()].strip()
+        for index, match in enumerate(matches):
+            next_start = matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
+            text_start = match.end()
+            segment_text = re.sub(r"\s+", " ", normalized[text_start:next_start]).strip()
+            if index == 0 and prefix:
+                segment_text = f"{prefix} {segment_text}".strip()
+            if segment_text:
+                lines = [*lines, f"{match.group(1)} {segment_text}"]
+        return "\n".join(lines) if lines else normalized
+
+    @staticmethod
+    def _validate_transcript_translation_presence(*, source: str, translated: str, language: str) -> None:
+        if not translated.strip():
+            raise GeminiResponseError(f"Gemini {language} transcript translation output is empty.")
+        if GeminiClient._timestamped_lines(source) and not GeminiClient._timestamped_lines(translated):
+            logger.warning("gemini %s transcript translation returned no timestamped lines", language)
 
     def _analysis_from_parsed(
         self, *, parsed: dict, fallback_transcript: str, target_output_language: str

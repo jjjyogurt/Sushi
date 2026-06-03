@@ -1,5 +1,23 @@
 # Agent Work Log
 
+## 2026-06-02 22:30
+- Task: Run full local Japanese transcript analysis verification.
+- Changes: Added release test case for Japanese-source transcript reruns and stale-backend setup guard; restarted local backend with reload and verified the real browser flow.
+- Check: `.venv/bin/python -m pytest -q tests/unit` (188 passed); browser rerun completed with transcript warnings only; `git diff --check`.
+- Next: None.
+
+## 2026-06-02 22:17
+- Task: Restore source-transcript video analysis while keeping transcript translation sidecar behavior.
+- Changes: English analysis now uses the fetched source transcript directly; English/Chinese transcript translation failures only mark transcript metadata unavailable.
+- Check: `.venv/bin/python -m pytest -q tests/unit` (188 passed); `git diff --check`.
+- Next: None.
+
+## 2026-06-02 21:43
+- Task: Decouple Chinese transcript translation from Chinese analysis completion.
+- Changes: Added transcript status/error metadata, preserved Chinese analysis on transcript-only failures, switched transcript translation to indexed batches, and updated UI/docs/tests.
+- Check: `.venv/bin/python -m pytest -q tests/unit` (188 passed); Browser smoke on `http://127.0.0.1:8001/`; `git diff --check`.
+- Next: None.
+
 ## 2026-05-26 11:52
 - Task: Narrow dashboard create button beam.
 - Changes: Tightened the monochrome traveling beam gradient stops by about 20%.
@@ -1456,3 +1474,39 @@
 - Changes: Deployed backend revision sushi-backend-00012-5z7 and recorded the release in DEPLOY_LOG.md.
 - Check: Production `/health`, root HTML, Mango login, env host, traffic, log scan, and Browser sign-in smoke passed.
 - Next: Push deployment record so remote history matches production.
+
+## 2026-06-02 17:06
+- Task: Add bilingual transcript download.
+- Changes: Added transcript provenance, separate transcript translation, selected-language TXT download UI, docs, and tests.
+- Check: `.venv/bin/python -m pytest -q tests/unit` passed: 186 tests, 1 warning.
+- Next: Browser-smoke the video detail toolbar before deploy.
+
+## 2026-06-02 17:24
+- Task: Fix transcript expansion and translation fallback.
+- Changes: Made expanded transcript panels visibly taller and added indexed Gemini retry for malformed transcript translations.
+- Check: `.venv/bin/python -m pytest -q tests/unit` passed: 187 tests, 1 warning.
+- Next: Force re-run affected Spanish video analysis to regenerate the Chinese transcript row.
+
+## 2026-06-02 22:57
+- Task: Simplify transcript translation and verify Japanese analysis.
+- Changes: Replaced strict indexed transcript translation with one bilingual Gemini JSON call for English and Simplified Chinese, reused the bundle for both analysis rows, and updated regression/alpha documentation.
+- Check: `.venv/bin/python -m pytest -q tests/unit` passed: 188 tests, 1 warning; focused service/client tests passed; `git diff --check`; real project 6 Japanese video rerun completed with English and Chinese translated transcripts available.
+- Next: Consider adding a provider timeout/serialization guard for concurrent force-reruns, since local hot reload can strand in-progress rows.
+
+## 2026-06-02 23:12
+- Task: Format translated transcripts as timestamp rows.
+- Changes: Updated the bilingual Gemini transcript prompt, normalized collapsed timestamped transcript output into line-based storage, rendered transcript timestamps and sentences in two columns, and bumped static cache keys.
+- Check: `.venv/bin/python -m pytest -q tests/unit/test_gemini_client.py tests/unit/test_static_insights_regression.py`; `node --check app/static/video-detail.js && node --check app/static/main.js`; `git diff --check`; browser DOM showed 231 transcript rows.
+- Next: Re-run video analysis only when regenerated stored transcript formatting is needed; the UI already formats existing collapsed rows.
+
+## 2026-06-02 23:19
+- Task: Keep video detail boxes inside the visible pane.
+- Changes: Added min-width/max-width constraints to queue/detail panes and detail blocks, clipped the detail pane overflow, and constrained the YouTube iframe with a 16:9 aspect ratio.
+- Check: `.venv/bin/python -m pytest -q tests/unit/test_static_insights_regression.py`; `node --check app/static/main.js && node --check app/static/video-detail.js`; `git diff --check`; browser DOM measured iframe and detail children inside the pane.
+- Next: No follow-up needed.
+
+## 2026-06-02 23:45
+- Task: Fix Japanese transcript parse failure.
+- Changes: Replaced JSON-only bilingual transcript parsing with tagged transcript sections plus fallbacks for valid JSON and multiline JSON-like Gemini output; added Japanese regression coverage and updated alpha transcript download coverage.
+- Check: `.venv/bin/python -m pytest -q tests/unit/test_gemini_client.py tests/unit/test_static_insights_regression.py tests/unit/test_analysis_service.py`; `node --check app/static/video-detail.js && node --check app/static/main.js`; `git diff --check`; real project 6 Japanese rerun produced available English and Chinese transcripts.
+- Next: No follow-up needed.

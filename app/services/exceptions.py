@@ -34,6 +34,10 @@ class TranscriptProviderError(TranscriptError):
     """Raised when transcript provider returns an unexpected failure."""
 
 
+class TranscriptTranslationError(TranscriptError):
+    """Raised when a fetched transcript cannot be translated into a required output language."""
+
+
 class VideoProjectConflictError(ValueError):
     """Raised when a YouTube video is already owned by a different monitor profile."""
 

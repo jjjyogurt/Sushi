@@ -152,6 +152,12 @@ class AnalysisRepository:
     @staticmethod
     def _reset_result_payload(result: AnalysisResult) -> None:
         result.transcript_text = ""
+        result.transcript_language = ""
+        result.transcript_source_language = ""
+        result.transcript_is_translated = False
+        result.transcript_translation_model = ""
+        result.transcript_status = ""
+        result.transcript_error_message = ""
         result.summary_text = ""
         result.translated_summary = ""
         result.summary_headline = ""

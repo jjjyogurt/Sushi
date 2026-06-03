@@ -460,6 +460,51 @@ def ensure_analysis_results_comment_columns(engine: Engine) -> None:
             connection.execute(text(statement))
 
 
+def ensure_analysis_results_transcript_provenance_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    if "analysis_results" not in table_names:
+        return
+    columns = {column["name"] for column in inspector.get_columns("analysis_results")}
+
+    statements = []
+    if "transcript_language" not in columns:
+        statements = [*statements, "ALTER TABLE analysis_results ADD COLUMN transcript_language VARCHAR(16) NOT NULL DEFAULT ''"]
+    if "transcript_source_language" not in columns:
+        statements = [*statements, "ALTER TABLE analysis_results ADD COLUMN transcript_source_language VARCHAR(16) NOT NULL DEFAULT ''"]
+    if "transcript_is_translated" not in columns:
+        boolean_default = "0" if engine.dialect.name == "sqlite" else "false"
+        statements = [
+            *statements,
+            f"ALTER TABLE analysis_results ADD COLUMN transcript_is_translated BOOLEAN NOT NULL DEFAULT {boolean_default}",
+        ]
+    if "transcript_translation_model" not in columns:
+        statements = [*statements, "ALTER TABLE analysis_results ADD COLUMN transcript_translation_model VARCHAR(60) NOT NULL DEFAULT ''"]
+    if "transcript_status" not in columns:
+        statements = [*statements, "ALTER TABLE analysis_results ADD COLUMN transcript_status VARCHAR(24) NOT NULL DEFAULT ''"]
+    if "transcript_error_message" not in columns:
+        statements = [*statements, "ALTER TABLE analysis_results ADD COLUMN transcript_error_message TEXT NOT NULL DEFAULT ''"]
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+        connection.execute(
+            text(
+                """
+                UPDATE analysis_results
+                SET transcript_status = CASE
+                    WHEN transcript_text IS NOT NULL AND transcript_text <> '' THEN 'available'
+                    WHEN status = 'COMPLETED' OR status = 'completed' THEN 'unavailable'
+                    ELSE ''
+                END
+                WHERE transcript_status = ''
+                """
+            )
+        )
+
+
 def ensure_video_comments_table(engine: Engine) -> None:
     inspector = inspect(engine)
     if "video_comments" not in inspector.get_table_names():

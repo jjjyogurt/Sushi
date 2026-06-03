@@ -26,6 +26,7 @@ from app.db_migrations import (
     ensure_analysis_results_comment_columns,
     ensure_analysis_results_language_column_and_index,
     ensure_analysis_results_summary_columns,
+    ensure_analysis_results_transcript_provenance_columns,
     ensure_default_app_users,
     ensure_monitor_profiles_owner_user_id,
     ensure_monitor_profiles_key_products_column,
@@ -61,6 +62,7 @@ async def lifespan(_: FastAPI):
     ensure_analysis_results_language_column_and_index(engine)
     ensure_analysis_results_agent_settings_hash_column_and_index(engine)
     ensure_analysis_results_comment_columns(engine)
+    ensure_analysis_results_transcript_provenance_columns(engine)
     ensure_video_comments_table(engine)
     ensure_video_candidate_assignment_columns(engine)
     ensure_video_candidate_reach_columns(engine)
