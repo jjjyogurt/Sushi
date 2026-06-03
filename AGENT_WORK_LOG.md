@@ -1522,3 +1522,9 @@
 - Changes: Removed lowercase enum comparison from transcript provenance backfill and excluded local `sushi.db` from Cloud Run source uploads.
 - Check: `.venv/bin/python -m pytest -q tests/unit` passed: 192 tests, 1 warning; focused migration/static tests passed; JS syntax and `git diff --check` passed.
 - Next: Retry Cloud Run deploy and verify production startup.
+
+## 2026-06-03 13:27
+- Task: Deploy transcript and video-detail updates to Cloud Run.
+- Changes: Deployed backend revision `sushi-backend-00014-kh4` and worker revision `sushi-analysis-worker-00006-gd8`; recorded release in `DEPLOY_LOG.md`.
+- Check: Backend/worker health, Supabase env, Gemini health, log scans, and production browser smoke passed.
+- Next: No follow-up needed.

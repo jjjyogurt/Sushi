@@ -393,3 +393,17 @@ if supports_stale_timestamp_check:
 - Firebase Hosting: not deployed
 - Verification: Cloud Run `/health` passed, revision `sushi-backend-00005-5s5` served 100% traffic, Supabase `DATABASE_URL` remained configured, new revision ERROR log scan was clean, and deployed HTML included the updated prompt copy.
 - Rollback target: `sushi-backend-00004-nbf`
+
+## Date: 2026-06-03 13:27 CST
+
+- Type: Free-tier pilot Cloud Run backend + analysis worker release
+- Commit: `26f9488ea7e546185f94055cc937e8a0cd7539c8`
+- Release owner: Codex
+- What changed: Added bilingual transcript provenance/download behavior, fixed the Supabase enum-safe transcript provenance migration backfill, removed the video detail Action Recommendation card, and excluded local `sushi.db` from Cloud Run source uploads.
+- Tests: `.venv/bin/python -m pytest -q tests/unit` passed with 192 tests and 1 existing LibreSSL/urllib3 warning; focused migration/static tests passed; JS syntax checks passed; `git diff --check` passed.
+- Cloud Run revision: `sushi-backend-00014-kh4`
+- Analysis worker revision: `sushi-analysis-worker-00006-gd8`
+- Firebase Hosting: not deployed
+- Verification: Backend `/health`, `/`, and `/projects/6` returned HTTP 200; `/health/gemini` returned ready; backend and worker both preserved Supabase `DATABASE_URL`; new backend and worker ERROR log scans were clean; production browser smoke confirmed Project Sushi loads, transcript is present, Action Recommendation is absent, no horizontal overflow, and no console errors.
+- Rollback target: backend `sushi-backend-00012-5z7`; worker `sushi-analysis-worker-00005-bk7`.
+- Notes: First retry failed before Cloud Build due to source upload timeout while `sushi.db` was included; second retry created failed revision `sushi-backend-00013-7wb` because Postgres rejected lowercase enum comparison in the transcript backfill. Neither failed revision received production traffic.
