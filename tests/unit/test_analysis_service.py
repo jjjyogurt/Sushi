@@ -9,30 +9,58 @@ from app.models.video_comment import VideoComment
 from app.repositories.video_repository import VideoRepository
 from app.services.agent_settings_service import AgentSettingsService
 from app.services.analysis_service import AnalysisService
+from app.services.exceptions import GeminiResponseError
 from app.services.types import AnalysisOutput, CommentsAnalysisOutput, TranscriptOutput
 from app.utils.json_codec import decode_json, encode_json
 
 
 class StubTranscriptService:
+    def __init__(self, *, source_language: str = "en", full_text: str = ""):
+        self.source_language = source_language
+        self.full_text = full_text or (
+            "00:12 Setup was easy and fast.\n"
+            "02:48 I got confused with advanced controls.\n"
+            "05:10 Reliability could be better after one week."
+        )
+
     def fetch_transcript(self, *, youtube_video_id: str, preferred_languages):
+        _ = (youtube_video_id, preferred_languages)
+        lines = self.full_text.splitlines()
         return TranscriptOutput(
-            full_text=(
-                "00:12 Setup was easy and fast.\n"
-                "02:48 I got confused with advanced controls.\n"
-                "05:10 Reliability could be better after one week."
-            ),
+            full_text=self.full_text,
             segments=[
-                {"timestamp": "00:12", "text": "Setup was easy and fast.", "duration": 3.2},
-                {"timestamp": "02:48", "text": "I got confused with advanced controls.", "duration": 4.0},
-                {"timestamp": "05:10", "text": "Reliability could be better after one week.", "duration": 4.5},
+                {"timestamp": line.split(maxsplit=1)[0], "text": line.split(maxsplit=1)[1], "duration": 3.2}
+                for line in lines
+                if len(line.split(maxsplit=1)) == 2
             ],
-            source_language=preferred_languages[0] if preferred_languages else "en",
+            source_language=self.source_language,
         )
 
 
 class StubGeminiClient:
     def ensure_ready(self):
         return None
+
+    def translate_transcript_bundle(self, *, transcript_text: str, source_language: str):
+        _ = source_language
+        self.transcript_bundle_call_count = getattr(self, "transcript_bundle_call_count", 0) + 1
+        translations = {}
+        for language in ("en", "zh-Hans"):
+            translated_lines = []
+            for line in transcript_text.splitlines():
+                parts = line.split(maxsplit=1)
+                if len(parts) == 2:
+                    translated_lines.append(f"{parts[0]} {language} translation of {parts[1]}")
+                else:
+                    translated_lines.append(f"{language} translation of {line}")
+            translations[language] = "\n".join(translated_lines)
+        return translations
+
+    def translate_transcript(self, *, transcript_text: str, source_language: str, target_output_language: str):
+        return self.translate_transcript_bundle(
+            transcript_text=transcript_text,
+            source_language=source_language,
+        )[target_output_language]
 
     def analyze_video(
         self,
@@ -97,6 +125,9 @@ class StubGeminiClient:
 class CapturingGeminiClient(StubGeminiClient):
     def __init__(self):
         self.agent_instructions_seen = None
+        self.source_language_seen = None
+        self.transcript_text_seen = None
+        self.knowledge_context_seen = None
 
     def analyze_video(
         self,
@@ -110,6 +141,9 @@ class CapturingGeminiClient(StubGeminiClient):
         agent_instructions: str = "",
     ):
         self.agent_instructions_seen = agent_instructions
+        self.source_language_seen = source_language
+        self.transcript_text_seen = transcript_text
+        self.knowledge_context_seen = knowledge_context
         return super().analyze_video(
             title=title,
             source_language=source_language,
@@ -138,6 +172,32 @@ class StubFailingGeminiClient:
     ):
         _ = (title, source_language, target_output_language, relevance_reason, transcript_text, knowledge_context, agent_instructions)
         raise RuntimeError("provider exploded")
+
+
+class FailingTranscriptTranslationGeminiClient(StubGeminiClient):
+    def __init__(self, *, failed_target_language: str):
+        self.failed_target_language = failed_target_language
+
+    def translate_transcript_bundle(self, *, transcript_text: str, source_language: str):
+        _ = (transcript_text, source_language)
+        self.transcript_bundle_call_count = getattr(self, "transcript_bundle_call_count", 0) + 1
+        raise GeminiResponseError(f"{self.failed_target_language} transcript translation failed")
+
+    def translate_transcript(self, *, transcript_text: str, source_language: str, target_output_language: str):
+        _ = (transcript_text, source_language)
+        if target_output_language == self.failed_target_language:
+            raise GeminiResponseError(f"{target_output_language} transcript translation failed")
+        return super().translate_transcript(
+            transcript_text=transcript_text,
+            source_language=source_language,
+            target_output_language=target_output_language,
+        )
+
+
+class FailingAnalysisTranslationGeminiClient(StubGeminiClient):
+    def translate_analysis_bundle(self, *, analysis_output, comments_output, target_output_language: str):
+        _ = (analysis_output, comments_output, target_output_language)
+        raise GeminiResponseError("analysis bundle translation failed")
 
 
 def _seed_user(db_session, user_id: str):
@@ -244,6 +304,223 @@ def test_force_reanalysis_reuses_version_record_and_refreshes_result(db_session,
 
     settings.analysis_version = original_version
     settings.gemini_api_key = original_key
+
+
+def test_english_source_stores_native_english_and_translated_chinese_transcripts(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    settings.analysis_version = "unit-transcript-en-source"
+    settings.gemini_api_key = "unit-test-key"
+    try:
+        service = AnalysisService(db_session)
+        service.transcript_service = StubTranscriptService(source_language="en")
+        service.gemini_client = StubGeminiClient()
+
+        english = service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
+        chinese = service.analysis_repository.get_latest_for_video(
+            video_candidate_id=discovered_video.id,
+            language="zh-Hans",
+        )
+
+        assert english.transcript_text.startswith("00:12 Setup was easy")
+        assert english.transcript_language == "en"
+        assert english.transcript_source_language == "en"
+        assert english.transcript_is_translated is False
+        assert english.transcript_translation_model == ""
+        assert english.transcript_status == "available"
+        assert english.transcript_error_message == ""
+        assert chinese.transcript_text.startswith("00:12 zh-Hans translation of Setup was easy")
+        assert chinese.transcript_language == "zh-Hans"
+        assert chinese.transcript_source_language == "en"
+        assert chinese.transcript_is_translated is True
+        assert chinese.transcript_translation_model == settings.gemini_model_analysis
+        assert chinese.transcript_status == "available"
+        assert chinese.transcript_error_message == ""
+        assert service.gemini_client.transcript_bundle_call_count == 1
+    finally:
+        settings.analysis_version = original_version
+        settings.gemini_api_key = original_key
+
+
+def test_non_english_source_translates_transcripts_for_both_language_rows(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    settings.analysis_version = "unit-transcript-ja-source"
+    settings.gemini_api_key = "unit-test-key"
+    try:
+        service = AnalysisService(db_session)
+        service.transcript_service = StubTranscriptService(
+            source_language="ja",
+            full_text="00:01 セットアップは簡単です。\n00:02 操作は少し難しいです。",
+        )
+        capturing_client = CapturingGeminiClient()
+        service.gemini_client = capturing_client
+
+        english = service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
+        chinese = service.analysis_repository.get_latest_for_video(
+            video_candidate_id=discovered_video.id,
+            language="zh-Hans",
+        )
+
+        assert capturing_client.source_language_seen == "ja"
+        assert capturing_client.transcript_text_seen == "00:01 セットアップは簡単です。\n00:02 操作は少し難しいです。"
+        assert capturing_client.knowledge_context_seen is not None
+        assert capturing_client.transcript_bundle_call_count == 1
+        assert english.transcript_text.startswith("00:01 en translation of")
+        assert english.transcript_language == "en"
+        assert english.transcript_source_language == "ja"
+        assert english.transcript_is_translated is True
+        assert english.transcript_status == "available"
+        assert chinese.transcript_text.startswith("00:01 zh-Hans translation of")
+        assert chinese.transcript_language == "zh-Hans"
+        assert chinese.transcript_source_language == "ja"
+        assert chinese.transcript_is_translated is True
+        assert chinese.transcript_status == "available"
+    finally:
+        settings.analysis_version = original_version
+        settings.gemini_api_key = original_key
+
+
+def test_chinese_source_stores_native_chinese_and_translated_english_transcripts(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    settings.analysis_version = "unit-transcript-zh-source"
+    settings.gemini_api_key = "unit-test-key"
+    try:
+        service = AnalysisService(db_session)
+        service.transcript_service = StubTranscriptService(
+            source_language="zh-CN",
+            full_text="00:01 设置很简单。\n00:02 控制有一点难。",
+        )
+        service.gemini_client = StubGeminiClient()
+
+        english = service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
+        chinese = service.analysis_repository.get_latest_for_video(
+            video_candidate_id=discovered_video.id,
+            language="zh-Hans",
+        )
+
+        assert english.transcript_text.startswith("00:01 en translation of")
+        assert english.transcript_language == "en"
+        assert english.transcript_source_language == "zh-Hans"
+        assert english.transcript_is_translated is True
+        assert english.transcript_status == "available"
+        assert service.gemini_client.transcript_bundle_call_count == 1
+        assert chinese.transcript_text == "00:01 设置很简单。\n00:02 控制有一点难。"
+        assert chinese.transcript_language == "zh-Hans"
+        assert chinese.transcript_source_language == "zh-Hans"
+        assert chinese.transcript_is_translated is False
+        assert chinese.transcript_status == "available"
+    finally:
+        settings.analysis_version = original_version
+        settings.gemini_api_key = original_key
+
+
+def test_chinese_transcript_translation_failure_preserves_chinese_analysis_with_transcript_warning(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    settings.analysis_version = "unit-transcript-zh-fail"
+    settings.gemini_api_key = "unit-test-key"
+    try:
+        service = AnalysisService(db_session)
+        service.transcript_service = StubTranscriptService(source_language="en")
+        service.gemini_client = FailingTranscriptTranslationGeminiClient(failed_target_language="zh-Hans")
+
+        english = service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
+        chinese = service.analysis_repository.get_latest_for_video(
+            video_candidate_id=discovered_video.id,
+            language="zh-Hans",
+        )
+
+        assert english.status == AnalysisStatus.COMPLETED
+        assert english.transcript_text.startswith("00:12 Setup was easy")
+        assert chinese.status == AnalysisStatus.COMPLETED
+        assert chinese.summary_text
+        assert chinese.transcript_text == ""
+        assert chinese.transcript_language == "zh-Hans"
+        assert chinese.transcript_source_language == "en"
+        assert chinese.transcript_is_translated is True
+        assert chinese.transcript_translation_model == settings.gemini_model_analysis
+        assert chinese.transcript_status == "unavailable"
+        assert "TRANSCRIPT_TRANSLATION_FAILED" in chinese.transcript_error_message
+        assert chinese.error_message == ""
+    finally:
+        settings.analysis_version = original_version
+        settings.gemini_api_key = original_key
+
+
+def test_english_transcript_translation_failure_preserves_analysis_with_transcript_warning(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    settings.analysis_version = "unit-transcript-en-fail"
+    settings.gemini_api_key = "unit-test-key"
+    try:
+        service = AnalysisService(db_session)
+        service.transcript_service = StubTranscriptService(source_language="ja")
+        service.gemini_client = FailingTranscriptTranslationGeminiClient(failed_target_language="en")
+
+        english = service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
+        english = service.analysis_repository.get_latest_for_video(
+            video_candidate_id=discovered_video.id,
+            language="en",
+        )
+        chinese = service.analysis_repository.get_latest_for_video(
+            video_candidate_id=discovered_video.id,
+            language="zh-Hans",
+        )
+        assert english.status == AnalysisStatus.COMPLETED
+        assert english.summary_text
+        assert english.transcript_text == ""
+        assert english.transcript_language == "en"
+        assert english.transcript_source_language == "ja"
+        assert english.transcript_is_translated is True
+        assert english.transcript_status == "unavailable"
+        assert "TRANSCRIPT_TRANSLATION_FAILED" in english.transcript_error_message
+        assert english.error_message == ""
+        assert chinese.status == AnalysisStatus.COMPLETED
+        assert chinese.summary_text
+        assert chinese.transcript_text == ""
+        assert chinese.transcript_language == "zh-Hans"
+        assert chinese.transcript_source_language == "ja"
+        assert chinese.transcript_is_translated is True
+        assert chinese.transcript_status == "unavailable"
+        assert "TRANSCRIPT_TRANSLATION_FAILED" in chinese.transcript_error_message
+    finally:
+        settings.analysis_version = original_version
+        settings.gemini_api_key = original_key
+
+
+def test_chinese_analysis_translation_failure_fails_only_chinese_row(db_session, discovered_video):
+    settings = get_settings()
+    original_version = settings.analysis_version
+    original_key = settings.gemini_api_key
+    settings.analysis_version = "unit-analysis-zh-fail"
+    settings.gemini_api_key = "unit-test-key"
+    try:
+        service = AnalysisService(db_session)
+        service.transcript_service = StubTranscriptService(source_language="en")
+        service.gemini_client = FailingAnalysisTranslationGeminiClient()
+
+        english = service.analyze_video(video_id=discovered_video.id, force_reanalyze=True)
+        chinese = service.analysis_repository.get_latest_for_video(
+            video_candidate_id=discovered_video.id,
+            language="zh-Hans",
+        )
+
+        assert english.status == AnalysisStatus.COMPLETED
+        assert english.summary_text
+        assert chinese.status == AnalysisStatus.FAILED
+        assert chinese.summary_text == ""
+        assert chinese.transcript_text == ""
+        assert "analysis bundle translation failed" in chinese.error_message
+    finally:
+        settings.analysis_version = original_version
+        settings.gemini_api_key = original_key
 
 
 def test_new_analysis_uses_latest_saved_account_agent_prompt(db_session, discovered_video):
@@ -396,6 +673,12 @@ def test_force_rerun_failure_clears_previous_payload(db_session, discovered_vide
     assert failed.status == AnalysisStatus.FAILED
     assert failed.summary_text == ""
     assert failed.transcript_text == ""
+    assert failed.transcript_language == ""
+    assert failed.transcript_source_language == ""
+    assert failed.transcript_is_translated is False
+    assert failed.transcript_translation_model == ""
+    assert failed.transcript_status == ""
+    assert failed.transcript_error_message == ""
     assert failed.translated_summary == ""
     assert failed.summary_headline == ""
     assert failed.summary_body == ""

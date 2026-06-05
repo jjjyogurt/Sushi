@@ -108,22 +108,126 @@ function videoAnalysisStatusMarkup(analysis, analysisLanguage) {
   `;
 }
 
+function safeFilenamePart(rawValue) {
+  return String(rawValue || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function transcriptDownloadFilename(video, analysisLanguage) {
+  const youtubeId = safeFilenamePart(video?.youtube_video_id || extractVideoId(video?.video_url) || "video");
+  const language = safeFilenamePart(normalizeAnalysisLanguage(analysisLanguage));
+  return `sushi-transcript-${youtubeId}-${language}.txt`;
+}
+
+function transcriptDownloadContent(video, analysis, analysisLanguage) {
+  const transcript = String(analysis?.transcript_text || "");
+  const translated = analysis?.transcript_is_translated ? "yes" : "no";
+  return [
+    `Title: ${String(video?.title || "").trim()}`,
+    `YouTube ID: ${String(video?.youtube_video_id || extractVideoId(video?.video_url) || "").trim()}`,
+    `Language: ${normalizeAnalysisLanguage(analysisLanguage)}`,
+    `Source language: ${String(analysis?.transcript_source_language || "").trim()}`,
+    `Translated: ${translated}`,
+    `Analysis version: ${String(analysis?.analysis_version || "").trim()}`,
+    "",
+    transcript,
+  ].join("\n");
+}
+
+function downloadTranscriptFile(video, analysis, analysisLanguage) {
+  const transcript = String(analysis?.transcript_text || "").trim();
+  if (!transcript) {
+    return;
+  }
+  const blob = new Blob([transcriptDownloadContent(video, analysis, analysisLanguage)], {
+    type: "text/plain;charset=utf-8",
+  });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = transcriptDownloadFilename(video, analysisLanguage);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);
+}
+
+function parseTimestampedTranscript(transcript) {
+  const normalized = String(transcript || "").replace(/\r\n/g, "\n").trim();
+  if (!normalized) {
+    return [];
+  }
+  const timestampPattern = /(^|\s)(\d{2}:\d{2}(?::\d{2})?)(?=\s)/g;
+  const matches = [...normalized.matchAll(timestampPattern)].map((match) => ({
+    timestamp: match[2],
+    start: match.index + match[1].length,
+    end: match.index + match[1].length + match[2].length,
+  }));
+  if (!matches.length) {
+    return [];
+  }
+  return matches
+    .map((match, index) => {
+      const nextStart = matches[index + 1]?.start ?? normalized.length;
+      const text = normalized.slice(match.end, nextStart).replace(/\s+/g, " ").trim();
+      return { timestamp: match.timestamp, text };
+    })
+    .filter((item) => item.text);
+}
+
+function transcriptBodyMarkup(bodyText) {
+  const rows = parseTimestampedTranscript(bodyText);
+  if (!rows.length) {
+    return `<div class="transcript-body"><div class="transcript-plain-text">${escapeHtml(bodyText)}</div></div>`;
+  }
+  return `
+    <div class="transcript-body is-timestamped">
+      ${rows
+        .map(
+          (row) => `
+            <div class="transcript-row">
+              <span class="transcript-timestamp">${escapeHtml(row.timestamp)}</span>
+              <span class="transcript-line-text">${escapeHtml(row.text)}</span>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function transcriptMarkup(analysis, transcriptExpanded) {
   const transcript = analysis ? analysis.transcript_text || "" : "";
+  const transcriptUnavailable = String(analysis?.transcript_status || "") === "unavailable";
   const buttonLabel = transcriptExpanded ? t("collapse") : t("expand");
   const excerpt = transcriptExpanded ? transcript : transcript.split("\n").slice(0, 24).join("\n");
-  const bodyText = excerpt || t("runAnalysisForTranscript");
+  const bodyText = excerpt || (transcriptUnavailable ? t("transcriptTranslationUnavailable") : t("runAnalysisForTranscript"));
+  const downloadDisabled = transcript ? "" : " disabled";
+  const metaText = transcript
+    ? t("characterCount", { count: transcript.length.toLocaleString() })
+    : transcriptUnavailable
+      ? t("transcriptUnavailableStatus")
+      : t("noTranscriptYet");
+  const warningMarkup = transcriptUnavailable
+    ? `<div class="transcript-warning">${escapeHtml(t("transcriptTranslationWarning"))}</div>`
+    : "";
   return `
     <div class="detail-block">
       <h5>${escapeHtml(t("transcript"))}</h5>
-      <div class="transcript-wrapper">
+      <div class="transcript-wrapper ${transcriptExpanded ? "is-expanded" : ""}">
         <div class="transcript-toolbar">
-          <span class="meta">${
-            transcript ? t("characterCount", { count: transcript.length.toLocaleString() }) : t("noTranscriptYet")
-          }</span>
-          <button id="toggle-transcript-btn" class="btn btn-secondary" type="button">${buttonLabel}</button>
+          <span class="meta">${escapeHtml(metaText)}</span>
+          <div class="transcript-toolbar-actions">
+            <button id="download-transcript-btn" class="btn btn-secondary" type="button"${downloadDisabled}>${escapeHtml(
+              t("downloadTranscript")
+            )}</button>
+            <button id="toggle-transcript-btn" class="btn btn-secondary" type="button">${buttonLabel}</button>
+          </div>
         </div>
-        <pre class="transcript-body">${escapeHtml(bodyText)}</pre>
+        ${warningMarkup}
+        ${transcriptBodyMarkup(bodyText)}
       </div>
     </div>
   `;
@@ -257,16 +361,6 @@ function influencerSignalMarkup(analysis) {
           ${pointListMarkup(criticismPoints, t("noCriticismYet"))}
         </div>
       </div>
-    </div>
-  `;
-}
-
-function actionRecommendationMarkup(analysis) {
-  const recommendation = analysis ? String(analysis.action_recommendation || "").trim() : "";
-  return `
-    <div class="detail-block">
-      <h5>${escapeHtml(t("actionRecommendation"))}</h5>
-      <div class="recommendation-body">${escapeHtml(recommendation || t("noRecommendationYet"))}</div>
     </div>
   `;
 }
@@ -520,7 +614,6 @@ function videoDetailMarkup({
         </div>
         ${influencerSignalMarkup(analysis)}
         ${commentsSentimentMarkup(analysis)}
-        ${actionRecommendationMarkup(analysis)}
         ${transcriptMarkup(analysis, transcriptExpanded)}
         <div class="detail-block">
           <h5>${escapeHtml(t("evidence"))}</h5>
@@ -713,6 +806,20 @@ export function createVideoDetailController({
   }
 
   function bindDetailActions(videoId) {
+    const transcriptDownload = getElement("download-transcript-btn");
+    if (transcriptDownload) {
+      transcriptDownload.onclick = () => {
+        const selectedVideo = getSelectedVideo();
+        const analysisLanguage = selectedAnalysisLanguageForVideo(getState(), videoId);
+        const analysis = analysisCache[analysisCacheKey(videoId, analysisLanguage)];
+        if (!selectedVideo || !analysis || !String(analysis.transcript_text || "").trim()) {
+          return;
+        }
+        onAnyVideoAction?.();
+        downloadTranscriptFile(selectedVideo, analysis, analysisLanguage);
+      };
+    }
+
     const transcriptToggle = getElement("toggle-transcript-btn");
     if (transcriptToggle) {
       transcriptToggle.onclick = () => {

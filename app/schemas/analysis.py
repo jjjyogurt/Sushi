@@ -35,6 +35,12 @@ class AnalysisResponse(TimestampedResponse):
     model_name: str
     status: AnalysisStatus
     transcript_text: str
+    transcript_language: str = ""
+    transcript_source_language: str = ""
+    transcript_is_translated: bool = False
+    transcript_translation_model: str = ""
+    transcript_status: str = ""
+    transcript_error_message: str = ""
     summary_text: str
     translated_summary: str
     summary_headline: str = ""

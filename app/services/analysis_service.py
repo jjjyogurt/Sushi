@@ -1,6 +1,7 @@
 import logging
+from dataclasses import dataclass
 from uuid import uuid4
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,7 @@ from app.services.exceptions import (
     GeminiResponseError,
     TranscriptBlockedError,
     TranscriptProviderError,
+    TranscriptTranslationError,
     TranscriptUnavailableError,
 )
 from app.services.transcript_service import TranscriptService
@@ -31,6 +33,17 @@ from app.services.types import AnalysisOutput, CommentsAnalysisOutput
 logger = logging.getLogger(__name__)
 DEFAULT_ANALYSIS_LANGUAGE = "en"
 SUPPORTED_ANALYSIS_LANGUAGES = ("en", "zh-Hans")
+TRANSCRIPT_STATUS_AVAILABLE = "available"
+TRANSCRIPT_STATUS_UNAVAILABLE = "unavailable"
+
+
+@dataclass(frozen=True)
+class TranscriptVariant:
+    text: str
+    language: str
+    source_language: str
+    is_translated: bool
+    translation_model: str
 
 
 class AnalysisService:
@@ -136,6 +149,8 @@ class AnalysisService:
 
         captured_errors: Dict[str, Exception] = {}
         error_codes: Dict[str, str] = {}
+        transcript_translation_bundle: Optional[Dict[str, str]] = None
+        transcript_translation_error: Optional[TranscriptTranslationError] = None
 
         preferred_languages = self._preferred_languages(candidate.language)
         logger.info(
@@ -208,7 +223,7 @@ class AnalysisService:
             )
             english_output = self.gemini_client.analyze_video(
                 title=candidate.title,
-                source_language=candidate.language,
+                source_language=transcript.source_language,
                 target_output_language=DEFAULT_ANALYSIS_LANGUAGE,
                 relevance_reason=candidate.relevance_reason,
                 transcript_text=transcript.full_text,
@@ -220,15 +235,65 @@ class AnalysisService:
                 language=DEFAULT_ANALYSIS_LANGUAGE,
                 comments=comments_texts,
             )
+            translation_targets = self._transcript_translation_targets(
+                source_language=transcript.source_language,
+                target_languages=target_languages,
+            )
+            if translation_targets:
+                try:
+                    transcript_translation_bundle = self.gemini_client.translate_transcript_bundle(
+                        transcript_text=transcript.full_text,
+                        source_language=(
+                            self.normalize_transcript_language(transcript.source_language)
+                            or transcript.source_language
+                        ),
+                    )
+                except Exception as error:  # noqa: BLE001
+                    transcript_translation_error = self._transcript_translation_error(
+                        error=error,
+                        source_language=transcript.source_language,
+                        target_language=", ".join(translation_targets),
+                    )
+                    logger.exception(
+                        "analysis optional transcript translation failed request_id=%s video_id=%s version=%s source_language=%s target_language=%s error=%s",
+                        request_id,
+                        video_id,
+                        self.settings.analysis_version,
+                        transcript.source_language,
+                        ", ".join(translation_targets),
+                        transcript_translation_error,
+                    )
+            english_transcript, english_transcript_error = self._build_transcript_variant_or_error(
+                transcript_text=transcript.full_text,
+                source_language=transcript.source_language,
+                target_language=DEFAULT_ANALYSIS_LANGUAGE,
+                translation_bundle=transcript_translation_bundle,
+                translation_error=transcript_translation_error,
+            )
+            transcript_variant = english_transcript or self._unavailable_transcript_variant(
+                source_language=transcript.source_language,
+                target_language=DEFAULT_ANALYSIS_LANGUAGE,
+            )
             self._apply_success_result_payload(
                 result=english_result,
-                transcript_text=transcript.full_text,
+                transcript_text=english_transcript.text if english_transcript else "",
+                transcript_variant=transcript_variant,
                 output=english_output,
                 comments_analysis=english_comments,
             )
+            if english_transcript_error is not None:
+                self._apply_unavailable_transcript_payload(
+                    result=english_result,
+                    transcript_variant=transcript_variant,
+                    error=english_transcript_error,
+                )
             error_codes = {
                 **error_codes,
-                DEFAULT_ANALYSIS_LANGUAGE: "none",
+                DEFAULT_ANALYSIS_LANGUAGE: (
+                    self._error_code_for_exception(english_transcript_error)
+                    if english_transcript_error is not None
+                    else "none"
+                ),
             }
         except Exception as error:  # noqa: BLE001
             error_code = self._error_code_for_exception(error)
@@ -284,6 +349,14 @@ class AnalysisService:
         zh_language = "zh-Hans"
         zh_result = results_by_language[zh_language]
         if saved_english.status == AnalysisStatus.COMPLETED:
+            zh_transcript, zh_transcript_error = self._build_transcript_variant_or_error(
+                transcript_text=transcript.full_text,
+                source_language=transcript.source_language,
+                target_language=zh_language,
+                translation_bundle=transcript_translation_bundle,
+                translation_error=transcript_translation_error,
+            )
+
             try:
                 english_analysis_output = self._analysis_output_from_result(saved_english)
                 english_comments_output = self._comments_output_from_result(saved_english)
@@ -292,20 +365,40 @@ class AnalysisService:
                     comments_output=english_comments_output,
                     target_output_language=zh_language,
                 )
+                transcript_variant = zh_transcript or self._unavailable_transcript_variant(
+                    source_language=transcript.source_language,
+                    target_language=zh_language,
+                )
                 self._apply_success_result_payload(
                     result=zh_result,
-                    transcript_text=saved_english.transcript_text,
+                    transcript_text=zh_transcript.text if zh_transcript else "",
+                    transcript_variant=transcript_variant,
                     output=zh_output,
                     comments_analysis=zh_comments,
                 )
+                if zh_transcript_error is not None:
+                    self._apply_unavailable_transcript_payload(
+                        result=zh_result,
+                        transcript_variant=transcript_variant,
+                        error=zh_transcript_error,
+                    )
                 error_codes = {
                     **error_codes,
-                    zh_language: "none",
+                    zh_language: (
+                        self._error_code_for_exception(zh_transcript_error)
+                        if zh_transcript_error is not None
+                        else "none"
+                    ),
                 }
             except Exception as error:  # noqa: BLE001
-                error_code = self._error_code_for_exception(error)
+                zh_error = error
+                error_code = self._error_code_for_exception(zh_error)
                 fallback_candidate = previous_completed_any_version_by_language.get(zh_language)
-                if self._is_location_restricted_error(error) and fallback_candidate is not None:
+                if (
+                    not isinstance(zh_error, TranscriptTranslationError)
+                    and self._is_location_restricted_error(error)
+                    and fallback_candidate is not None
+                ):
                     self._copy_analysis_payload(source=fallback_candidate, target=zh_result)
                     zh_result.status = AnalysisStatus.COMPLETED
                     zh_result.error_message = ""
@@ -313,9 +406,9 @@ class AnalysisService:
                 else:
                     captured_errors = {
                         **captured_errors,
-                        zh_language: error,
+                        zh_language: zh_error,
                     }
-                    self._apply_failed_result_payload(result=zh_result, error=error)
+                    self._apply_failed_result_payload(result=zh_result, error=zh_error)
                     logger.exception(
                         "analysis translation failed request_id=%s video_id=%s version=%s language=%s error_code=%s error=%s",
                         request_id,
@@ -323,7 +416,7 @@ class AnalysisService:
                         self.settings.analysis_version,
                         zh_language,
                         error_code,
-                        error,
+                        zh_error,
                     )
                 error_codes = {
                     **error_codes,
@@ -405,9 +498,156 @@ class AnalysisService:
         raise ValueError("Unsupported analysis language. Allowed: en, zh-Hans.")
 
     @staticmethod
+    def normalize_transcript_language(language: Optional[str]) -> str:
+        normalized = str(language or "").strip()
+        if not normalized:
+            return ""
+        lowered = normalized.lower().replace("_", "-")
+        if lowered in {"en", "eng"} or lowered.startswith("en-"):
+            return "en"
+        if lowered in {"zh", "zh-hans", "zh-cn", "cmn", "chinese"} or lowered.startswith("zh-"):
+            return "zh-Hans"
+        return lowered
+
+    def _transcript_translation_targets(self, *, source_language: str, target_languages: tuple[str, ...]) -> tuple[str, ...]:
+        normalized_source = self.normalize_transcript_language(source_language)
+        targets = []
+        for language in target_languages:
+            normalized_target = self.normalize_analysis_language(language)
+            if normalized_target != normalized_source:
+                targets = [*targets, normalized_target]
+        return tuple(targets)
+
+    def _build_transcript_variant_or_error(
+        self,
+        *,
+        transcript_text: str,
+        source_language: str,
+        target_language: str,
+        translation_bundle: Optional[Dict[str, str]],
+        translation_error: Optional[Exception],
+    ) -> Tuple[Optional[TranscriptVariant], Optional[TranscriptTranslationError]]:
+        normalized_source = self.normalize_transcript_language(source_language)
+        normalized_target = self.normalize_analysis_language(target_language)
+        if normalized_source == normalized_target:
+            return (
+                TranscriptVariant(
+                    text=transcript_text,
+                    language=normalized_target,
+                    source_language=normalized_source,
+                    is_translated=False,
+                    translation_model="",
+                ),
+                None,
+            )
+        if translation_error is not None:
+            return (
+                None,
+                self._transcript_translation_error(
+                    error=translation_error,
+                    source_language=normalized_source or source_language,
+                    target_language=normalized_target,
+                ),
+            )
+        try:
+            return (
+                self._build_transcript_variant(
+                    transcript_text=transcript_text,
+                    source_language=source_language,
+                    target_language=target_language,
+                    translation_bundle=translation_bundle,
+                ),
+                None,
+            )
+        except Exception as error:  # noqa: BLE001
+            return (
+                None,
+                self._transcript_translation_error(
+                    error=error,
+                    source_language=normalized_source or source_language,
+                    target_language=normalized_target,
+                ),
+            )
+
+    def _build_transcript_variant(
+        self,
+        *,
+        transcript_text: str,
+        source_language: str,
+        target_language: str,
+        translation_bundle: Optional[Dict[str, str]] = None,
+    ) -> TranscriptVariant:
+        normalized_source = self.normalize_transcript_language(source_language)
+        normalized_target = self.normalize_analysis_language(target_language)
+        if normalized_source == normalized_target:
+            return TranscriptVariant(
+                text=transcript_text,
+                language=normalized_target,
+                source_language=normalized_source,
+                is_translated=False,
+                translation_model="",
+            )
+        try:
+            if translation_bundle is None:
+                raise GeminiResponseError("Transcript translation bundle was not generated.")
+            translated = str(translation_bundle.get(normalized_target) or "").strip()
+            if not translated:
+                raise GeminiResponseError(f"Transcript translation bundle missing {normalized_target}.")
+        except Exception as error:  # noqa: BLE001
+            raise self._transcript_translation_error(
+                error=error,
+                source_language=normalized_source or source_language,
+                target_language=normalized_target,
+            ) from error
+        return TranscriptVariant(
+            text=translated,
+            language=normalized_target,
+            source_language=normalized_source,
+            is_translated=True,
+            translation_model=self.settings.gemini_model_analysis,
+        )
+
+    def _unavailable_transcript_variant(
+        self,
+        *,
+        source_language: str,
+        target_language: str,
+    ) -> TranscriptVariant:
+        normalized_source = self.normalize_transcript_language(source_language)
+        normalized_target = self.normalize_analysis_language(target_language)
+        is_translated = normalized_source != normalized_target
+        return TranscriptVariant(
+            text="",
+            language=normalized_target,
+            source_language=normalized_source,
+            is_translated=is_translated,
+            translation_model=self.settings.gemini_model_analysis if is_translated else "",
+        )
+
+    @staticmethod
+    def _transcript_translation_error(
+        *,
+        error: Exception,
+        source_language: str,
+        target_language: str,
+    ) -> TranscriptTranslationError:
+        if isinstance(error, TranscriptTranslationError):
+            return error
+        return TranscriptTranslationError(
+            "TRANSCRIPT_TRANSLATION_FAILED: "
+            f"Could not translate transcript from {source_language or 'unknown'} to {target_language}: {error}"
+        )
+
+    @staticmethod
     def _apply_failed_result_payload(*, result, error: Exception) -> None:
         # Keep failed reruns clean so stale data from prior runs never appears.
         result.transcript_text = ""
+        result.transcript_language = ""
+        result.transcript_source_language = ""
+        result.transcript_is_translated = False
+        result.transcript_translation_model = ""
+        result.transcript_status = ""
+        result.transcript_error_message = ""
         result.summary_text = ""
         result.translated_summary = ""
         result.summary_headline = ""
@@ -424,8 +664,21 @@ class AnalysisService:
         result.error_message = str(error)
 
     @staticmethod
-    def _apply_success_result_payload(*, result, transcript_text: str, output: AnalysisOutput, comments_analysis: CommentsAnalysisOutput) -> None:
+    def _apply_success_result_payload(
+        *,
+        result,
+        transcript_text: str,
+        output: AnalysisOutput,
+        comments_analysis: CommentsAnalysisOutput,
+        transcript_variant: Optional[TranscriptVariant] = None,
+    ) -> None:
         result.transcript_text = transcript_text
+        result.transcript_language = transcript_variant.language if transcript_variant else ""
+        result.transcript_source_language = transcript_variant.source_language if transcript_variant else ""
+        result.transcript_is_translated = transcript_variant.is_translated if transcript_variant else False
+        result.transcript_translation_model = transcript_variant.translation_model if transcript_variant else ""
+        result.transcript_status = TRANSCRIPT_STATUS_AVAILABLE if transcript_text.strip() else ""
+        result.transcript_error_message = ""
         result.summary_text = output.summary_text
         result.translated_summary = output.translated_summary
         result.summary_headline = output.summary_headline
@@ -449,6 +702,21 @@ class AnalysisService:
         )
         result.status = AnalysisStatus.COMPLETED
         result.error_message = ""
+
+    @staticmethod
+    def _apply_unavailable_transcript_payload(
+        *,
+        result,
+        transcript_variant: TranscriptVariant,
+        error: Exception,
+    ) -> None:
+        result.transcript_text = ""
+        result.transcript_language = transcript_variant.language
+        result.transcript_source_language = transcript_variant.source_language
+        result.transcript_is_translated = transcript_variant.is_translated
+        result.transcript_translation_model = transcript_variant.translation_model
+        result.transcript_status = TRANSCRIPT_STATUS_UNAVAILABLE
+        result.transcript_error_message = str(error)
 
     @staticmethod
     def _analysis_output_from_result(result: AnalysisResult) -> AnalysisOutput:
@@ -506,6 +774,12 @@ class AnalysisService:
     @staticmethod
     def _copy_analysis_payload(*, source: AnalysisResult, target: AnalysisResult) -> None:
         target.transcript_text = source.transcript_text
+        target.transcript_language = source.transcript_language
+        target.transcript_source_language = source.transcript_source_language
+        target.transcript_is_translated = source.transcript_is_translated
+        target.transcript_translation_model = source.transcript_translation_model
+        target.transcript_status = source.transcript_status
+        target.transcript_error_message = source.transcript_error_message
         target.summary_text = source.summary_text
         target.translated_summary = source.translated_summary
         target.summary_headline = source.summary_headline
@@ -587,6 +861,8 @@ class AnalysisService:
             return "TRANSCRIPT_UNAVAILABLE"
         if isinstance(error, TranscriptProviderError):
             return "TRANSCRIPT_PROVIDER_ERROR"
+        if isinstance(error, TranscriptTranslationError):
+            return "TRANSCRIPT_TRANSLATION_FAILED"
         return "ANALYSIS_ERROR"
 
     def _resolve_knowledge_context(

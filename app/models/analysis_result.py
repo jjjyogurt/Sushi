@@ -1,4 +1,4 @@
-from sqlalchemy import Enum, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -26,6 +26,12 @@ class AnalysisResult(TimestampMixin, Base):
     model_name: Mapped[str] = mapped_column(String(60), nullable=False)
     status: Mapped[AnalysisStatus] = mapped_column(Enum(AnalysisStatus), default=AnalysisStatus.QUEUED, nullable=False)
     transcript_text: Mapped[str] = mapped_column(Text, default="")
+    transcript_language: Mapped[str] = mapped_column(String(16), default="")
+    transcript_source_language: Mapped[str] = mapped_column(String(16), default="")
+    transcript_is_translated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    transcript_translation_model: Mapped[str] = mapped_column(String(60), default="")
+    transcript_status: Mapped[str] = mapped_column(String(24), default="")
+    transcript_error_message: Mapped[str] = mapped_column(Text, default="")
     summary_text: Mapped[str] = mapped_column(Text, default="")
     translated_summary: Mapped[str] = mapped_column(Text, default="")
     summary_headline: Mapped[str] = mapped_column(Text, default="")

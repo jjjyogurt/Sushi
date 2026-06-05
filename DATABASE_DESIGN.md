@@ -152,6 +152,7 @@ erDiagram
 - `analysis_results`: canonical analysis output store.
   - unique index: `(video_candidate_id, analysis_version, language, agent_settings_hash)`
   - stores transcript, summaries, sentiment/risk, evidence, insights, errors
+  - transcript provenance columns identify transcript output language, source language, translation status, and translation model
 - `video_comments`: comments fetched for each video and used in analysis/comment summaries.
   - unique index: `(video_candidate_id, youtube_comment_id)`
   - non-unique lookup index: `youtube_comment_id`
@@ -209,6 +210,8 @@ This is the critical path for understanding analysis persistence.
 3. Service resolves per-user agent settings from the monitor profile owner and creates/updates `analysis_results` row(s) by `(video_candidate_id, analysis_version, language, agent_settings_hash)`.
 4. On success:
   - writes transcript to `analysis_results.transcript_text`
+  - writes transcript provenance to `transcript_language`, `transcript_source_language`, `transcript_is_translated`, and `transcript_translation_model`
+  - writes transcript availability to `transcript_status` and transcript-only failures to `transcript_error_message`
   - writes summary fields, evidence, insights, risk/sentiment
 5. On failure:
   - clears payload fields and sets `status=failed` + `error_message`
@@ -218,6 +221,9 @@ Notes:
 
 - Supported analysis languages are `en` and `zh-Hans`.
 - The same video/version can therefore have separate rows per language.
+- Fresh analysis rows store the transcript in the row language: English rows store English transcript text, and `zh-Hans` rows store Simplified Chinese transcript text.
+- Analysis rows can be completed even when row-language transcript translation fails; in that case the row analysis payload remains completed while `transcript_status='unavailable'` and `transcript_error_message` explains the transcript-only failure. English analysis uses the fetched source transcript directly and transcript translation is a separate bilingual sidecar call.
+- Legacy rows may have empty transcript provenance fields until they are reanalyzed.
 - Changing a user's agent settings changes the hash used for future analysis cache lookups. Existing analysis rows are not automatically reanalyzed; a new row is created the next time analysis is explicitly run for that video/settings hash.
 
 ---
@@ -256,6 +262,7 @@ Startup migration helpers currently ensure/repair:
 - analysis `language` column
 - analysis `agent_settings_hash` column + hash-aware unique index
 - analysis comment summary columns
+- analysis transcript provenance/status columns
 - analysis batch tables (`analysis_batches`, `analysis_batch_items`)
 - project insight job table and one-active-job-per-project-language guard
 - `video_comments` table
@@ -271,6 +278,16 @@ Because this project uses imperative startup migrations, changes to models shoul
 - What changed: Added nullable `video_candidates.view_count` and `video_candidates.view_count_fetched_at` with an index on `view_count` so the project video list can sort by cached YouTube view count. Added ownership-checked bulk video deletion that reuses existing dependent-row cleanup and blocks selected videos that are currently queued/running in an analysis batch.
 - Why it changed: Marketing users need to rank videos by reach and remove multiple irrelevant videos from the list without one-by-one cleanup.
 - Impact on existing data and compatibility: Existing video rows start with unknown view counts and are backfilled lazily when the list is sorted by views. Default video listing remains published-date sorted, single-video delete remains compatible, and deleting videos continues to remove dependent analysis, comments, chats, incidents, watchlist, and batch item rows.
+
+### What Changed (2026-06-02, bilingual transcript provenance)
+- What changed: Added `analysis_results.transcript_language`, `transcript_source_language`, `transcript_is_translated`, `transcript_translation_model`, `transcript_status`, and `transcript_error_message`; fresh English analysis rows now store English transcript text, and fresh `zh-Hans` analysis rows store Simplified Chinese transcript text when translation succeeds.
+- Why it changed: Video detail now exposes bilingual downloadable transcripts, so the persisted transcript must match the selected analysis language and identify whether it was translated from the provider/source transcript. Transcript translation is a display/download concern, uses one bilingual Gemini JSON call for English and Simplified Chinese, and should not make completed analysis disappear when only transcript translation fails.
+- Impact on existing data and compatibility: Additive startup migration with safe defaults. Existing analysis rows remain readable with empty/unknown transcript provenance until reanalysis; migration backfills `transcript_status='available'` for rows with stored transcript text and `unavailable` for completed rows without transcript text. Fresh runs populate provenance/status fields. Source transcript fetch or English analysis failures still fail both rows; English or Chinese transcript translation failure leaves the relevant completed analysis row with transcript unavailable metadata.
+
+### What Changed (2026-06-03, transcript provenance migration enum hotfix)
+- What changed: Restricted the transcript provenance startup backfill to compare `analysis_results.status` against the valid persisted enum value `COMPLETED` only.
+- Why it changed: Supabase PostgreSQL stores `status` as an enum, and comparing it to lowercase `completed` causes startup failure before the new revision can become ready.
+- Impact on existing data and compatibility: No schema change. Existing rows still receive transcript status backfill for valid completed enum rows; invalid lowercase legacy status strings are not treated as completed during this migration.
 
 ### What Changed (2026-05-25, bilingual project insights)
 - What changed: Added `language` to `project_insight_reports` and `project_insight_jobs`, changed project insights current/history/refresh/job reads to accept `en` or `zh-Hans`, and changed the active-job guard from one job per project to one job per project-language.

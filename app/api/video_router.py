@@ -33,6 +33,7 @@ from app.services.exceptions import (
     GeminiResponseError,
     TranscriptBlockedError,
     TranscriptProviderError,
+    TranscriptTranslationError,
     TranscriptUnavailableError,
 )
 from app.services.triage_service import TriageService
@@ -343,6 +344,9 @@ def analyze_video(
     except TranscriptProviderError as error:
         logger.warning("api analyze TranscriptProviderError video_id=%s error=%s", video_id, error)
         raise HTTPException(status_code=503, detail=f"TRANSCRIPT_PROVIDER_ERROR: {error}") from error
+    except TranscriptTranslationError as error:
+        logger.warning("api analyze TranscriptTranslationError video_id=%s error=%s", video_id, error)
+        raise HTTPException(status_code=503, detail=f"TRANSCRIPT_TRANSLATION_FAILED: {error}") from error
     except ValueError as error:
         logger.warning("api analyze ValueError video_id=%s error=%s", video_id, error)
         raise HTTPException(status_code=400, detail=str(error)) from error

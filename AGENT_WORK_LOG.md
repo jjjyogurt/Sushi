@@ -1,5 +1,33 @@
 # Agent Work Log
 
+## 2026-06-03 13:53
+
+- Task: Create community launch poster for Sushi.
+- Changes: Added clean minimal poster assets focused on influencer video risk and marketing signals, including reference-inspired, benefit-copy, spacing-refined, and Pocket 4 product variants.
+- Check: Visually reviewed generated PNG.
+- Next: None.
+
+## 2026-06-02 22:30
+
+- Task: Run full local Japanese transcript analysis verification.
+- Changes: Added release test case for Japanese-source transcript reruns and stale-backend setup guard; restarted local backend with reload and verified the real browser flow.
+- Check: `.venv/bin/python -m pytest -q tests/unit` (188 passed); browser rerun completed with transcript warnings only; `git diff --check`.
+- Next: None.
+
+## 2026-06-02 22:17
+
+- Task: Restore source-transcript video analysis while keeping transcript translation sidecar behavior.
+- Changes: English analysis now uses the fetched source transcript directly; English/Chinese transcript translation failures only mark transcript metadata unavailable.
+- Check: `.venv/bin/python -m pytest -q tests/unit` (188 passed); `git diff --check`.
+- Next: None.
+
+## 2026-06-02 21:43
+
+- Task: Decouple Chinese transcript translation from Chinese analysis completion.
+- Changes: Added transcript status/error metadata, preserved Chinese analysis on transcript-only failures, switched transcript translation to indexed batches, and updated UI/docs/tests.
+- Check: `.venv/bin/python -m pytest -q tests/unit` (188 passed); Browser smoke on `http://127.0.0.1:8001/`; `git diff --check`.
+- Next: None.
+
 ## 2026-05-28 14:05
 - Task: Increase UI discovery result request size.
 - Changes: Changed Discover Videos UI requests from 20 to 50 candidates and added static regression coverage plus alpha checklist wording.
@@ -25,90 +53,105 @@
 - Next: Use this document to guide the focused discovery implementation.
 
 ## 2026-05-26 11:52
+
 - Task: Narrow dashboard create button beam.
 - Changes: Tightened the monochrome traveling beam gradient stops by about 20%.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-26 11:50
+
 - Task: Convert dashboard create button beam to monochrome.
 - Changes: Removed purple beam glow and retuned the single traveling beam to graphite, silver, and bright white.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 20:44
+
 - Task: Darken dashboard create button purple beam shadow.
 - Changes: Replaced the gray-lavender glow with a darker, purer purple drop-shadow on the traveling beam.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 19:18
+
 - Task: Add purple beam shadow.
 - Changes: Added a subtle purple drop-shadow to the single metallic traveling frame beam.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 19:15
+
 - Task: Lengthen dashboard create button beam core.
 - Changes: Extended the bright white center of the single metallic traveling beam.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 19:14
+
 - Task: Increase dashboard create button beam contrast.
 - Changes: Brightened the white core and deepened the silver edge contrast while keeping the single beam thin.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 19:11
+
 - Task: Make dashboard create button beam more metallic.
 - Changes: Shifted the single traveling beam to a brighter white and silver-blue metallic palette.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 18:14
+
 - Task: Revise phone UI layout.
 - Changes: Stacked mobile project forms, aligned bottom nav with web sidebar icons, fixed Project Workspace overflow, and hardened queue selection arrays.
 - Check: `git diff --check`; `python3 -m py_compile app/main.py`; browser phone/desktop responsive metrics.
 - Next: None.
 
 ## 2026-05-25 18:07
+
 - Task: Return dashboard create button to one beam.
 - Changes: Removed the counter-rotating secondary beam and kept one bright silver-lavender traveling frame beam.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 18:06
+
 - Task: Brighten and slow dashboard create button beams.
 - Changes: Increased the silver-lavender beam brightness and slowed both opposing beam animations by 15%.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 18:05
+
 - Task: Add opposing dashboard create button beams.
 - Changes: Added a softer counter-rotating frame beam and updated the alpha visual expectation.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 18:02
+
 - Task: Tune dashboard create button beam color and speed.
 - Changes: Added a subtle purple tint to the silver beam and slowed the frame travel by 15%.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 18:01
+
 - Task: Tune dashboard create button beam.
 - Changes: Shifted the frame beam toward silver-white and narrowed the animated segment by about 15%.
 - Check: `git diff --check`.
 - Next: None.
 
 ## 2026-05-25 17:50
+
 - Task: Add XREAL-style dashboard create button glow.
 - Changes: Added CSS-only thin traveling frame beam hover/focus animation without halo or shadow, plus alpha visual test case.
 - Check: `git diff --check`; `python3 -m py_compile app/main.py`; browser CSSOM verification on `127.0.0.1:8001`.
 - Next: Manually hover the dashboard `+ New Project` button in a full browser pass before release.
 
 ## 2026-05-22 20:15
+
 - Task: Fix cross-project Insights report bleed.
 - Changes: Guarded Insights async renders by project id, cleared stale report DOM on empty states, made hidden content actually hide, added cache busts and alpha isolation case.
 - Check: `.venv/bin/python -m pytest -q tests/unit/test_static_insights_regression.py tests/unit/test_project_insights_router.py`; `node --check`; `git diff --check`; local browser CSS verification.
@@ -307,7 +350,7 @@
 
 - Task: Implement PostgreSQL SQL compatibility fix; modify `cleanup_orphan_video_data()` to detect database dialect and use appropriate timestamp comparison syntax.
 - Changes: `app/db_migrations.py` - added dialect detection with `connection.dialect.name` and conditional SQL generation for SQLite (`datetime()`) vs PostgreSQL (direct comparison); submitted Cloud Build; deployed new revision to Cloud Run.
-- Check: `python3 -m pytest tests/unit/` — 93 passed; Cloud Run revision `sushi-backend-00006-pfk` deployed; startup logs show "Application startup complete" and "Uvicorn running on http://0.0.0.0:8080"; database connection successful.
+- Check: `python3 -m pytest tests/unit/` — 93 passed; Cloud Run revision `sushi-backend-00006-pfk` deployed; startup logs show "Application startup complete" and "Uvicorn running on [http://0.0.0.0:8080](http://0.0.0.0:8080)"; database connection successful.
 - Next: Debug separate Jinja2 template caching error causing 500 errors on HTTP requests, or investigate if it's a library version compatibility issue.
 
 ## 2026-04-23 17:10
@@ -807,676 +850,855 @@
 - Next: Test with a Chinese question over non-Chinese transcript content before release.
 
 ## 2026-04-29 11:36
+
 - Task: Expand alpha release test plan with full real-world pipeline validation.
 - Changes: Updated ALPHA_RELEASE_TEST_CASES.md with end-to-end single-video scenario and added analysis/report/chatbot reliability cases.
 - Check: not run (documentation update only).
 - Next: Execute PIPE-REAL-001 and mark pass/fail with defects.
 
 ## 2026-04-29 11:39
+
 - Task: Add DB/account integrity tests to alpha release checklist.
 - Changes: Added DB-ACC-001, DB-ACC-002, and DB-DATA-001 in ALPHA_RELEASE_TEST_CASES.md for ownership, access control, and idempotency validation.
 - Check: not run (documentation update only).
 - Next: Convert new DB cases into executable integration tests and SQL verification script.
 
 ## 2026-04-29 11:44
+
 - Task: Run full unit regression and report alpha readiness test status.
 - Changes: Executed complete pytest suite for tests/unit and collected summary.
 - Check: 112 passed, 0 failed, 2 deprecation warnings.
 - Next: Run PIPE-REAL-001 manual E2E scenario with one new YouTube video.
 
 ## 2026-04-29 11:47
+
 - Task: Migrate FastAPI startup event hook to lifespan and verify no regressions.
 - Changes: Replaced @app.on_event("startup") with FastAPI lifespan context in app/main.py; preserved migration/init sequence.
 - Check: full unit suite passed (112 passed, 0 failed).
 - Next: Optional smoke test app boot in deployed-like runtime.
 
 ## 2026-04-30 10:28
+
 - Task: Implement the new project-level insights template with portfolio metrics and reach-weighted impact.
 - Changes: Added sentiment/risk/reach/top-negative fields to project insights persistence/API, integrated YouTube view-count aggregation, removed Methodology/Snapshot UI blocks, and rendered new executive dashboard sections.
 - Check: `python3 -m pytest tests/unit/test_project_insights_router.py tests/unit/test_db_migrations.py`; `node --check app/static/insights.js && node --check app/static/i18n.js`.
 - Next: Optional: persist periodic view-count snapshots per video to enable period-over-period reach trend charts.
 
 ## 2026-04-30 10:34
+
 - Task: Tighten project insights LLM prompt schema to align output with new executive template.
 - Changes: Updated `generate_project_insights_report` prompt with explicit field-level rules (decision-first summary, no methodology/snapshot language, competitor-win handling, tactical recommendations).
 - Check: `python3 -m pytest tests/unit/test_project_insights_router.py -q`.
 - Next: Evaluate one live refresh output and tune wording constraints if needed.
 
 ## 2026-04-30 11:05
+
 - Task: Improve Insights distribution cards UI clarity.
 - Changes: Replaced shorthand symbols/codes with explicit labels, counts, and percentages for sentiment and risk distribution cards.
 - Check: `node --check app/static/insights.js && node --check app/static/i18n.js`.
 - Next: Optionally add color badges/icons per risk tier for faster scanning.
 
 ## 2026-04-30 11:22
+
 - Task: Redesign insights distribution UI with visual charts and reposition reach-weighted impact.
 - Changes: Added three-card visual summary block (sentiment pie, risk pie, reach impact at right), removed old textual distribution cards and duplicate reach section.
 - Check: `node --check app/static/insights.js && node --check app/static/i18n.js`; `python3 -m pytest tests/unit/test_project_insights_router.py -q`.
 - Next: Optionally add tooltip hover for each pie segment to show exact count and percent.
 
 ## 2026-04-30 13:46
+
 - Task: Refine insights visual typography, alignment, and spacing quality.
 - Changes: Upgraded chart cards with stronger hierarchy, larger pie size, aligned legend label/value columns, tabular-number values, and structured reach rows with right-aligned metrics.
 - Check: `node --check app/static/insights.js && node --check app/static/i18n.js`.
 - Next: Optional final polish: add subtle hover state and micro-animation for chart cards.
 
 ## 2026-04-30 14:02
+
 - Task: Redesign Insights history from fixed side panel to icon-triggered drawer.
 - Changes: Removed persistent right history pane, added history icon beside Refresh, implemented right-side history drawer with backdrop, close button, and version selection/clear actions.
 - Check: `node --check app/static/insights.js && node --check app/static/i18n.js`.
 - Next: Optional: add keyboard Escape-to-close support for drawer.
 
 ## 2026-04-30 17:40
+
 - Task: Replace executive summary with insights-first template and de-emphasize business impact.
 - Changes: Updated AGENTS instructions, Gemini project-insights JSON contract, payload mapping, and UI labels/rendering for Headline/Core Insight/Top Risk Trigger/Immediate Focus.
 - Check: python3 -m py_compile app/services/gemini_client.py app/services/project_insights_service.py app/api/project_insights_router.py app/schemas/project_insights.py
 - Next: Refresh Insights for one project and confirm new fields render correctly.
 
 ## 2026-04-30 18:05
+
 - Task: Retire legacy business_impact field end-to-end.
 - Changes: Removed business_impact from models/schemas/services/UI/tests, added startup migration to drop legacy columns, and updated DATABASE_DESIGN.md with a What Changed note.
 - Check: python3 -m py_compile app/main.py app/db_migrations.py app/services/gemini_client.py app/services/analysis_service.py app/repositories/project_insights_repository.py app/services/project_insights_service.py app/api/project_insights_router.py app/api/mappers.py app/schemas/analysis.py app/schemas/project_insights.py app/models/analysis_result.py app/models/project_insight_report.py tests/unit/test_db_migrations.py tests/unit/test_gemini_client.py tests/unit/test_analysis_service.py tests/unit/test_api_mappers.py tests/unit/test_project_insights_router.py tests/unit/test_video_router.py
 - Next: Run full pytest suite in CI/local env with pytest installed.
 
 ## 2026-04-30 18:18
+
 - Task: Remove sentiment/exclusion line and Immediate Focus from executive summary display.
 - Changes: Updated AGENTS summary contract to 3 fields, removed immediate_focus from project insights payload/schema/API, and removed summary meta lines from insights/video detail UI.
 - Check: python3 -m py_compile app/services/gemini_client.py app/services/project_insights_service.py app/schemas/project_insights.py app/api/project_insights_router.py
 - Next: Refresh Insights UI and confirm summary now shows only Headline/Core Insight/Top Risk Trigger.
 
 ## 2026-04-30 18:28
+
 - Task: Production-readiness testing for summary-template feature changes.
 - Changes: Installed pytest and executed targeted + full unit suites covering migrations, mappers, analysis, Gemini parsing, video/router, and project insights.
 - Check: 114 passed, 0 failed (tests/unit), plus targeted 35 passed.
 - Next: Add integration smoke tests for UI rendering and startup migration against production-like PostgreSQL.
 
 ## 2026-04-30 14:55
+
 - Task: Run full alpha release validation with focus on `ALPHA_RELEASE_TEST_CASES.md` and git diff risk review.
 - Changes: Added release-readiness assessment; identified committed Cloud SQL export and metadata artifacts as blockers.
 - Check: `python3 -m pytest tests/unit/test_monitor_router.py tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_analysis_service.py tests/unit/test_gemini_client.py`; `python3 -m pytest tests/unit` (all pass).
 - Next: Remove sensitive export/artifact files from release commits and rerun P0 + real pipeline case before deploy.
 
 ## 2026-04-30 15:00
+
 - Task: Fix release blockers by removing committed export artifacts and hardening ignore rules.
 - Changes: Untracked/deleted `cloudsql_export_2026-04-28/*` and `.DS_Store`; updated `.gitignore`; cleaned trailing whitespace in docs.
 - Check: `git diff --check`; `python3 -m pytest tests/unit/test_monitor_router.py tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_analysis_service.py tests/unit/test_gemini_client.py`.
 - Next: Commit cleanup patch, then run PIPE-REAL-001 before production deploy.
 
 ## 2026-04-30 15:04
+
 - Task: Commit release-cleanup patch and rerun full automated regression.
 - Changes: Created commit `57aab8c` removing tracked export artifacts and strengthening `.gitignore`.
 - Check: `python3 -m pytest tests/unit` (114 passed).
 - Next: Execute manual `PIPE-REAL-001` in production-like env for final go/no-go.
 
 ## 2026-04-30 15:10
+
 - Task: Deploy backend to Cloud Run using `BACKEND_DEPLOYMENT.md` runbook.
 - Changes: Deployed `sushi-backend` to revision `sushi-backend-00024-xcv` in `asia-southeast1` with existing Cloud SQL attachment.
 - Check: `python3 -m pytest tests/unit -q`; `/health` returned ok; revision status Ready; log scan shows clean startup.
 - Next: Run manual `PIPE-REAL-001` end-to-end in production-like flow and record outcome.
 
 ## 2026-04-30 15:31
+
 - Task: Re-test Video AI chat reply language and fix mismatch with user question language.
 - Changes: Updated `ChatService` to detect language from latest question text and pass it to Gemini chat instead of video language; added regression test for Chinese question with German video language.
 - Check: `PYTHONPATH=. ./.venv/bin/pytest -q tests/unit/test_chat_service.py` (5 passed).
 - Next: Manually verify chat UI with Chinese/English/Japanese prompts on a non-English video record.
 
 ## 2026-04-30 15:35
+
 - Task: Deploy latest minor updates to production Cloud Run.
 - Changes: Deployed new backend revision `sushi-backend-00025-bl9` with 100% traffic.
 - Check: `python3 -m pytest tests/unit -q` (115 passed); `/health` ok; latest revision Ready; startup logs clean.
 - Next: Spot-check updated UI/chat behavior in production and monitor logs for 15-30 minutes.
 
 ## 2026-04-30 15:45
+
 - Task: Diagnose and fix discovery mismatch + queue delete failure for new Aqua project.
 - Changes: Enforced key-product title match during discovery; added full dependent-row cleanup in single-video delete; added regression tests.
 - Check: `python3 -m pytest tests/unit/test_triage_service.py tests/unit/test_video_repository.py -q` and `python3 -m pytest tests/unit/test_video_router.py -q`.
 - Next: Deploy patch and re-test delete + discovery behavior on production UI.
 
 ## 2026-04-30 16:49
+
 - Task: Prepare alpha release deployment test-case runbook.
 - Changes: Reworked ALPHA_RELEASE_TEST_CASES.md with P0/P1/P2 gates, deploy timeline, evidence, and sign-off blocks.
 - Check: not run (document update only).
 - Next: Execute P0 staging gate and capture evidence per case.
 
 ## 2026-04-30 16:51
+
 - Task: Run alpha release test gates from checklist.
 - Changes: Executed P0 core gate suite and full unit regression suite.
 - Check: `python3 -m pytest tests/unit/test_monitor_router.py tests/unit/test_auth_watchlist_router.py tests/unit/test_video_router.py tests/unit/test_analysis_service.py tests/unit/test_gemini_client.py`; `python3 -m pytest tests/unit`.
 - Next: Run staging/prod manual smoke cases (PIPE-REAL-001, RPT-001, CHAT-001).
 
 ## 2026-04-30 16:55
+
 - Task: Deploy backend to Cloud Run using backend runbook.
 - Changes: Ran preflight tests, deployed sushi-backend revision 00026, verified health and traffic.
 - Check: `python3 -m pytest tests/unit -q`; `curl /health` returned ok; latest revision serves 100% traffic.
 - Next: Execute manual P0 smoke (PIPE-REAL-001, RPT-001, CHAT-001) in production.
 
 ## 2026-04-30 17:50
+
 - Task: Make “Run all analysis” production-grade async with refresh-safe progress.
 - Changes: Added durable batch queue tables/APIs, worker (`app/workers/analysis_batch_worker.py`), frontend polling/resume, and schema/docs updates.
 - Check: `python3 -m py_compile ...`; `python3 -m pytest -q tests/unit/test_video_router.py tests/unit/test_monitor_repository.py tests/unit/test_db_migrations.py` (20 passed).
 - Next: Deploy worker as separate service/process and add batch retry endpoint for failed items.
 
 ## 2026-04-30 17:53
+
 - Task: Run full unit suite and update alpha release test checklist.
 - Changes: Executed full `tests/unit` run and added async analysis batch test cases plus latest regression evidence in `ALPHA_RELEASE_TEST_CASES.md`.
 - Check: `python3 -m pytest -q tests/unit` (117 passed, 1 warning).
 - Next: Add dedicated unit/API tests for `/analysis/batches` endpoints and worker claim/cancel race conditions.
 
 ## 2026-05-06 10:20
+
 - Task: Align insights generation with project scope and remove misleading risk-level UI.
 - Changes: Switched project-insights Gemini input from transcript excerpts to full per-video transcripts; added strict prompt guardrails with project `brand_keywords` and `key_products`; removed insights Risk Level cards while keeping risk distribution visuals.
 - Check: `python3 -m pytest -q tests/unit/test_project_insights_router.py tests/unit/test_gemini_client.py` (9 passed).
 - Next: Refresh one Aqua insights report in UI to confirm summary stays project-focused and no off-scope competitor references appear.
 
 ## 2026-05-06 13:39
+
 - Task: Redeploy backend with project-insights transcript/prompt scope updates.
 - Changes: Deployed Cloud Run revision `sushi-backend-00027-llb` for service `sushi-backend` in `asia-southeast1`.
 - Check: `python3 -m pytest tests/unit -q` (117 passed); `/health` returned `{"status":"ok","service":"sushi-backend"}`; revision serves 100% traffic; startup logs clean.
 - Next: Trigger an Aqua insights refresh and verify summary references only project-scoped products/competitors.
 
 ## 2026-05-06 14:55
+
 - Task: Migrate production database from Cloud SQL to Supabase to reduce fixed backend cost.
 - Changes: Exported Cloud SQL, imported into Supabase, updated Cloud Run revision `sushi-backend-00028-86k`, cleared Cloud SQL attachment, stopped Cloud SQL, and updated backend/database docs.
 - Check: Supabase table counts verified; `/health` and `/monitor-profiles` returned live data; Cloud Run logs had no revision errors.
 - Next: Rotate exposed credentials and delete Cloud SQL after a short rollback window.
 
 ## 2026-05-06 16:10
+
 - Task: Fix run-all analysis for discovered videos and deploy async worker.
 - Changes: Removed approved-only batch filter, reset run-all button on create failure, added worker health server, deployed backend `00029-s8h` and worker `00001-lb6`.
 - Check: `python -m pytest -q tests/unit` (119 passed); `/health` OK for backend/worker; live batch `1` completed `9/11`, with 2 transcript/ASR availability failures.
 - Next: Add ASR fallback or clearer per-video transcript failure messaging, and rotate exposed API/database credentials.
 
 ## 2026-05-07 16:30
+
 - Task: Remove Critical Risk Reach from project insights impact UI.
 - Changes: Updated `app/static/insights.js` so the Impact card keeps Negative Reach while no longer rendering Critical Risk Reach.
 - Check: `node --check app/static/insights.js`.
 - Next: Refresh a project Insights report in the browser to visually confirm the Impact card layout.
+
 ## 2026-05-09 14:53
+
 - Task: Improve first-run auth, dashboard visibility, queue layout, and settings clarity.
 - Changes: Added demo login hint/fallback, dashboard loading state, desktop queue split layout, and collapsed advanced prompt settings.
 - Check: `pytest tests/unit/test_auth_list_users.py tests/unit/test_auth_watchlist_router.py`; local Chrome visual verification.
 - Next: Deploy updated static assets and verify the Cloud Run site after release.
 
 ## 2026-05-09 15:22
+
 - Task: Fix misleading escalation and alerts behavior.
 - Changes: Escalation now returns whether an alert was created; low-risk escalation shows follow-up copy; alerts include video, severity, owner, channel, and time.
 - Check: `pytest tests/unit/test_incident_service.py tests/unit/test_incident_router.py tests/unit/test_video_router.py -q`; JS syntax checks; local browser/API verification.
 - Next: Deploy and verify the production Alerts page after release.
 
 ## 2026-05-11 16:44
+
 - Task: Align backend/database documentation with current design.
 - Changes: Updated backend and database docs, Supabase env template, and stale managed-database comments.
 - Check: `python3 -m compileall app/db.py app/main.py`.
 - Next: Keep `BACKEND_SETUP.md` and `DATABASE_DESIGN.md` updated with dated notes for backend/database changes.
 
 ## 2026-05-11 18:10
+
 - Task: Install Supabase Postgres best-practices skill.
 - Changes: Added `supabase-postgres-best-practices` under `.agents/skills`.
 - Check: Verified installed `SKILL.md` and reference files exist.
 - Next: Restart Codex so the new skill is picked up.
 
 ## 2026-05-11 18:59
+
 - Task: Implement account-scoped projects, videos, and per-user agent settings.
 - Changes: Added project ownership, owner-aware API scoping, scoped YouTube uniqueness, DB-backed agent settings, hash-aware analysis cache, frontend conflict cleanup, and docs.
 - Check: `python3 -m pytest -q tests/unit` (125 passed, 1 warning); `node --check app/static/main.js app/static/queue.js app/static/agent-settings.js`; Python compile checks.
 - Next: Add transcript provider operational logging (`credits_used`, requested/returned language, source) without adding a shared transcript table.
 
 ## 2026-05-11 20:26
+
 - Task: Run alpha release test gates on the current branch.
 - Changes: Executed the documented P0 fast gate and full unit regression using the repo `.venv`.
 - Check: `.venv/bin/python -m pytest ...` P0 fast gate (33 passed, 1 warning); `.venv/bin/python -m pytest -q tests/unit` (125 passed, 1 warning); `git diff --check` clean.
 - Next: Complete staging/production manual and E2E alpha cases before final release sign-off.
 
 ## 2026-05-13 22:23
+
 - Task: Move analysis worker from always-on polling to request-triggered Cloud Tasks draining.
 - Changes: Added Cloud Tasks wake client, HTTP worker drain mode, continuation handling, worker env config, tests, and deployment/setup/database docs.
 - Check: `python3 -m pytest tests/unit -q` (131 passed, 1 warning); `git diff --check` clean.
 - Next: Deploy Cloud Tasks queue/private worker config and verify a production test batch drains.
 
 ## 2026-05-14 11:45
+
 - Task: Run alpha release automated test gates.
 - Changes: Executed `ALPHA_RELEASE_TEST_CASES.md` fast gate/full regression, Python compile, JS syntax, health startup probe, and diff whitespace check.
 - Check: Fast gate 33 passed; full unit 131 passed; health returned 200; JS syntax and `git diff --check` clean.
 - Next: Complete staging/production E2E and manual PMM quality gates before GO.
 
 ## 2026-05-14 11:53
+
 - Task: Add subtle welcome motion to the sign-in popup.
 - Changes: Added CSS-only overlay fade and auth card lift animations with reduced-motion handling.
 - Check: `ReadLints` on `app/static/styles.css` passed.
 - Next: Visually verify the first-load sign-in experience in browser.
 
 ## 2026-05-14 11:56
+
 - Task: Remove unnecessary login-page account helper UI.
 - Changes: Removed visible account selector and demo account hint while preserving default account selection behind the scenes.
 - Check: `ReadLints` on edited auth template, JS, and CSS passed; `node --check app/static/auth.js`.
 - Next: Refresh the login page to visually confirm only the password field remains.
 
 ## 2026-05-14 11:58
+
 - Task: Fix login submit after removing account helper UI.
 - Changes: Replaced hidden Account ID dependency with an internal default login user and removed leftover account-field markup.
 - Check: Browser login verified locally; `node --check app/static/auth.js`; auth pytest subset 5 passed.
 - Next: Deploy static/login assets and verify production sign-in.
 
 ## 2026-05-14 12:08
+
 - Task: Add account input to login page.
 - Changes: Added a visible Account text field and made sign-in use the typed account ID while keeping the demo hint removed.
 - Check: Browser login verified with `Sushi_14`; `node --check app/static/auth.js`; auth pytest subset 5 passed.
 - Next: Deploy static/login assets and verify production multi-account sign-in.
 
 ## 2026-05-14 13:52
+
 - Task: Deploy the multi-account backend and request-triggered analysis worker.
 - Changes: Enabled Cloud Tasks, configured worker IAM/queue, deployed backend `sushi-backend-00030-824`, deployed worker `sushi-analysis-worker-00002-9x6`, and updated deploy log.
 - Check: `python3 -m pytest tests/unit -q` (131 passed); backend `/health` 200; Cloud Tasks worker health task completed; recent backend/worker error logs empty.
 - Next: Production-smoke test login/project isolation and one analysis batch when ready.
 
 ## 2026-05-14 14:01
+
 - Task: Add waiting state for manual multi-URL adds.
 - Changes: Manual Add Videos now disables, shows busy state, and reuses the Discover button pulse until parsing/add completes.
 - Check: `ReadLints` on `app/static/queue.js` and `app/static/i18n.js` passed.
 - Next: Browser-test pasting multiple URLs on a project detail page.
 
 ## 2026-05-14 14:10
+
 - Task: Remove topbar Project Sushi title.
 - Changes: Left the topbar title area empty while preserving the right-side header actions.
 - Check: `ReadLints` on `app/templates/index.html` passed.
 - Next: Refresh the app to visually confirm the blank topbar title area.
 
 ## 2026-05-14 14:10
+
 - Task: Add a minimal Help Center tutorial page.
 - Changes: Added Help Center navigation, a three-step product guide, neutral documentation styling, and i18n bindings.
 - Check: `ReadLints`; `node --check app/static/main.js app/static/i18n.js`; `git diff --check` on edited UI files.
 - Next: Refresh the app and visually confirm Help Center layout and copy.
 
 ## 2026-05-14 14:13
+
 - Task: Add visual guidance to Help Center tutorial.
 - Changes: Added lightweight SVG guide images with numbered button callouts for project creation, video analysis, and insights.
 - Check: `ReadLints`; `git diff --check` on edited Help Center files.
 - Next: Refresh Help Center and confirm the guide images are visually clear.
 
 ## 2026-05-14 14:18
+
 - Task: Align Help Center visuals with current frontend design.
 - Changes: Replaced illustrative SVGs with mini guide panels built from existing app button/nav/pane classes.
 - Check: `ReadLints`; `git diff --check` on edited Help Center files.
 - Next: Refresh Help Center and compare the guide controls against the live UI.
 
 ## 2026-05-14 14:21
+
 - Task: Refine Help Center visual guide alignment.
 - Changes: Moved the Insights guide button to the right-side project header area and tightened callout/button spacing.
 - Check: `ReadLints`; `git diff --check` on edited Help Center files.
 - Next: Refresh Help Center and visually confirm spacing against the live UI.
 
 ## 2026-05-14 14:31
+
 - Task: Redeploy backend for Help Center and URL button updates.
 - Changes: Deployed Cloud Run backend revision `sushi-backend-00031-9h4` from commit `f7af631e9bcfdf8976273ef7ff50db31e3a414ef` and updated deploy log.
 - Check: `python3 -m pytest tests/unit -q` (131 passed); static JS syntax checks passed; `/health` and `/` returned 200; recent backend error logs empty.
 - Next: Open production Help Center and confirm the new URL button and guide visuals.
 
 ## 2026-05-14 15:21
+
 - Task: Fix async Run All Analysis duplicate comment worker failure.
 - Changes: Scoped `video_comments` uniqueness to each video candidate, added rollback-safe comment sync, and documented the DB index change.
 - Check: `.venv/bin/python -m pytest -q tests/unit` (135 passed, 1 warning); `git diff --check`; Python compile checks.
 - Next: Deploy backend/worker revision and run one production Run All Analysis smoke without rolling back the scale-to-zero worker.
 
 ## 2026-05-14 15:35
+
 - Task: Deploy backend and scale-to-zero analysis worker fix.
 - Changes: Deployed `sushi-backend-00032-mc2` and `sushi-analysis-worker-00003-mfq`, preserving Cloud Tasks request-triggered worker settings.
 - Check: Backend and worker `/health` passed; Firebase Hosting returned 200; recent backend/worker ERROR logs empty.
 - Next: Run a production Run All Analysis smoke test on a small QA batch.
 
 ## 2026-05-14 15:52
+
 - Task: Harden manual multi-URL add UI.
 - Changes: Add Videos now uses the shared busy pulse/disabled state, disables URL input during add, forces video refresh, and selects the first newly visible video.
 - Check: `node --check app/static/queue.js`; local browser add-two-URLs smoke; `git diff --check`.
 - Next: Deploy backend static asset refresh and verify production after cache refresh.
 
 ## 2026-05-14 15:57
+
 - Task: Deploy manual multi-URL add UI refresh.
 - Changes: Deployed `sushi-backend-00033-87k`; worker stayed on `sushi-analysis-worker-00003-mfq`.
 - Check: `/health` passed; Hosting returned 200; production `queue.js` includes busy-state code; recent backend ERROR logs empty.
 - Next: User smoke the Add Video URLs flow in production after a hard refresh.
 
 ## 2026-05-14 18:11
+
 - Task: Add video reach metrics to analysis detail.
 - Changes: Added a reach endpoint, YouTube subscriber lookup, and title-area UI pills for views/subscribers.
 - Check: `PYTHONPATH=. pytest tests/unit/test_youtube_video_stats_service.py`; Python compile checks; router pytest blocked by missing FastAPI.
 - Next: Run router tests in the project environment with FastAPI installed.
 
 ## 2026-05-14 18:15
+
 - Task: Add audience and usage context to video analysis.
 - Changes: Extended analysis prompts/API/UI to capture audience profiles and usage scenarios for future analyses while legacy videos stay empty.
 - Check: `ReadLints`; `PYTHONPATH=. pytest tests/unit/test_api_mappers.py tests/unit/test_analysis_service.py` (11 passed).
 - Next: Run a new analysis and verify the section appears below Summary.
 
 ## 2026-05-14 18:24
+
 - Task: Fix local startup migration failure.
 - Changes: Skipped the legacy three-column analysis unique index when hash-aware analysis uniqueness is already present.
 - Check: `PYTHONPATH=. pytest tests/unit/test_db_migrations.py tests/unit/test_api_mappers.py tests/unit/test_analysis_service.py` (19 passed); startup migration script printed `startup migrations ok`.
 - Next: Restart local `uvicorn app.main:app --reload`.
 
 ## 2026-05-14 18:33
+
 - Task: Clarify create-project validation failures.
 - Changes: Added frontend project-name min-length validation and surfaced FastAPI validation messages instead of generic request failures.
 - Check: `.venv/bin/python -m pytest tests/unit/test_monitor_router.py`; JS syntax checks; `git diff --check`.
 - Next: Retry with a project name of at least 2 characters.
 
 ## 2026-05-15 15:35
+
 - Task: Create standalone Project Workspace tutorial.
 - Changes: Added a clean interactive HTML tutorial with playback, scene scrubber, spotlight, and product-marketing workflow narrative.
 - Check: Browser smoke via local static server; controls and report scene verified; console errors empty.
 - Next: Open the tutorial and adjust copy or pacing after product review.
 
 ## 2026-05-15 15:49
+
 - Task: Align tutorial with Help Center colorway.
 - Changes: Moved tutorial steps to the left, switched to white/soft-gray styling, removed the spotlight aura, and clarified step labels; removed the Help Center Tutorial link after review.
 - Check: Browser visual smoke on tutorial; console errors empty; `git diff --check`.
 - Next: Decide whether to keep or delete the standalone tutorial file.
 
 ## 2026-05-15 16:22
+
 - Task: Run latest alpha release QA plan.
 - Changes: Executed the plan's focused P0/P1 pytest gate and full unit regression without code changes.
 - Check: `python3 -m pytest ...` focused gate 36 passed; `python3 -m pytest -q tests/unit` 144 passed, 1 warning.
 - Next: Complete staging/manual alpha cases for report/chat, real pipeline, rollout telemetry, and rollback readiness.
 
 ## 2026-05-15 16:27
+
 - Task: Improve shared bottom notification popup and discovery completion copy.
 - Changes: Added larger glass-style toast design, longer default duration, and discovered-video count messaging.
 - Check: `node --check` on edited JS; `git diff --check`.
 - Next: Hard-refresh the app and visually confirm the toast treatment in the browser.
 
 ## 2026-05-15 17:33
+
 - Task: Commit and deploy discovery toast backend release.
 - Changes: Committed the toast/discovery copy changes, deployed Cloud Run revision `sushi-backend-00035-wr9`, and recorded the release.
 - Check: P0 pytest gate passed; full unit suite 144 passed; Cloud Run `/health` and public URL passed.
 - Next: Monitor alpha discovery flow and roll back to `sushi-backend-00034-6c2` if production health degrades.
 
 ## 2026-05-18 17:31
+
 - Task: Deploy backend and analysis worker to US Cloud Run.
 - Changes: Deployed `sushi-backend` and `sushi-analysis-worker` to `us-central1`; kept Gemini and Supabase settings unchanged; did not deploy Firebase.
 - Check: US backend `/health` and root returned 200; US Cloud Tasks smoke invoked worker drain with HTTP 200; recent US ERROR logs empty.
 - Next: Use the US Cloud Run backend URL for pilot testing.
 
 ## 2026-05-18 18:20
+
 - Task: Update backend deployment docs and run alpha gates.
 - Changes: Documented the `sushi-free-us-20260518` free-tier pilot target, `us-central1`, direct Cloud Run usage, and scale-to-zero worker behavior.
 - Check: Alpha fast gate 36 passed; full unit regression 144 passed; `git diff --check` passed.
 - Next: Deploy backend and worker to the new project, then run production smoke/manual alpha cases.
 
 ## 2026-05-18 18:28
+
 - Task: Deploy free-tier pilot backend and worker.
 - Changes: Deployed `sushi-backend` and private `sushi-analysis-worker` to `sushi-free-us-20260518` in `us-central1`; recorded the deployment.
 - Check: Backend health/root/Gemini probe passed; Cloud Tasks worker smoke reached HTTP 200; no post-ready ERROR logs.
 - Next: Run real YouTube import, analysis, report, and chat smoke on the new Cloud Run URL.
 
 ## 2026-05-18 21:21
+
 - Task: Correct free-tier pilot database wiring.
 - Changes: Updated Cloud Run backend and worker `DATABASE_URL` from local SQLite default to the existing Supabase session pooler.
 - Check: Cloud Run env inspection confirmed Supabase host; backend health and Gemini probe passed; Supabase table counts were present.
 - Next: Confirm existing projects/videos appear in the deployed app UI.
 
 ## 2026-05-18 21:30
+
 - Task: Document local SQLite and production Supabase requirements.
 - Changes: Updated backend deployment/setup docs to forbid deploying local SQLite `.env` to Cloud Run and require Supabase for backend and worker.
 - Check: `git diff --check` passed.
 - Next: Preserve or explicitly inject the Supabase `DATABASE_URL` on every production deploy.
 
 ## 2026-05-19 10:54
+
 - Task: Clarify account prompt behavior for new video analysis.
 - Changes: Updated agent prompt UI copy and added a unit test proving new analysis uses the latest saved account prompt.
 - Check: `PYTHONPATH=. pytest -q tests/unit/test_analysis_service.py`.
 - Next: Completed videos remain unchanged unless manually re-analyzed.
 
 ## 2026-05-21 16:13
+
 - Task: Run alpha release deploy gate checks.
 - Changes: Executed documented P0 fast gate, full unit regression, local clean-DB startup, health, Gemini health, auth guard, and rollback-doc checks.
 - Check: Fast gate 37 passed; full unit regression 145 passed; local `/health` 200; `/watchlist` unauthenticated 401.
 - Next: Complete staging/manual P0 cases before production deploy.
 
 ## 2026-05-21 20:58
+
 - Task: Move project edit form inline under the selected card.
 - Changes: Added an inline grid slot for the active edit form, preserved the existing form node/listeners, and refreshed static cache keys.
 - Check: `node --check`; `git diff --check`; Browser verified second-row edit placement and cancel cleanup.
 - Next: None.
 
 ## 2026-05-21 21:52
+
 - Task: Run alpha release backend deploy gates.
 - Changes: Executed documented P0 fast gate, full unit regression, clean SQLite startup/health, local health, auth guard, and rollback-doc checks.
 - Check: Fast gate 37 passed; full unit regression 145 passed; clean `/health` 200; local `/health` 200; `/watchlist` 401.
 - Next: Complete manual/E2E P0 cases before a strict release GO.
 
 ## 2026-05-21 22:32
+
 - Task: Deploy backend to Cloud Run and smoke test production.
 - Changes: Deployed `sushi-backend-00007-d4c` with 100% traffic and updated deploy log.
 - Check: Full unit suite 145 passed; Supabase env preserved; Browser verified deployed health, login, dashboard load, and inline edit/cancel.
 - Next: Monitor production logs and roll back to `sushi-backend-00005-5s5` if UI regressions appear.
 
 ## 2026-05-22 22:46
+
 - Task: Make project insights refresh production-grade and project-scoped.
 - Changes: Added durable `project_insight_jobs`, worker draining, per-project UI polling, DB docs, and alpha release coverage.
 - Check: Alpha fast gate 37 passed; full unit suite 152 passed; browser verified active job disables only its project.
 - Next: Deploy backend and frontend together so the async job API and cache-busted UI stay in sync.
 
 ## 2026-05-23 16:58
+
 - Task: Update backend docs for async insights jobs.
 - Changes: Documented video analysis batches, project insight jobs, shared worker draining, deploy alignment, and stuck-job checks.
 - Check: Alpha P0 fast gate 37 passed; `git diff --check` passed for backend docs.
 - Next: Finish full alpha runbook after provider-dependent Gemini issue is handled.
 
 ## 2026-05-23 17:37
+
 - Task: Deploy async insights job release to Cloud Run.
 - Changes: Deployed backend revision `sushi-backend-00008-ndq` and worker revision `sushi-analysis-worker-00004-5q7` from the same image digest.
 - Check: Unit suite 152 passed; backend/worker health 200; Gemini config ready; auth guard 401; no Cloud Run error logs.
 - Next: Monitor insight jobs for Gemini provider hangs.
 
 ## 2026-05-23 18:24
+
 - Task: Fix Insights loading and stale empty-state UI.
 - Changes: Added a loading spinner state and cleared stale report content before showing confirmed empty reports.
 - Check: Static JS checks; `test_static_insights_regression.py` 6 passed; Browser verified report and no-report states.
 - Next: Deploy static cache-busted UI when ready.
 
 ## 2026-05-23 19:48
+
 - Task: Run alpha release test gate after Insights UX fix.
 - Changes: Executed P0 fast gate, full unit regression, static hygiene, local health/auth guard, and browser smoke.
 - Check: P0 37 passed; full unit 154 passed; health 200; watchlist auth 401; Browser verified video list and Insights report.
 - Next: Deploy the local fix before production users can see it.
 
 ## 2026-05-23 20:33
+
 - Task: Deploy Insights UI fix to backend Cloud Run.
 - Changes: Deployed `sushi-backend-00009-r5h` with 100% traffic and cache-busted static assets.
 - Check: Production health 200; Gemini ready; auth guard 401; no revision error logs; Browser verified VCOPTER Insights.
 - Next: Monitor production while users exercise Insights.
 
 ## 2026-05-25 12:50
+
 - Task: Add Chinese language switching to project Insights.
 - Changes: Added language-aware insight reports/jobs, API queries, UI toggle, migrations, DB docs, and regression tests.
 - Check: Full unit suite 156 passed; Browser verified English/中文 switching and refresh on local app.
 - Next: Deploy backend and static assets together when ready.
 
 ## 2026-05-25 14:48
+
 - Task: Hide VOC navigation entry for now.
 - Changes: Hid desktop sidebar and mobile nav VOC buttons while keeping VOC code, panel, APIs, and translations intact; added alpha test coverage.
 - Check: `python3 -m pytest -q tests/unit/test_static_insights_regression.py` passed.
 - Next: Re-enable the hidden nav buttons when VOC is ready to surface again.
+
 ## 2026-05-25 17:14
+
 - Task: Clean up video list row text layout.
 - Changes: Collapsed stacked secondary fields into a compact metadata line and narrowed the left rail so row text uses more width.
 - Check: `node --check app/static/queue.js`; `pytest tests/unit/test_static_insights_regression.py -q`; browser row-height verification.
 - Next: Review the list visually on mobile and desktop after another content refresh.
 
 ## 2026-05-25 16:56
+
 - Task: Polish video list panel layout.
 - Changes: Increased desktop video list pane height and added left-side row numbers without changing selected-row shading.
 - Check: `node --check app/static/queue.js`; `pytest tests/unit/test_static_insights_regression.py -q`; browser DOM verification.
 - Next: Confirm the taller list feels right on the target desktop viewport.
 
 ## 2026-05-25 16:14
+
 - Task: Add production-ready video list bulk delete and view sorting.
 - Changes: Added cached view counts, ownership-safe bulk delete, list selection controls, view sort UI, docs, and release test coverage.
 - Check: `pytest tests/unit -q`; `python -m compileall app`; JS syntax checks; browser layout/selection smoke test.
 - Next: Validate view-count refresh against production YouTube API quota behavior after deploy.
 
 ## 2026-05-25 16:47
+
 - Task: Remove URL limit text from Add Video URLs placeholder.
 - Changes: Removed the visible `(up to 100)` wording from the template and i18n placeholder.
 - Check: `rg -n "up to 100|Paste one or more URLs" app/templates app/static`.
 - Next: No follow-up needed.
 
 ## 2026-05-25 16:58
+
 - Task: Add sushi emoji browser tab icon.
 - Changes: Added an emoji SVG favicon and wired it in the HTML head without changing the in-page topbar.
 - Check: Static regression test 8 passed; SVG validation; `git diff --check`; Browser verified favicon URL and unchanged topbar markup.
 - Next: Deploy static assets when this frontend batch is ready.
 
 ## 2026-05-25 18:16
+
 - Task: Replace the app sidebar slogan.
 - Changes: Updated the sidebar, i18n subtitle, tutorial mock sidebar, and alpha copy coverage check to `Get the market’s view, early.`
 - Check: `rg` confirmed old slogan removal; `git diff --check` passed.
 - Next: No follow-up needed.
 
 ## 2026-05-25 18:18
+
 - Task: Keep the slogan comma phrase together.
 - Changes: Added a non-breaking space between the comma and `early.` in rendered slogan copy and documented the visual check.
 - Check: `node --check app/static/i18n.js`; `git diff --check`.
 - Next: No follow-up needed.
 
 ## 2026-05-25 18:27
+
 - Task: Keep the sidebar slogan on one line.
 - Changes: Let the slogan use the full sidebar header width, prevented wrapping, and added a static regression assertion.
 - Check: `PYTHONPATH=. ./.venv/bin/pytest -q tests/unit/test_static_insights_regression.py`; JS syntax checks; `git diff --check`.
 - Next: No follow-up needed.
 
 ## 2026-05-25 19:11
+
 - Task: Remove sidebar expand ghosting from brand text.
 - Changes: Clipped the sidebar during width transitions and changed compact brand hiding from instant display removal to a clean hidden/fade behavior.
 - Check: `PYTHONPATH=. ./.venv/bin/pytest -q tests/unit/test_static_insights_regression.py`; JS syntax checks; `git diff --check`.
 - Next: Visually confirm the expand/collapse feel on desktop.
 
 ## 2026-05-25 18:48
+
 - Task: Run alpha release backend test gate.
 - Changes: Executed the documented P0 fast gate, full unit regression, isolated startup/migration health, and Gemini config health.
 - Check: Fast gate 41 passed; full unit 165 passed; `/health` 200; Gemini configured; Docker/pre-commit/coverage unavailable locally.
 - Next: Run staging/production E2E, rollback, and deployment artifact checks before final GO.
 
 ## 2026-05-25 19:22
+
 - Task: Add Browser evidence to alpha release requirements.
 - Changes: Added `@Browser` evidence rules and updated UI/manual/E2E cases to require Browser verification.
 - Check: Browser smoke passed on desktop and 390px mobile; screenshots captured in `.gstack/qa-reports/screenshots/`.
 - Next: Use Browser evidence on each release QA pass.
+
 ## 2026-05-25 21:50
+
 - Task: Deploy the new backend using the documented Cloud Run rules.
 - Changes: Deployed backend `sushi-backend-00010-2z9`, worker `sushi-analysis-worker-00005-bk7`, and recorded the release in `DEPLOY_LOG.md`.
 - Check: `.venv/bin/python -m pytest tests/unit -q` passed; `/health`, `/health/gemini`, root `GET /`, env, traffic, and new-revision error logs verified.
 - Next: Monitor async worker jobs if users run analysis or insights refresh.
 
 ## 2026-05-26 10:11
+
 - Task: Replace the video list sort select with an icon menu.
 - Changes: Added a compact sort icon beside sentiment filtering with a single-select menu and updated release coverage.
 - Check: `PYTHONPATH=. .venv/bin/pytest tests/unit/test_video_router.py tests/unit/test_video_repository.py tests/unit/test_static_insights_regression.py`; Browser smoke passed.
 - Next: No follow-up needed.
 
 ## 2026-05-26 10:13
+
 - Task: Match Discover Videos button styling with Add Videos.
 - Changes: Changed the discovery action and help mockup from primary to secondary button styling.
 - Check: `git diff --check`; Browser style check confirmed matching background, border, and text colors.
 - Next: No follow-up needed.
 
 ## 2026-05-26 12:01
+
 - Task: Implement UI motion and dashboard scanability polish.
 - Changes: Added panel motion, consistent interaction states, card metadata clamping, and alpha UI coverage.
 - Check: `git diff --check`; `.venv/bin/python -m pytest -q tests/unit`; Browser and screenshot verification.
 - Next: Review on a real device before release if available.
 
 ## 2026-05-26 12:15
+
 - Task: Implement remaining design review deductions for alerts and project detail.
 - Changes: Added an intentional unanalyzed-video start panel, structured alert triage cards, grouped controls, i18n strings, and alpha coverage.
 - Check: `git diff --check`; `.venv/bin/python -m pytest -q tests/unit`; Browser desktop/mobile screenshot verification.
 - Next: Re-score with design review after the next visual polish pass.
 
 ## 2026-05-26 14:11
+
 - Task: Organize Settings layout and make Project Brain shrinkable.
 - Changes: Unified settings headings, converted Project Brain to a collapsible block, tightened knowledge setup layout, and added alpha coverage.
 - Check: `PYTHONPATH=. .venv/bin/pytest tests/unit/test_knowledge_router.py -q`; desktop/mobile Playwright visual verification.
 - Next: No follow-up needed.
 
 ## 2026-05-26 14:57
+
 - Task: Replace app typography with Geist fonts.
 - Changes: Swapped Inter for Geist, added Geist Mono for controls/transcripts/monospace fields, aligned tutorial button typography, and updated release docs.
 - Check: Browser computed-font audit across Dashboard, Project, Watch list, Alerts, and Settings; no unexpected app font families.
 - Next: No follow-up needed.
 
 ## 2026-05-26 15:21
+
 - Task: Remove the unanalyzed video start panel from project detail.
 - Changes: Removed the analysis-start panel markup, styles, translations, and refreshed alpha coverage.
 - Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; Browser verified zero panels and one Run Analysis button.
 - Next: No follow-up needed.
 
 ## 2026-05-26 15:31
+
 - Task: Keep Add Videos controls inside the project controls card.
 - Changes: Allowed the URL add group and textarea to shrink within queue controls and updated alpha coverage.
 - Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `git diff --check`.
 - Next: Browser reload was blocked by URL policy, so verify visually after refresh.
 
 ## 2026-05-26 15:39
+
 - Task: Convert video detail analysis status into label-style metadata.
 - Changes: Rendered status/language as metric pills, tightened the language toggle, refreshed cache busts, and added alpha/static coverage.
 - Check: `node --check app/static/video-detail.js && node --check app/static/main.js`; `.venv/bin/python -m pytest`; browser screenshots at desktop and mobile widths.
 - Next: No follow-up needed.
 
 ## 2026-05-26 15:38
+
 - Task: Make analysis language options smaller and quieter.
 - Changes: Converted the video detail language buttons into a compact segmented control with lighter inactive styling.
 - Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `git diff --check`.
 - Next: No follow-up needed.
 
 ## 2026-05-26 15:46
+
 - Task: Vertically align the analysis language selector.
 - Changes: Centered the compact language toggle within the action row so it aligns with the taller buttons.
 - Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `git diff --check`.
 - Next: No follow-up needed.
 
 ## 2026-05-26 15:47
+
 - Task: Bottom-align the analysis language selector.
 - Changes: Changed the compact language toggle to align to the bottom of the action row.
 - Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `git diff --check`.
 - Next: No follow-up needed.
 
 ## 2026-05-26 15:54
+
 - Task: Shorten the subscriber reach metric label.
 - Changes: Changed the English video reach label from Influencer subscribers to Subscribers and added coverage.
 - Check: `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py`; `node --check app/static/i18n.js`; `git diff --check`.
 - Next: No follow-up needed.
 
 ## 2026-05-26 17:16
+
 - Task: Remove risk score from release-facing Insights output.
 - Changes: Removed risk score from the agent spec, Insights API response, generated markdown, Gemini project report contract, stale UI copy, and tutorial wording.
 - Check: `.venv/bin/python -m pytest -q tests/unit`; `node --check app/static/i18n.js`; `git diff --check`.
 - Next: Re-run alpha Browser smoke if this is going straight to deploy.
 
 ## 2026-05-26 17:24
+
 - Task: Notify users when bulk video analysis starts.
 - Changes: Added a Run All Analysis background notice, localized the copy, and updated alpha coverage.
 - Check: `node --check app/static/queue.js app/static/main.js app/static/i18n.js`; `PYTHONPATH=. pytest tests/unit/test_static_insights_regression.py -q`; Browser smoke.
 - Next: No follow-up needed.
 
 ## 2026-05-26 20:56
+
 - Task: Improve video analysis detail spacing.
 - Changes: Added roomier detail padding, section gaps, transcript/chat spacing, cache-busts, regression coverage, and alpha QA coverage.
 - Check: `node --check app/static/video-detail.js && node --check app/static/main.js`; `.venv/bin/python -m pytest -q tests/unit/test_static_insights_regression.py`; Browser DOM measurement.
 - Next: Review on a real browser viewport before shipping if screenshot evidence is required.
 
 ## 2026-05-27 15:38
+
 - Task: Add fruit local-auth alpha accounts.
 - Changes: Seeded 20 fruit accounts alongside Sushi_1-Sushi_15, removed login field prefills, updated auth coverage and alpha checklist.
 - Check: `.venv/bin/python -m pytest tests/unit/test_db_migrations.py tests/unit/test_auth_list_users.py -q`; `node --check app/static/auth.js`; `git diff --check`.
 - Next: Do not commit the Excel credential export; commit only code/docs/tests.
 
 ## 2026-05-27 15:57
+
 - Task: Run alpha deploy readiness checks.
 - Changes: No product code changes; ran unit, API, and in-app browser smoke checks against local app.
 - Check: P0 gate 41 passed; full unit 176 passed; JS syntax and `git diff --check` clean; browser Mango login/core panels passed.
 - Next: Commit tracked code/docs/tests, exclude `outputs/`, then run staging deploy smoke.
 
 ## 2026-05-27 16:13
+
 - Task: Deploy alpha accounts and video strip release.
 - Changes: Deployed backend revision sushi-backend-00012-5z7 and recorded the release in DEPLOY_LOG.md.
 - Check: Production `/health`, root HTML, Mango login, env host, traffic, log scan, and Browser sign-in smoke passed.
 - Next: Push deployment record so remote history matches production.
+
+## 2026-06-02 17:06
+
+- Task: Add bilingual transcript download.
+- Changes: Added transcript provenance, separate transcript translation, selected-language TXT download UI, docs, and tests.
+- Check: `.venv/bin/python -m pytest -q tests/unit` passed: 186 tests, 1 warning.
+- Next: Browser-smoke the video detail toolbar before deploy.
+
+## 2026-06-02 17:24
+
+- Task: Fix transcript expansion and translation fallback.
+- Changes: Made expanded transcript panels visibly taller and added indexed Gemini retry for malformed transcript translations.
+- Check: `.venv/bin/python -m pytest -q tests/unit` passed: 187 tests, 1 warning.
+- Next: Force re-run affected Spanish video analysis to regenerate the Chinese transcript row.
+
+## 2026-06-02 22:57
+
+- Task: Simplify transcript translation and verify Japanese analysis.
+- Changes: Replaced strict indexed transcript translation with one bilingual Gemini JSON call for English and Simplified Chinese, reused the bundle for both analysis rows, and updated regression/alpha documentation.
+- Check: `.venv/bin/python -m pytest -q tests/unit` passed: 188 tests, 1 warning; focused service/client tests passed; `git diff --check`; real project 6 Japanese video rerun completed with English and Chinese translated transcripts available.
+- Next: Consider adding a provider timeout/serialization guard for concurrent force-reruns, since local hot reload can strand in-progress rows.
+
+## 2026-06-02 23:12
+
+- Task: Format translated transcripts as timestamp rows.
+- Changes: Updated the bilingual Gemini transcript prompt, normalized collapsed timestamped transcript output into line-based storage, rendered transcript timestamps and sentences in two columns, and bumped static cache keys.
+- Check: `.venv/bin/python -m pytest -q tests/unit/test_gemini_client.py tests/unit/test_static_insights_regression.py`; `node --check app/static/video-detail.js && node --check app/static/main.js`; `git diff --check`; browser DOM showed 231 transcript rows.
+- Next: Re-run video analysis only when regenerated stored transcript formatting is needed; the UI already formats existing collapsed rows.
+
+## 2026-06-02 23:19
+
+- Task: Keep video detail boxes inside the visible pane.
+- Changes: Added min-width/max-width constraints to queue/detail panes and detail blocks, clipped the detail pane overflow, and constrained the YouTube iframe with a 16:9 aspect ratio.
+- Check: `.venv/bin/python -m pytest -q tests/unit/test_static_insights_regression.py`; `node --check app/static/main.js && node --check app/static/video-detail.js`; `git diff --check`; browser DOM measured iframe and detail children inside the pane.
+- Next: No follow-up needed.
+
+## 2026-06-02 23:45
+
+- Task: Fix Japanese transcript parse failure.
+- Changes: Replaced JSON-only bilingual transcript parsing with tagged transcript sections plus fallbacks for valid JSON and multiline JSON-like Gemini output; added Japanese regression coverage and updated alpha transcript download coverage.
+- Check: `.venv/bin/python -m pytest -q tests/unit/test_gemini_client.py tests/unit/test_static_insights_regression.py tests/unit/test_analysis_service.py`; `node --check app/static/video-detail.js && node --check app/static/main.js`; `git diff --check`; real project 6 Japanese rerun produced available English and Chinese transcripts.
+- Next: No follow-up needed.
+
+## 2026-06-03 10:09
+
+- Task: Remove video detail action recommendation card.
+- Changes: Removed the Action Recommendation detail block, its unused styling, and bumped static cache keys.
+- Check: `.venv/bin/python -m pytest -q tests/unit/test_static_insights_regression.py`; JS syntax checks; `git diff --check`; browser DOM confirmed the block is gone.
+- Next: No follow-up needed.
+
+## 2026-06-03 13:20
+
+- Task: Fix Supabase transcript migration startup failure.
+- Changes: Removed lowercase enum comparison from transcript provenance backfill and excluded local `sushi.db` from Cloud Run source uploads.
+- Check: `.venv/bin/python -m pytest -q tests/unit` passed: 192 tests, 1 warning; focused migration/static tests passed; JS syntax and `git diff --check` passed.
+- Next: Retry Cloud Run deploy and verify production startup.
+
+## 2026-06-03 13:27
+
+- Task: Deploy transcript and video-detail updates to Cloud Run.
+- Changes: Deployed backend revision `sushi-backend-00014-kh4` and worker revision `sushi-analysis-worker-00006-gd8`; recorded release in `DEPLOY_LOG.md`.
+- Check: Backend/worker health, Supabase env, Gemini health, log scans, and production browser smoke passed.
+- Next: No follow-up needed.

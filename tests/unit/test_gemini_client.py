@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app.config import Settings
@@ -243,3 +245,131 @@ def test_chat_raises_when_content_missing():
 
     with pytest.raises(GeminiResponseError):
         client.chat_about_video(context="summary context", question="Any issues?", language="en")
+
+
+def test_translate_transcript_bundle_requests_english_and_chinese():
+    client = DeterministicGeminiClient(
+        _build_settings(),
+        responses=[
+            (
+                "<english_transcript>\n"
+                "00:01 translated setup is easy\n"
+                "00:02 translated controls are hard\n"
+                "</english_transcript>\n"
+                "<chinese_transcript>\n"
+                "00:01 翻译后的设置很简单\n"
+                "00:02 翻译后的控制很难\n"
+                "</chinese_transcript>"
+            ),
+        ],
+    )
+
+    output = client.translate_transcript_bundle(
+        transcript_text="00:01 setup is easy\n00:02 controls are hard",
+        source_language="ja",
+    )
+
+    assert output == {
+        "en": "00:01 translated setup is easy\n00:02 translated controls are hard",
+        "zh-Hans": "00:01 翻译后的设置很简单\n00:02 翻译后的控制很难",
+    }
+    assert "<english_transcript>" in client.prompts[0]
+    assert "<chinese_transcript>" in client.prompts[0]
+    assert "Translate this video transcript into English and Simplified Chinese." in client.prompts[0]
+    assert "Format each transcript as one timestamped segment per line" in client.prompts[0]
+    assert "Do not merge timestamped segments into a single paragraph." in client.prompts[0]
+    assert "Do not summarize, omit, or add interpretation." in client.prompts[0]
+    assert "line indexes" not in client.prompts[0]
+
+
+def test_translate_transcript_bundle_handles_japanese_multiline_jsonish_response():
+    client = DeterministicGeminiClient(
+        _build_settings(),
+        responses=[
+            (
+                '{"english_transcript":"00:00 Hello everyone.\\n'
+                '00:01 Today we review the HOVERAir X1 PRO MAX.",'
+                '"chinese_transcript":"00:00 大家好。\\n'
+                '00:01 今天评测 HOVERAir X1 PRO MAX。"}'
+            ).replace("\\n", "\n"),
+        ],
+    )
+
+    output = client.translate_transcript_bundle(
+        transcript_text="00:00 皆さん、こんにちは。\n00:01 HOVERAir X1 PRO MAXをレビューします。",
+        source_language="ja",
+    )
+
+    assert output["en"] == "00:00 Hello everyone.\n00:01 Today we review the HOVERAir X1 PRO MAX."
+    assert output["zh-Hans"] == "00:00 大家好。\n00:01 今天评测 HOVERAir X1 PRO MAX。"
+
+
+def test_translate_transcript_bundle_splits_collapsed_timestamped_output():
+    client = DeterministicGeminiClient(
+        _build_settings(),
+        responses=[
+            json.dumps(
+                {
+                    "english_transcript": "00:01 translated setup is easy 00:02 translated controls are hard",
+                    "chinese_transcript": "00:01 翻译后的设置很简单 00:02 翻译后的控制很难",
+                }
+            ),
+        ],
+    )
+
+    output = client.translate_transcript_bundle(
+        transcript_text="00:01 setup is easy\n00:02 controls are hard",
+        source_language="ja",
+    )
+
+    assert output["en"] == "00:01 translated setup is easy\n00:02 translated controls are hard"
+    assert output["zh-Hans"] == "00:01 翻译后的设置很简单\n00:02 翻译后的控制很难"
+
+
+def test_translate_transcript_returns_requested_language_from_bundle():
+    client = DeterministicGeminiClient(
+        _build_settings(),
+        responses=[
+            json.dumps(
+                {
+                    "english_transcript": "00:01 translated setup is easy",
+                    "chinese_transcript": "00:01 翻译后的设置很简单",
+                }
+            ),
+        ],
+    )
+
+    output = client.translate_transcript(
+        transcript_text="00:01 setup is easy",
+        source_language="ja",
+        target_output_language="zh-Hans",
+    )
+
+    assert output == "00:01 翻译后的设置很简单"
+    assert len(client.prompts) == 1
+
+
+def test_translate_transcript_raises_on_empty_output():
+    client = DeterministicGeminiClient(_build_settings(), responses=[""])
+
+    with pytest.raises(GeminiResponseError):
+        client.translate_transcript(
+            transcript_text="00:01 setup is easy",
+            source_language="en",
+            target_output_language="zh-Hans",
+        )
+
+
+def test_translate_transcript_bundle_raises_when_language_missing():
+    client = DeterministicGeminiClient(
+        _build_settings(),
+        responses=[
+            json.dumps({"english_transcript": "00:01 translated setup is easy"}),
+        ],
+    )
+
+    with pytest.raises(GeminiResponseError):
+        client.translate_transcript_bundle(
+            transcript_text="00:01 setup is easy\n00:02 controls are hard",
+            source_language="ja",
+        )

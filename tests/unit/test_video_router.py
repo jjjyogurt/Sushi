@@ -553,6 +553,12 @@ def test_get_latest_analysis_supports_structured_insights_payload(client, api_db
         model_name="test-model",
         status=AnalysisStatus.COMPLETED,
         transcript_text="structured transcript",
+        transcript_language="en",
+        transcript_source_language="ja",
+        transcript_is_translated=True,
+        transcript_translation_model="gemini-test",
+        transcript_status="available",
+        transcript_error_message="",
         summary_text="structured summary",
         translated_summary="structured summary",
         summary_headline="High-signal structured headline",
@@ -591,6 +597,12 @@ def test_get_latest_analysis_supports_structured_insights_payload(client, api_db
     assert payload["action_recommendation"].startswith("Explain signal expectations")
     assert payload["summary_headline"] == "High-signal structured headline"
     assert payload["summary_body"].startswith("Core sentiment is negative")
+    assert payload["transcript_language"] == "en"
+    assert payload["transcript_source_language"] == "ja"
+    assert payload["transcript_is_translated"] is True
+    assert payload["transcript_translation_model"] == "gemini-test"
+    assert payload["transcript_status"] == "available"
+    assert payload["transcript_error_message"] == ""
 
 
 def test_discover_rejects_invalid_publish_window(client, api_monitor_profile):

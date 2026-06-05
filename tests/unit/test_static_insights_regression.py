@@ -26,11 +26,11 @@ def test_static_cache_busts_insights_isolation_assets():
     template = (ROOT / "app/templates/index.html").read_text()
 
     assert "./insights.js?v=20260525-insights-language" in main_source
-    assert "/static/styles.css?v=20260527-video-row-strip" in template
-    assert "/static/main.js?v=20260527-video-row-strip" in template
+    assert "/static/styles.css?v=20260603-remove-action-recommendation" in template
+    assert "/static/main.js?v=20260603-remove-action-recommendation" in template
     assert "./queue.js?v=20260527-video-row-strip" in main_source
-    assert "./video-detail.js?v=20260526-video-detail-spacing" in main_source
-    assert "./i18n.js?v=20260526-remove-analysis-start-panel" in main_source
+    assert "./video-detail.js?v=20260603-remove-action-recommendation" in main_source
+    assert "./i18n.js?v=20260603-remove-action-recommendation" in main_source
 
 
 def test_sidebar_slogan_stays_on_one_line():
@@ -206,6 +206,59 @@ def test_analysis_language_toggle_uses_compact_segmented_control():
     assert "box-shadow: 0 1px 2px rgb(45 52 53 / 10%);" in active_source
 
 
+def test_video_detail_transcript_download_sits_beside_expand_and_uses_selected_language():
+    source = (ROOT / "app/static/video-detail.js").read_text()
+    styles = (ROOT / "app/static/styles.css").read_text()
+    translations = (ROOT / "app/static/i18n.js").read_text()
+
+    transcript_start = source.index("function transcriptMarkup")
+    transcript_end = source.index("function evidenceText", transcript_start)
+    transcript_source = source[transcript_start:transcript_end]
+
+    bind_start = source.index("function bindDetailActions")
+    bind_end = source.index("const analyzeButton", bind_start)
+    bind_source = source[bind_start:bind_end]
+
+    assert 'id="download-transcript-btn"' in transcript_source
+    assert 'id="toggle-transcript-btn"' in transcript_source
+    assert transcript_source.index('id="download-transcript-btn"') < transcript_source.index('id="toggle-transcript-btn"')
+    assert 'class="transcript-wrapper ${transcriptExpanded ? "is-expanded" : ""}"' in transcript_source
+    assert "function parseTimestampedTranscript(transcript)" in source
+    assert "function transcriptBodyMarkup(bodyText)" in source
+    assert 'class="transcript-body is-timestamped"' in source
+    assert 'class="transcript-timestamp"' in source
+    assert 'class="transcript-line-text"' in source
+    assert 'const downloadDisabled = transcript ? "" : " disabled";' in transcript_source
+    assert 'String(analysis?.transcript_status || "") === "unavailable"' in transcript_source
+    assert "transcript-warning" in transcript_source
+    assert "function transcriptDownloadContent(video, analysis, analysisLanguage)" in source
+    assert 'const transcript = String(analysis?.transcript_text || "");' in source
+    assert "`Language: ${normalizeAnalysisLanguage(analysisLanguage)}`" in source
+    assert "transcript," in source
+    assert "new Blob([transcriptDownloadContent(video, analysis, analysisLanguage)]" in source
+    assert "sushi-transcript-${youtubeId}-${language}.txt" in source
+    assert "analysisCache[analysisCacheKey(videoId, analysisLanguage)]" in bind_source
+    assert ".transcript-toolbar-actions" in styles
+    assert ".transcript-warning" in styles
+    assert ".transcript-row" in styles
+    assert "grid-template-columns: 52px minmax(0, 1fr);" in styles
+    assert ".transcript-timestamp" in styles
+    assert ".transcript-wrapper.is-expanded .transcript-body" in styles
+    assert "max-height: min(70vh, 720px);" in styles
+    assert 'downloadTranscript: "Download"' in translations
+    assert 'transcriptTranslationWarning: "Analysis is complete. Transcript translation failed, so the transcript is unavailable for this language."' in translations
+    assert 'downloadTranscript: "下载"' in translations
+
+
+def test_video_detail_does_not_render_action_recommendation_card():
+    source = (ROOT / "app/static/video-detail.js").read_text()
+    styles = (ROOT / "app/static/styles.css").read_text()
+
+    assert "function actionRecommendationMarkup" not in source
+    assert "${actionRecommendationMarkup(analysis)}" not in source
+    assert "recommendation-body" not in styles
+
+
 def test_video_detail_analysis_layout_has_breathing_room():
     source = (ROOT / "app/static/video-detail.js").read_text()
     styles = (ROOT / "app/static/styles.css").read_text()
@@ -213,6 +266,18 @@ def test_video_detail_analysis_layout_has_breathing_room():
     detail_start = styles.index(".video-detail-body {")
     detail_end = styles.index(".video-detail-header", detail_start)
     detail_source = styles[detail_start:detail_end]
+
+    queue_layout_start = styles.index(".queue-layout {")
+    queue_layout_end = styles.index(".queue-list-pane,", queue_layout_start)
+    queue_layout_source = styles[queue_layout_start:queue_layout_end]
+
+    queue_pane_start = styles.index(".queue-list-pane,")
+    queue_pane_end = styles.index(".queue-list-pane {", queue_pane_start)
+    queue_pane_source = styles[queue_pane_start:queue_pane_end]
+
+    embed_start = styles.index(".video-embed {")
+    embed_end = styles.index(".mobile-nav", embed_start)
+    embed_source = styles[embed_start:embed_end]
 
     scoped_block_start = styles.index(".video-detail-body .detail-block {")
     scoped_block_end = styles.index(".video-detail-body .detail-block h5", scoped_block_start)
@@ -224,6 +289,14 @@ def test_video_detail_analysis_layout_has_breathing_room():
     assert 'class="chat-question-input"' in source
     assert "padding: 28px;" in detail_source
     assert "gap: 24px;" in detail_source
+    assert "min-width: 0;" in detail_source
+    assert "overflow: hidden;" in detail_source
+    assert ".video-detail-body > *" in styles
+    assert "min-width: 0;" in queue_layout_source
+    assert "min-width: 0;" in queue_pane_source
+    assert "max-width: 100%;" in queue_pane_source
+    assert "aspect-ratio: 16 / 9;" in embed_source
+    assert "max-width: 100%;" in embed_source
     assert "padding: 20px;" in scoped_block_source
     assert "border-radius: 8px;" in scoped_block_source
     assert ".summary-structured + .signal-grid" in styles
