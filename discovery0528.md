@@ -153,8 +153,8 @@ Required behavior:
 - Use each configured brand keyword and key product as a primary search seed.
 - Do not combine all project keywords into one strict query.
 - Exact user keywords must always be included in the generated search plan.
-- Optional query expansion may add variants, but it must not replace the original user keywords.
-- Query expansion must be conservative and explainable.
+- Do not add localized intent or market variants in Phase 1; the project keywords and configured languages are enough.
+- If more than three languages are configured, search English first when configured, plus the next two configured languages.
 
 Bad query pattern:
 
@@ -172,13 +172,26 @@ Hover Air
 HoverAir X1 Pro
 HoverAir X1 Pro Max
 V-Copter
-X1 Pro Max review
-HoverAir review
+X1 Pro Max
 ```
 
 ## YouTube Search Requirements
 
 For each query, the system should search YouTube with a publish window.
+
+### Manual Discovery Source Policy
+
+Manual discovery can use SerpAPI as a market-localized candidate source when `SERPAPI_API_KEY` is configured.
+
+Required behavior:
+
+- SerpAPI is a candidate source only, not canonical video metadata.
+- SerpAPI search uses the exact user keyword, project language, project market, and YouTube upload-date filter.
+- Each SerpAPI `video_id` must be validated and enriched through YouTube Data API `videos.list` before saving.
+- Canonical publish-window filtering must use YouTube Data API `snippet.publishedAt`, not SerpAPI relative date text.
+- If SerpAPI is missing, times out, or returns malformed data, discovery continues with YouTube Data API.
+
+Scheduled Pulse monitoring does not use SerpAPI in the first build. Pulse uses YouTube Data API latest search with overlapping publish windows, then the existing analysis pipeline handles risk detection.
 
 Required YouTube search parameters:
 
@@ -187,8 +200,10 @@ type=video
 order=date
 publishedAfter=<window start>
 publishedBefore=<window end>
-maxResults=<per query limit>
+maxResults=min(requested max_results, 50)
 ```
+
+Discovery should not divide the requested origin fetch size across queries. Each query asks YouTube for the full allowed page so downstream dedupe, filtering, and final `max_results` trimming operate on enough raw candidates.
 
 Optional parameters when available from project settings:
 

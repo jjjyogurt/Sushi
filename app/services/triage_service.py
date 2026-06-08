@@ -26,6 +26,8 @@ from app.utils.youtube import extract_video_id, fetch_oembed_metadata
 logger = logging.getLogger(__name__)
 
 VIEW_COUNT_STALE_AFTER = timedelta(hours=24)
+CJK_LANGUAGE_CODES = {"ja", "ko", "zh", "zh-hans", "zh-hant"}
+CJK_TEXT_PATTERN = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uac00-\ud7af]")
 
 
 class TriageService:
@@ -120,6 +122,21 @@ class TriageService:
             text=item.description,
             keywords=keywords,
         )
+
+    @staticmethod
+    def _allows_cjk_language(languages: List[str]) -> bool:
+        normalized_languages = {
+            YouTubeDiscoveryService._normalize_language_code(str(language or ""))
+            for language in languages
+            if str(language or "").strip()
+        }
+        return any(language in CJK_LANGUAGE_CODES for language in normalized_languages)
+
+    def _candidate_matches_language_guard(self, *, item: DiscoveredVideo, languages: List[str]) -> bool:
+        if self._allows_cjk_language(languages):
+            return True
+        searchable_text = f"{item.title or ''} {item.channel_name or ''}".strip()
+        return CJK_TEXT_PATTERN.search(searchable_text) is None
 
     def _require_profile(self, monitor_profile_id: int):
         profile = self.monitor_repository.get(monitor_profile_id)
@@ -232,6 +249,10 @@ class TriageService:
                 item=item,
                 keywords=expanded_keywords,
             )
+            and self._candidate_matches_language_guard(
+                item=item,
+                languages=languages,
+            )
         ]
         relevance_filtered_count = len(discovered) - len(filtered_discovered)
         logger.info(
@@ -272,6 +293,11 @@ class TriageService:
             len(discovered), len(filtered_discovered)
         )
 
+        discovery_stats = self.discovery_service.last_discovery_stats
+        stats_details = " ".join(
+            f"{key}={value}"
+            for key, value in sorted(discovery_stats.items())
+        )
         audit_details = (
             f"time_trigger={normalized_time_trigger} "
             f"published_after={published_after.isoformat() if published_after else 'none'} "
@@ -282,6 +308,7 @@ class TriageService:
             f"relevance_filtered_count={relevance_filtered_count} "
             f"saved_count={len(persisted)} "
             f"duplicate_or_updated_count={duplicate_or_updated_count} "
+            f"{stats_details} "
             "error_count=0"
         )
         self.audit_repository.record(

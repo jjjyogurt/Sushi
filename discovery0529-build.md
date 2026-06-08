@@ -6,6 +6,8 @@ Date: 2026-05-29
 
 Improve YouTube video discovery recall for hardware consumer brand monitoring without building a parallel discovery system.
 
+Manual discovery may use SerpAPI as a market-localized candidate source when configured, but each SerpAPI video ID must be validated through YouTube Data API `videos.list` before publish-window filtering or persistence. Pulse V1 remains YouTube Data API only for scheduled latest monitoring; SerpAPI is not in the scheduled path until manual discovery quality is proven.
+
 The Phase 1 build focuses on discovery correctness:
 
 - Use user-defined project keywords as the source of truth.
@@ -24,7 +26,7 @@ Phase 1 does not generate daily or weekly proactive monitoring reports. That is 
 | --- | --- | --- |
 | Project keyword source | Project profiles already store `brand_keywords` and `key_products`; discovery loads both. | Preserve exact user-defined keywords as primary search seeds. Do not replace them with AI-generated variants. |
 | Time window | Manual discovery already accepts `published_after` and `published_before`; UI already has publish window controls. | Add `time_trigger` as optional request/audit metadata so every discovery run explains why that window was used. |
-| Query planning | `DiscoveryKeywordService` already builds localized YouTube query specs and has Gemini fallback behavior. | Change fallback planning so multiple user keywords become separate or lightly combined query seeds, not one strict all-keywords query. |
+| Query planning | `DiscoveryKeywordService` already builds YouTube query specs from project keywords, languages, and markets. | Use exact project keywords only; remove localized/Gemini query variants so quota is spent on user-declared terms. |
 | YouTube search | `YouTubeDiscoveryService` already calls YouTube Data API with `type=video`, language, region, and publish window. | Add `order=date` to prioritize newly published videos. Keep `publishedAfter` and `publishedBefore`. |
 | Raw candidate collection | Search results already become `DiscoveredVideo` objects with video ID, URL, title, channel, language, publish time, and description. | No schema change required for Phase 1. Discovery query/source can remain audit-level metadata for now. |
 | Deduplication | Results are deduped by YouTube video ID in memory and persisted under scoped uniqueness by `(monitor_profile_id, youtube_video_id)`. | Keep this behavior. Same video may exist in different projects; duplicate video must not be saved twice in one project. |
@@ -45,16 +47,16 @@ Required behavior:
 
 - Normalize and dedupe `brand_keywords + key_products`.
 - Generate query specs from individual keyword seeds across configured languages and markets.
-- Preserve exact user keyword text before adding any AI/Gemini expansion.
+- Preserve exact user keyword text without adding AI/Gemini or localized intent variants.
+- If more than three languages are configured, use English first when configured, plus the next two configured languages.
 - Keep `_MAX_SPECS` behavior so a large project does not explode quota usage.
-- Keep deterministic fallback behavior when Gemini is unavailable or returns bad data.
+- Keep deterministic behavior regardless of Gemini availability.
 
 Recommended fallback seed pattern:
 
 ```text
 brand keyword alone
 key product alone
-brand keyword + key product, only for the top bounded combinations
 ```
 
 Do not use a single fallback query that joins every keyword together.
@@ -75,8 +77,10 @@ publishedAfter=<window start>
 publishedBefore=<window end>
 relevanceLanguage=<project language>
 regionCode=<project market>
-maxResults=<per query limit>
+maxResults=min(requested max_results, 50)
 ```
+
+Do not divide `max_results` across query specs. Each YouTube Data API request should fetch the full allowed page for that query, then discovery dedupes, filters, and trims the final saved candidates.
 
 If the Data API fails, existing timeout/error handling should continue to skip that query and continue with remaining queries.
 
@@ -218,8 +222,8 @@ No new database table is required for Phase 1.
 - Exact user-defined keywords are included in query specs.
 - Multiple keywords are not collapsed into one strict-only query.
 - Language and market expansion still works.
-- Gemini failure still falls back to deterministic user-keyword seeds.
-- Gemini output does not remove exact user-keyword fallback specs.
+- Gemini is not called for discovery query expansion.
+- Exact user-keyword specs are unchanged when a Gemini client is configured.
 
 ### YouTube Request Tests
 

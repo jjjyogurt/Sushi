@@ -1,5 +1,23 @@
 # Agent Work Log
 
+## 2026-06-05 16:37
+- Task: Fix SerpAPI discovery over-fetch.
+- Changes: Stopped SerpAPI query iteration once the requested unique video cap is reached and added regression coverage.
+- Check: Focused discovery tests passed: 53; full unit passed: 214; `py_compile`; `git diff --check`.
+- Next: Stage tracked changes plus the new SerpAPI service/test files before commit.
+
+## 2026-06-05 15:23
+- Task: Update SerpAPI discovery worktree from main.
+- Changes: Created `codex/update-serpapi-discovery`, merged `origin/main`, resolved docs conflicts, and reapplied local SerpAPI discovery edits.
+- Check: `PYTHONPATH=. .venv/bin/python -m pytest -q tests/unit`; JS syntax checks; `py_compile`; `git diff --check`.
+- Next: Review and reconcile the remaining SerpAPI diff before opening or updating the PR.
+
+## 2026-06-04 13:21
+- Task: Prioritize configured non-English discovery languages before English fallback.
+- Changes: Updated YouTube discovery language ordering, focused unit expectations, and alpha discovery QA wording.
+- Check: `PYTHONPATH=. .venv/bin/pytest tests/unit/test_youtube_discovery_service.py tests/unit/test_discovery_keyword_service.py`; `git diff --check`.
+- Next: Re-run HoverAir Germany discovery from the browser to compare result mix.
+
 ## 2026-06-03 13:53
 
 - Task: Create community launch poster for Sushi.
@@ -1702,3 +1720,33 @@
 - Changes: Deployed backend revision `sushi-backend-00014-kh4` and worker revision `sushi-analysis-worker-00006-gd8`; recorded release in `DEPLOY_LOG.md`.
 - Check: Backend/worker health, Supabase env, Gemini health, log scans, and production browser smoke passed.
 - Next: No follow-up needed.
+
+## 2026-05-28 15:30
+- Task: Draft Pulse Phase 2 PRD.
+- Changes: Added `PulsePRD0528.md` with proactive monitoring flow, short dated reports, shared video analysis pipeline integration, alerts, schema plan, and tests.
+- Check: Read-through of the generated PRD.
+- Next: Review and approve scope before implementation.
+
+## 2026-05-28 16:05
+- Task: Tighten discovery fallback quality before Pulse.
+- Changes: Added localized fallback query variants, loose CJK noise filtering for non-CJK projects, clearer analysis-language UI label, and alpha coverage.
+- Check: `pytest -q tests/unit/test_discovery_keyword_service.py tests/unit/test_triage_service.py tests/unit/test_static_insights_regression.py` passed; JS syntax and `git diff --check` passed.
+- Next: Retest discovery with the main `.env` loaded for YouTube Data API + Gemini behavior.
+
+## 2026-05-28 17:06
+- Task: Remove discovery query variants.
+- Changes: Switched discovery planning to exact project keywords only, capped languages to English plus two configured alternatives, and updated docs/tests.
+- Check: `pytest -q tests/unit/test_discovery_keyword_service.py tests/unit/test_youtube_discovery_service.py tests/unit/test_triage_service.py tests/unit/test_static_insights_regression.py`; JS syntax; `git diff --check`.
+- Next: Restart local app before Browser retest so localhost uses the new query planner.
+
+## 2026-05-28 17:29
+- Task: Stop dividing YouTube origin fetch per query.
+- Changes: Each YouTube Data API query now requests `min(max_results, 50)` results before dedupe/filter/final trim; docs and alpha coverage updated.
+- Check: `pytest -q tests/unit/test_youtube_discovery_service.py tests/unit/test_discovery_keyword_service.py tests/unit/test_triage_service.py tests/unit/test_video_router.py`; py_compile; `git diff --check`.
+- Next: Retest HoverAir Germany after keyword normalization variants are approved.
+
+## 2026-06-04 17:05
+- Task: Add SerpAPI-backed manual discovery source policy.
+- Changes: Added SerpAPI YouTube candidate discovery for manual runs, batched YouTube Data API `videos.list` validation before saving, Data API supplement merge, explicit `include_serpapi` opt-out for Pulse, audit counters, env/docs, and alpha coverage.
+- Check: `PYTHONPATH=. .venv/bin/python -m pytest tests/unit/test_serpapi_youtube_discovery_service.py tests/unit/test_youtube_discovery_service.py tests/unit/test_triage_service.py tests/unit/test_discovery_keyword_service.py -q`; `py_compile`; `git diff --check`.
+- Next: Add `SERPAPI_API_KEY` locally and Browser-test HoverAir Germany/Ferrari Luce manual discovery against live providers.

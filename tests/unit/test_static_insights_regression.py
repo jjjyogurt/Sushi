@@ -132,7 +132,8 @@ def test_video_detail_status_uses_metric_label_treatment():
 
     assert "function videoAnalysisStatusMarkup(analysis, analysisLanguage)" in source
     assert '<span class="reach-label">${escapeHtml(t("analysisStatus"))}</span>' in source
-    assert '<span class="reach-label">${escapeHtml(t("languageSettings"))}</span>' in source
+    assert '<span class="reach-label">${escapeHtml(t("analysisLanguage"))}</span>' in source
+    assert '<span class="reach-label">${escapeHtml(t("languageSettings"))}</span>' not in source
     assert "${videoAnalysisStatusMarkup(analysis, analysisLanguage)}" in source
     assert ".analysis-status {" in styles
     assert "display: flex;" in styles

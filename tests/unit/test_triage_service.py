@@ -474,3 +474,86 @@ def test_discover_keeps_localized_title_when_language_is_non_latin(db_session):
         assert [item.youtube_video_id for item in discovered] == ["jp-smart-video"]
     finally:
         settings.enable_mock_discovery = original_mock
+
+
+def test_discover_filters_obvious_cjk_results_when_project_languages_are_not_cjk(db_session):
+    settings = get_settings()
+    original_mock = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
+    profile = MonitorProfile(
+        name="German Discovery Project",
+        brand_keywords=encode_json(["HOVERAir", "X1 PROMAX"]),
+        markets=encode_json(["Germany"]),
+        languages=encode_json(["en", "de"]),
+        key_products=encode_json([]),
+        alert_sensitivity="medium",
+        is_active=True,
+    )
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+
+    service = TriageService(db_session)
+    service.discovery_service.mock_seed_for_profile = lambda profile, max_results: [
+        DiscoveredVideo(
+            youtube_video_id="drop-taiwan-video",
+            video_url="https://www.youtube.com/watch?v=drop-taiwan-video",
+            title="HOVERAir X1 PROMAX 最強跟隨的8K飛行相機",
+            channel_name="HOVERAir TAIWAN",
+            language="en",
+            published_at=datetime.now(timezone.utc),
+            description="HOVERAir X1 PROMAX review",
+        ),
+        DiscoveredVideo(
+            youtube_video_id="keep-german-video",
+            video_url="https://www.youtube.com/watch?v=keep-german-video",
+            title="HOVERAir X1 PROMAX Test in Deutschland",
+            channel_name="German Creator",
+            language="de",
+            published_at=datetime.now(timezone.utc),
+            description="HOVERAir X1 PROMAX Test",
+        ),
+    ]
+
+    try:
+        discovered = service.discover_for_profile(monitor_profile_id=profile.id, max_results=20)
+        assert [item.youtube_video_id for item in discovered] == ["keep-german-video"]
+    finally:
+        settings.enable_mock_discovery = original_mock
+
+
+def test_discover_keeps_cjk_results_when_project_language_allows_cjk(db_session):
+    settings = get_settings()
+    original_mock = settings.enable_mock_discovery
+    settings.enable_mock_discovery = True
+    profile = MonitorProfile(
+        name="Taiwan Discovery Project",
+        brand_keywords=encode_json(["HOVERAir", "X1 PROMAX"]),
+        markets=encode_json(["Taiwan"]),
+        languages=encode_json(["zh-Hant"]),
+        key_products=encode_json([]),
+        alert_sensitivity="medium",
+        is_active=True,
+    )
+    db_session.add(profile)
+    db_session.commit()
+    db_session.refresh(profile)
+
+    service = TriageService(db_session)
+    service.discovery_service.mock_seed_for_profile = lambda profile, max_results: [
+        DiscoveredVideo(
+            youtube_video_id="keep-taiwan-video",
+            video_url="https://www.youtube.com/watch?v=keep-taiwan-video",
+            title="HOVERAir X1 PROMAX 最強跟隨的8K飛行相機",
+            channel_name="HOVERAir TAIWAN",
+            language="zh-Hant",
+            published_at=datetime.now(timezone.utc),
+            description="HOVERAir X1 PROMAX 評測",
+        )
+    ]
+
+    try:
+        discovered = service.discover_for_profile(monitor_profile_id=profile.id, max_results=20)
+        assert [item.youtube_video_id for item in discovered] == ["keep-taiwan-video"]
+    finally:
+        settings.enable_mock_discovery = original_mock
