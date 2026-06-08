@@ -85,6 +85,7 @@ def discover_videos(
             max_results=payload.max_results,
             published_after=payload.published_after,
             published_before=payload.published_before,
+            time_trigger=payload.time_trigger,
         )
         responses = map_videos_with_context(service, videos, current_user_id=current_user.id)
         return VideoListResponse(items=responses, total=len(responses))

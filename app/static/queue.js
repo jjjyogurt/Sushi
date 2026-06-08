@@ -178,6 +178,7 @@ function discoverPublishWindowPayload() {
       throw new Error(t("errorDiscoverCustomBothRequired"));
     }
     return {
+      time_trigger: "custom_range",
       published_after: new Date(parsed.afterMs).toISOString(),
       published_before: new Date(parsed.beforeExclusiveMs).toISOString(),
     };
@@ -195,6 +196,7 @@ function discoverPublishWindowPayload() {
   const afterMs = todayStartMs - (calendarDaysInclusive - 1) * DAY_MS;
   const beforeExclusiveMs = todayStartMs + DAY_MS;
   return {
+    time_trigger: `manual_last_${preset}`,
     published_after: new Date(afterMs).toISOString(),
     published_before: new Date(beforeExclusiveMs).toISOString(),
   };
@@ -568,7 +570,7 @@ export function createQueueController({
       method: "POST",
       body: JSON.stringify({
         monitor_profile_id: state.selectedProfileId,
-        max_results: 20,
+        max_results: 50,
         ...discoverPublishWindowPayload(),
       }),
     });

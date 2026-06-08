@@ -101,7 +101,7 @@ function videoAnalysisStatusMarkup(analysis, analysisLanguage) {
         <strong>${escapeHtml(analysisStatusLabel(analysis))}</strong>
       </span>
       <span class="reach-metric">
-        <span class="reach-label">${escapeHtml(t("languageSettings"))}</span>
+        <span class="reach-label">${escapeHtml(t("analysisLanguage"))}</span>
         <strong>${escapeHtml(analysisLanguageLabel(analysisLanguage))}</strong>
       </span>
     </div>

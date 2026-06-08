@@ -618,16 +618,25 @@ def test_discover_rejects_invalid_publish_window(client, api_monitor_profile):
     assert response.status_code == 422
 
 
-def test_discover_forwards_publish_window_to_service(client, api_monitor_profile, monkeypatch):
+def test_discover_forwards_publish_window_and_time_trigger_to_service(client, api_monitor_profile, monkeypatch):
     calls = []
 
-    def fake_discover(self, *, monitor_profile_id, max_results, published_after=None, published_before=None):
+    def fake_discover(
+        self,
+        *,
+        monitor_profile_id,
+        max_results,
+        published_after=None,
+        published_before=None,
+        time_trigger=None,
+    ):
         calls.append(
             {
                 "monitor_profile_id": monitor_profile_id,
                 "max_results": max_results,
                 "published_after": published_after,
                 "published_before": published_before,
+                "time_trigger": time_trigger,
             }
         )
         return []
@@ -639,11 +648,13 @@ def test_discover_forwards_publish_window_to_service(client, api_monitor_profile
         json={
             "monitor_profile_id": api_monitor_profile.id,
             "max_results": 20,
+            "time_trigger": "manual_last_7d",
             "published_after": "2026-01-01T00:00:00Z",
             "published_before": "2026-06-01T00:00:00Z",
         },
     )
     assert response.status_code == 200
+    assert calls[0]["time_trigger"] == "manual_last_7d"
     assert calls[0]["published_after"] == datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     assert calls[0]["published_before"] == datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc)
 

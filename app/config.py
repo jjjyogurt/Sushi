@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     youtube_transcript_timeout_seconds: float = Field(default=30.0, alias="YOUTUBE_TRANSCRIPT_TIMEOUT_SECONDS")
     youtube_transcript_max_retries: int = Field(default=1, alias="YOUTUBE_TRANSCRIPT_MAX_RETRIES")
     youtube_data_api_key: str = Field(default="", alias="YOUTUBE_DATA_API_KEY")
+    serpapi_api_key: str = Field(default="", alias="SERPAPI_API_KEY")
+    serpapi_timeout_seconds: float = Field(default=20.0, alias="SERPAPI_TIMEOUT_SECONDS")
     youtube_comments_timeout_seconds: float = Field(default=30.0, alias="YOUTUBE_COMMENTS_TIMEOUT_SECONDS")
     youtube_comments_max_retries: int = Field(default=2, alias="YOUTUBE_COMMENTS_MAX_RETRIES")
     youtube_comments_page_size: int = Field(default=100, alias="YOUTUBE_COMMENTS_PAGE_SIZE")
@@ -80,4 +82,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

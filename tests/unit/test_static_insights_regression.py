@@ -132,7 +132,8 @@ def test_video_detail_status_uses_metric_label_treatment():
 
     assert "function videoAnalysisStatusMarkup(analysis, analysisLanguage)" in source
     assert '<span class="reach-label">${escapeHtml(t("analysisStatus"))}</span>' in source
-    assert '<span class="reach-label">${escapeHtml(t("languageSettings"))}</span>' in source
+    assert '<span class="reach-label">${escapeHtml(t("analysisLanguage"))}</span>' in source
+    assert '<span class="reach-label">${escapeHtml(t("languageSettings"))}</span>' not in source
     assert "${videoAnalysisStatusMarkup(analysis, analysisLanguage)}" in source
     assert ".analysis-status {" in styles
     assert "display: flex;" in styles
@@ -166,6 +167,17 @@ def test_video_list_row_uses_essential_strip_metadata():
     assert '`${escapeHtml(t("videoViews"))}: ${escapeHtml(formatVideoViews(video.view_count))}`' in render_source
     assert "font-size: 0.68rem;" in meta_source
     assert "color: var(--text-muted);" in meta_source
+
+
+def test_discover_videos_requests_fifty_candidates():
+    source = (ROOT / "app/static/queue.js").read_text()
+
+    discover_start = source.index("async function discoverVideos")
+    discover_end = source.index("function bindDiscoverVideoButton", discover_start)
+    discover_source = source[discover_start:discover_end]
+
+    assert "max_results: 50" in discover_source
+    assert "max_results: 20" not in discover_source
 
 
 def test_analysis_language_toggle_uses_compact_segmented_control():

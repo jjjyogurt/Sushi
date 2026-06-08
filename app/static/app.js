@@ -678,10 +678,10 @@ async function discoverVideos() {
   }
   await request("/videos/discover", {
     method: "POST",
-    body: JSON.stringify({
-      monitor_profile_id: state.selectedProfileId,
-      max_results: 20,
-    }),
+      body: JSON.stringify({
+        monitor_profile_id: state.selectedProfileId,
+        max_results: 50,
+      }),
   });
   analysisCache = {};
   chatCache = {};

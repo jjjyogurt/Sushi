@@ -26,6 +26,8 @@ from app.utils.youtube import extract_video_id, fetch_oembed_metadata
 logger = logging.getLogger(__name__)
 
 VIEW_COUNT_STALE_AFTER = timedelta(hours=24)
+CJK_LANGUAGE_CODES = {"ja", "ko", "zh", "zh-hans", "zh-hant"}
+CJK_TEXT_PATTERN = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uac00-\ud7af]")
 
 
 class TriageService:
@@ -58,14 +60,14 @@ class TriageService:
     def _contains_non_ascii(value: str) -> bool:
         return any(ord(character) > 127 for character in str(value or ""))
 
-    def _keyword_matches_title(self, *, normalized_title: str, keyword: str) -> bool:
+    def _keyword_matches_text(self, *, normalized_text: str, keyword: str) -> bool:
         normalized_keyword = self._normalize_search_text(keyword)
         if not normalized_keyword:
             return False
         if self._contains_non_ascii(normalized_keyword):
-            return normalized_keyword in normalized_title
+            return normalized_keyword in normalized_text
         pattern = r"\b" + r"\s+".join(re.escape(token) for token in normalized_keyword.split(" ")) + r"\b"
-        return re.search(pattern, normalized_title) is not None
+        return re.search(pattern, normalized_text) is not None
 
     @staticmethod
     def _keyword_variants(keyword: str) -> List[str]:
@@ -89,15 +91,14 @@ class TriageService:
 
         return list(dict.fromkeys(item for item in variants if item))
 
-    def _title_matches_keywords(
+    def _text_matches_keywords(
         self,
         *,
-        title: str,
+        text: str,
         keywords: List[str],
-        required_keywords: Optional[List[str]] = None,
     ) -> bool:
-        normalized_title = self._normalize_search_text(title)
-        if not normalized_title:
+        normalized_text = self._normalize_search_text(text)
+        if not normalized_text:
             return False
 
         keyword_variants = [
@@ -108,24 +109,34 @@ class TriageService:
         if not keyword_variants:
             return True
 
-        has_keyword_match = any(
-            self._keyword_matches_title(normalized_title=normalized_title, keyword=keyword)
+        return any(
+            self._keyword_matches_text(normalized_text=normalized_text, keyword=keyword)
             for keyword in keyword_variants
         )
-        if not has_keyword_match:
-            return False
 
-        required_variants = [
-            variant
-            for keyword in (required_keywords or [])
-            for variant in self._keyword_variants(keyword)
-        ]
-        if not required_variants:
-            return True
-        return any(
-            self._keyword_matches_title(normalized_title=normalized_title, keyword=keyword)
-            for keyword in required_variants
+    def _candidate_matches_keywords(self, *, item: DiscoveredVideo, keywords: List[str]) -> bool:
+        return self._text_matches_keywords(
+            text=item.title,
+            keywords=keywords,
+        ) or self._text_matches_keywords(
+            text=item.description,
+            keywords=keywords,
         )
+
+    @staticmethod
+    def _allows_cjk_language(languages: List[str]) -> bool:
+        normalized_languages = {
+            YouTubeDiscoveryService._normalize_language_code(str(language or ""))
+            for language in languages
+            if str(language or "").strip()
+        }
+        return any(language in CJK_LANGUAGE_CODES for language in normalized_languages)
+
+    def _candidate_matches_language_guard(self, *, item: DiscoveredVideo, languages: List[str]) -> bool:
+        if self._allows_cjk_language(languages):
+            return True
+        searchable_text = f"{item.title or ''} {item.channel_name or ''}".strip()
+        return CJK_TEXT_PATTERN.search(searchable_text) is None
 
     def _require_profile(self, monitor_profile_id: int):
         profile = self.monitor_repository.get(monitor_profile_id)
@@ -174,16 +185,17 @@ class TriageService:
         max_results: int,
         published_after: Optional[datetime] = None,
         published_before: Optional[datetime] = None,
+        time_trigger: Optional[str] = None,
     ):
+        normalized_time_trigger = str(time_trigger or "manual_unspecified").strip() or "manual_unspecified"
         logger.info(
-            "DISCOVERY START: profile_id=%s max_results=%d mock=%s",
-            monitor_profile_id, max_results, self.settings.enable_mock_discovery
+            "DISCOVERY START: profile_id=%s max_results=%d mock=%s time_trigger=%s",
+            monitor_profile_id, max_results, self.settings.enable_mock_discovery, normalized_time_trigger
         )
 
         profile = self._require_profile(monitor_profile_id)
 
         keywords = self._monitoring_keywords(profile)
-        required_product_keywords = self.monitor_repository.unpack_key_products(profile)
         languages = self.monitor_repository.unpack_languages(profile)
         markets = self.monitor_repository.unpack_markets(profile)
 
@@ -203,6 +215,7 @@ class TriageService:
             logger.info("DISCOVERY: building query plan with Gemini/keyword fallback")
             plan = self.discovery_keyword_service.build_plan(keywords=keywords, languages=languages, markets=markets)
             expanded_keywords = list(dict.fromkeys([*plan.match_keywords, *keywords]))
+            query_count = len(plan.query_specs)
             logger.info(
                 "DISCOVERY PLAN: query_specs=%d match_keywords=%d",
                 len(plan.query_specs), len(plan.match_keywords)
@@ -215,8 +228,11 @@ class TriageService:
                 published_after=published_after,
                 published_before=published_before,
             )
+        if self.settings.enable_mock_discovery:
+            query_count = 0
 
         logger.info("DISCOVERY RAW RESULTS: %d videos from search", len(discovered))
+        raw_count = len(discovered)
 
         discovered = filter_discovered_videos_by_publish_window(
             discovered,
@@ -224,27 +240,37 @@ class TriageService:
             published_before=published_before,
         )
         logger.info("DISCOVERY AFTER WINDOW FILTER: %d videos", len(discovered))
+        window_filtered_count = raw_count - len(discovered)
 
         filtered_discovered = [
             item
             for item in discovered
-            if self._title_matches_keywords(
-                title=item.title,
+            if self._candidate_matches_keywords(
+                item=item,
                 keywords=expanded_keywords,
-                required_keywords=required_product_keywords,
+            )
+            and self._candidate_matches_language_guard(
+                item=item,
+                languages=languages,
             )
         ]
+        relevance_filtered_count = len(discovered) - len(filtered_discovered)
         logger.info(
-            "DISCOVERY AFTER TITLE FILTER: %d videos (filtered out %d)",
-            len(filtered_discovered), len(discovered) - len(filtered_discovered)
+            "DISCOVERY AFTER RELEVANCE FILTER: %d videos (filtered out %d)",
+            len(filtered_discovered), relevance_filtered_count
         )
 
         persisted = []
+        duplicate_or_updated_count = 0
         for item in filtered_discovered:
             relevance_score, relevance_reason = self.relevance_service.score(
                 title=item.title,
                 description=item.description,
                 keywords=expanded_keywords,
+            )
+            existing = self.video_repository.get_by_youtube_id(
+                item.youtube_video_id,
+                monitor_profile_id=monitor_profile_id,
             )
             candidate = self._upsert_owned_video(
                 monitor_profile_id=monitor_profile_id,
@@ -255,22 +281,42 @@ class TriageService:
             )
             if candidate is not None:
                 persisted.append(candidate)
+                if existing is not None:
+                    duplicate_or_updated_count += 1
                 logger.debug("DISCOVERY PERSISTED: video_id=%s title='%s'", candidate.id, item.title[:50])
             else:
                 logger.debug("DISCOVERY SKIPPED: video already in other project title='%s'", item.title[:50])
 
         logger.info(
             "DISCOVERY COMPLETE: profile_id=%s persisted=%d (was filtered: %d -> %d -> %d)",
-            monitor_profile_id, len(persisted), len(discovered) + (len(discovered) - len(filtered_discovered)),
+            monitor_profile_id, len(persisted), len(discovered) + relevance_filtered_count,
             len(discovered), len(filtered_discovered)
         )
 
+        discovery_stats = self.discovery_service.last_discovery_stats
+        stats_details = " ".join(
+            f"{key}={value}"
+            for key, value in sorted(discovery_stats.items())
+        )
+        audit_details = (
+            f"time_trigger={normalized_time_trigger} "
+            f"published_after={published_after.isoformat() if published_after else 'none'} "
+            f"published_before={published_before.isoformat() if published_before else 'none'} "
+            f"query_count={query_count} "
+            f"raw_count={raw_count} "
+            f"window_filtered_count={window_filtered_count} "
+            f"relevance_filtered_count={relevance_filtered_count} "
+            f"saved_count={len(persisted)} "
+            f"duplicate_or_updated_count={duplicate_or_updated_count} "
+            f"{stats_details} "
+            "error_count=0"
+        )
         self.audit_repository.record(
             actor="system",
             action="discover_videos",
             resource_type="monitor_profile",
             resource_id=str(monitor_profile_id),
-            details=f"discovered_count={len(persisted)}",
+            details=audit_details,
         )
         return persisted
 

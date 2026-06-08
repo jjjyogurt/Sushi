@@ -23,6 +23,30 @@ def test_fallback_query_specs_japanese_and_german_markets():
     assert all("hoverair" in q.lower() for q, _, _ in specs)
 
 
+def test_fallback_query_specs_preserves_keywords_as_separate_queries():
+    specs = YouTubeDiscoveryService._fallback_query_specs(
+        keywords=["HoverAir", "X1 Pro Max"],
+        languages=["en"],
+        markets=["US"],
+    )
+    queries = [q.lower() for q, _lang, _region in specs]
+    assert "hoverair" in queries
+    assert "x1 pro max" in queries
+    assert "hoverair x1 pro max" not in queries
+
+
+def test_normalized_languages_prioritizes_non_english_before_english_fallback():
+    assert YouTubeDiscoveryService._normalized_languages(["en", "de"]) == ["de", "en"]
+
+
+def test_normalized_languages_caps_to_two_non_english_plus_english_fallback():
+    assert YouTubeDiscoveryService._normalized_languages(["de", "fr", "en", "ja", "es"]) == ["de", "fr", "en"]
+
+
+def test_normalized_languages_caps_to_first_three_when_english_absent():
+    assert YouTubeDiscoveryService._normalized_languages(["de", "fr", "ja", "es"]) == ["de", "fr", "ja"]
+
+
 def test_discover_live_with_specs_youtube_data_api_japanese(monkeypatch):
     requests_seen = []
 
@@ -193,9 +217,253 @@ def test_discover_live_with_specs_passes_publish_window_to_data_api(monkeypatch)
     service.settings.youtube_data_api_key = original_api_key
 
     assert any(
-        params.get("publishedAfter") == "2026-01-01T00:00:00Z" and params.get("publishedBefore") == "2026-12-31T00:00:00Z"
+        params.get("order") == "date"
+        and params.get("publishedAfter") == "2026-01-01T00:00:00Z"
+        and params.get("publishedBefore") == "2026-12-31T00:00:00Z"
         for _url, params in requests_seen
     )
+
+
+def test_discover_live_with_specs_requests_full_origin_limit_per_query(monkeypatch):
+    requests_seen = []
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"items": []}
+
+    def fake_get(url, params=None, timeout=None):
+        _ = timeout
+        requests_seen.append((url, dict(params or {})))
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.youtube_discovery_service.httpx.get", fake_get)
+    service = YouTubeDiscoveryService()
+    original_api_key = service.settings.youtube_data_api_key
+    service.settings.youtube_data_api_key = "fake-key"
+    service.discover_live_with_specs(
+        query_specs=[
+            ("HOVERAIR X1 PRO/PROMAX", "en", "DE"),
+            ("HOVERAIR X1 PRO/PROMAX", "de", "DE"),
+        ],
+        max_results=50,
+    )
+    service.settings.youtube_data_api_key = original_api_key
+
+    assert len(requests_seen) == 2
+    assert all(params.get("maxResults") == 50 for _url, params in requests_seen)
+
+
+def test_discover_live_with_specs_caps_origin_limit_at_youtube_api_max(monkeypatch):
+    requests_seen = []
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"items": []}
+
+    def fake_get(url, params=None, timeout=None):
+        _ = timeout
+        requests_seen.append((url, dict(params or {})))
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.youtube_discovery_service.httpx.get", fake_get)
+    service = YouTubeDiscoveryService()
+    original_api_key = service.settings.youtube_data_api_key
+    service.settings.youtube_data_api_key = "fake-key"
+    service.discover_live_with_specs(
+        query_specs=[("Ferrari Luce", "en", "US")],
+        max_results=100,
+    )
+    service.settings.youtube_data_api_key = original_api_key
+
+    assert len(requests_seen) == 1
+    assert requests_seen[0][1].get("maxResults") == 50
+
+
+def test_discover_live_with_specs_uses_serpapi_primary_with_data_api_enrichment(monkeypatch):
+    serpapi_requests = []
+    youtube_requests = []
+
+    class SerpApiResponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {
+                "video_results": [
+                    {
+                        "video_id": "serp-video",
+                        "link": "https://www.youtube.com/watch?v=serp-video",
+                    }
+                ]
+            }
+
+    class YouTubeResponse:
+        status_code = 200
+        text = ""
+
+        def __init__(self, payload):
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    def fake_get(url, params=None, timeout=None):
+        _ = timeout
+        if "serpapi.com" in url:
+            serpapi_requests.append((url, dict(params or {})))
+            return SerpApiResponse()
+        youtube_requests.append((url, dict(params or {})))
+        if url.endswith("/videos"):
+            return YouTubeResponse(
+                {
+                    "items": [
+                        {
+                            "id": "serp-video",
+                            "snippet": {
+                                "title": "SerpAPI validated HOVERAir result",
+                                "channelTitle": "Market Creator",
+                                "description": "Validated through videos.list",
+                                "publishedAt": "2026-05-28T10:00:00Z",
+                            },
+                        }
+                    ]
+                }
+            )
+        return YouTubeResponse(
+            {
+                "items": [
+                    {
+                        "id": {"videoId": "data-video"},
+                        "snippet": {
+                            "title": "Data API HOVERAir result",
+                            "channelTitle": "Data Creator",
+                            "description": "Supplement result",
+                            "publishedAt": "2026-05-28T09:00:00Z",
+                        },
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("app.services.youtube_discovery_service.httpx.get", fake_get)
+    service = YouTubeDiscoveryService()
+    original_youtube_key = service.settings.youtube_data_api_key
+    original_serpapi_key = service.settings.serpapi_api_key
+    service.settings.youtube_data_api_key = "youtube-key"
+    service.settings.serpapi_api_key = "serp-key"
+    try:
+        discovered = service.discover_live_with_specs(
+            query_specs=[("HOVERAir", "de", "DE")],
+            max_results=10,
+        )
+    finally:
+        service.settings.youtube_data_api_key = original_youtube_key
+        service.settings.serpapi_api_key = original_serpapi_key
+
+    assert [item.youtube_video_id for item in discovered] == ["serp-video", "data-video"]
+    assert discovered[0].title == "SerpAPI validated HOVERAir result"
+    assert serpapi_requests[0][1]["gl"] == "de"
+    assert any(url.endswith("/videos") for url, _params in youtube_requests)
+    assert service.last_discovery_stats["manual_discovery_source_policy"] == "serpapi_primary_data_api_supplement"
+    assert service.last_discovery_stats["serpapi_enriched_count"] == 1
+
+
+def test_discover_live_with_specs_does_not_save_unvalidated_serpapi_ids(monkeypatch):
+    class SerpApiResponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {
+                "video_results": [
+                    {
+                        "video_id": "deleted-video",
+                        "link": "https://www.youtube.com/watch?v=deleted-video",
+                    }
+                ]
+            }
+
+    class YouTubeResponse:
+        status_code = 200
+        text = ""
+
+        def __init__(self, payload):
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    def fake_get(url, **kwargs):
+        if "serpapi.com" in url:
+            return SerpApiResponse()
+        return YouTubeResponse({"items": []})
+
+    monkeypatch.setattr("app.services.youtube_discovery_service.httpx.get", fake_get)
+    service = YouTubeDiscoveryService()
+    original_youtube_key = service.settings.youtube_data_api_key
+    original_serpapi_key = service.settings.serpapi_api_key
+    service.settings.youtube_data_api_key = "youtube-key"
+    service.settings.serpapi_api_key = "serp-key"
+    try:
+        discovered = service.discover_live_with_specs(
+            query_specs=[("HOVERAir", "de", "DE")],
+            max_results=10,
+        )
+    finally:
+        service.settings.youtube_data_api_key = original_youtube_key
+        service.settings.serpapi_api_key = original_serpapi_key
+
+    assert discovered == []
+    assert service.last_discovery_stats["serpapi_video_id_count"] == 1
+    assert service.last_discovery_stats["serpapi_enriched_count"] == 0
+
+
+def test_discover_live_with_specs_can_disable_serpapi_for_pulse_path(monkeypatch):
+    serpapi_called = False
+    youtube_requests = []
+
+    def fake_serpapi_get(*args, **kwargs):
+        nonlocal serpapi_called
+        serpapi_called = True
+        raise AssertionError("SerpAPI should not be called")
+
+    class YouTubeResponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"items": []}
+
+    def fake_youtube_get(url, params=None, timeout=None):
+        _ = timeout
+        youtube_requests.append((url, dict(params or {})))
+        return YouTubeResponse()
+
+    monkeypatch.setattr("app.services.serpapi_youtube_discovery_service.httpx.get", fake_serpapi_get)
+    monkeypatch.setattr("app.services.youtube_discovery_service.httpx.get", fake_youtube_get)
+    service = YouTubeDiscoveryService()
+    original_youtube_key = service.settings.youtube_data_api_key
+    original_serpapi_key = service.settings.serpapi_api_key
+    service.settings.youtube_data_api_key = "youtube-key"
+    service.settings.serpapi_api_key = "serp-key"
+    try:
+        discovered = service.discover_live_with_specs(
+            query_specs=[("HOVERAir", "de", "DE")],
+            max_results=10,
+            include_serpapi=False,
+        )
+    finally:
+        service.settings.youtube_data_api_key = original_youtube_key
+        service.settings.serpapi_api_key = original_serpapi_key
+
+    assert discovered == []
+    assert serpapi_called is False
+    assert len(youtube_requests) == 1
+    assert service.last_discovery_stats["manual_discovery_source_policy"] == "youtube_data_api_only"
 
 
 def test_discover_live_yt_dlp_filters_by_publish_window(monkeypatch):
